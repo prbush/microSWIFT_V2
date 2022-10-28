@@ -43,9 +43,9 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
-UART_HandleTypeDef huart1;
-UART_HandleTypeDef huart2;
-UART_HandleTypeDef huart6;
+UART_HandleTypeDef CT_Uart_handle;
+UART_HandleTypeDef Iridium_Uart_handle;
+UART_HandleTypeDef GPS_Uart_handle;
 
 WWDG_HandleTypeDef hwwdg;
 
@@ -335,15 +335,15 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 1 */
 
   /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 9600;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
+  CT_Uart_handle.Instance = USART1;
+  CT_Uart_handle.Init.BaudRate = 9600;
+  CT_Uart_handle.Init.WordLength = UART_WORDLENGTH_8B;
+  CT_Uart_handle.Init.StopBits = UART_STOPBITS_1;
+  CT_Uart_handle.Init.Parity = UART_PARITY_NONE;
+  CT_Uart_handle.Init.Mode = UART_MODE_TX_RX;
+  CT_Uart_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  CT_Uart_handle.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&CT_Uart_handle) != HAL_OK)
   {
     Error_Handler();
   }
@@ -368,15 +368,15 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 1 */
 
   /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 19200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
+  Iridium_Uart_handle.Instance = USART2;
+  Iridium_Uart_handle.Init.BaudRate = 19200;
+  Iridium_Uart_handle.Init.WordLength = UART_WORDLENGTH_8B;
+  Iridium_Uart_handle.Init.StopBits = UART_STOPBITS_1;
+  Iridium_Uart_handle.Init.Parity = UART_PARITY_NONE;
+  Iridium_Uart_handle.Init.Mode = UART_MODE_TX_RX;
+  Iridium_Uart_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  Iridium_Uart_handle.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&Iridium_Uart_handle) != HAL_OK)
   {
     Error_Handler();
   }
@@ -401,15 +401,15 @@ static void MX_USART6_UART_Init(void)
   /* USER CODE BEGIN USART6_Init 1 */
 
   /* USER CODE END USART6_Init 1 */
-  huart6.Instance = USART6;
-  huart6.Init.BaudRate = 9600;
-  huart6.Init.WordLength = UART_WORDLENGTH_8B;
-  huart6.Init.StopBits = UART_STOPBITS_1;
-  huart6.Init.Parity = UART_PARITY_NONE;
-  huart6.Init.Mode = UART_MODE_TX_RX;
-  huart6.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart6.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart6) != HAL_OK)
+  GPS_Uart_handle.Instance = USART6;
+  GPS_Uart_handle.Init.BaudRate = 9600;
+  GPS_Uart_handle.Init.WordLength = UART_WORDLENGTH_8B;
+  GPS_Uart_handle.Init.StopBits = UART_STOPBITS_1;
+  GPS_Uart_handle.Init.Parity = UART_PARITY_NONE;
+  GPS_Uart_handle.Init.Mode = UART_MODE_TX_RX;
+  GPS_Uart_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  GPS_Uart_handle.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&GPS_Uart_handle) != HAL_OK)
   {
     Error_Handler();
   }

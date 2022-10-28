@@ -16,3 +16,7 @@ GPS::~GPS() {
 	// TODO Auto-generated destructor stub
 }
 
+bool GPS::init(void) {
+
+}
+

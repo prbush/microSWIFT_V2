@@ -12,6 +12,10 @@ class GPS {
 public:
 	GPS();
 	virtual ~GPS();
+	bool init(void);
+
+private:
+
 };
 
 #endif /* SRC_GPS_H_ */
