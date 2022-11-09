@@ -5,7 +5,7 @@
  *      Author: Phil
  */
 
-#include "Battery.h"
+#include <battery.h>
 
 Battery::Battery() {
 	// TODO Auto-generated constructor stub

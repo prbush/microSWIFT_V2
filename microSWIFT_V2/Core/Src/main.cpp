@@ -43,11 +43,10 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
-UART_HandleTypeDef CT_Uart_handle;
-UART_HandleTypeDef Iridium_Uart_handle;
-UART_HandleTypeDef GPS_Uart_handle;
+RTC_HandleTypeDef hrtc;
 
-WWDG_HandleTypeDef hwwdg;
+UART_HandleTypeDef huart2;
+UART_HandleTypeDef huart6;
 
 /* Definitions for GPS_Task */
 osThreadId_t GPS_TaskHandle;
@@ -114,9 +113,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
-static void MX_USART1_UART_Init(void);
+static void MX_RTC_Init(void);
 static void MX_USART6_UART_Init(void);
-static void MX_WWDG_Init(void);
 void GPS_Start(void *argument);
 void IMU_Start(void *argument);
 void GPSWaves_Start(void *argument);
@@ -165,10 +163,9 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
-  MX_USART1_UART_Init();
-  MX_USART6_UART_Init();
-  MX_WWDG_Init();
   MX_FATFS_Init();
+  MX_RTC_Init();
+  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -236,6 +233,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+//	    uint8_t Test[] = "Hello World !!!\r\n"; //Data to send
+//	    HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
+//	    HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -257,9 +257,10 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 16;
@@ -321,35 +322,37 @@ static void MX_I2C1_Init(void)
 }
 
 /**
-  * @brief USART1 Initialization Function
+  * @brief RTC Initialization Function
   * @param None
   * @retval None
   */
-static void MX_USART1_UART_Init(void)
+static void MX_RTC_Init(void)
 {
 
-  /* USER CODE BEGIN USART1_Init 0 */
+  /* USER CODE BEGIN RTC_Init 0 */
 
-  /* USER CODE END USART1_Init 0 */
+  /* USER CODE END RTC_Init 0 */
 
-  /* USER CODE BEGIN USART1_Init 1 */
+  /* USER CODE BEGIN RTC_Init 1 */
 
-  /* USER CODE END USART1_Init 1 */
-  CT_Uart_handle.Instance = USART1;
-  CT_Uart_handle.Init.BaudRate = 9600;
-  CT_Uart_handle.Init.WordLength = UART_WORDLENGTH_8B;
-  CT_Uart_handle.Init.StopBits = UART_STOPBITS_1;
-  CT_Uart_handle.Init.Parity = UART_PARITY_NONE;
-  CT_Uart_handle.Init.Mode = UART_MODE_TX_RX;
-  CT_Uart_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  CT_Uart_handle.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&CT_Uart_handle) != HAL_OK)
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART1_Init 2 */
+  /* USER CODE BEGIN RTC_Init 2 */
 
-  /* USER CODE END USART1_Init 2 */
+  /* USER CODE END RTC_Init 2 */
 
 }
 
@@ -368,15 +371,15 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 1 */
 
   /* USER CODE END USART2_Init 1 */
-  Iridium_Uart_handle.Instance = USART2;
-  Iridium_Uart_handle.Init.BaudRate = 19200;
-  Iridium_Uart_handle.Init.WordLength = UART_WORDLENGTH_8B;
-  Iridium_Uart_handle.Init.StopBits = UART_STOPBITS_1;
-  Iridium_Uart_handle.Init.Parity = UART_PARITY_NONE;
-  Iridium_Uart_handle.Init.Mode = UART_MODE_TX_RX;
-  Iridium_Uart_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  Iridium_Uart_handle.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&Iridium_Uart_handle) != HAL_OK)
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -401,51 +404,21 @@ static void MX_USART6_UART_Init(void)
   /* USER CODE BEGIN USART6_Init 1 */
 
   /* USER CODE END USART6_Init 1 */
-  GPS_Uart_handle.Instance = USART6;
-  GPS_Uart_handle.Init.BaudRate = 9600;
-  GPS_Uart_handle.Init.WordLength = UART_WORDLENGTH_8B;
-  GPS_Uart_handle.Init.StopBits = UART_STOPBITS_1;
-  GPS_Uart_handle.Init.Parity = UART_PARITY_NONE;
-  GPS_Uart_handle.Init.Mode = UART_MODE_TX_RX;
-  GPS_Uart_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  GPS_Uart_handle.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&GPS_Uart_handle) != HAL_OK)
+  huart6.Instance = USART6;
+  huart6.Init.BaudRate = 115200;
+  huart6.Init.WordLength = UART_WORDLENGTH_8B;
+  huart6.Init.StopBits = UART_STOPBITS_1;
+  huart6.Init.Parity = UART_PARITY_NONE;
+  huart6.Init.Mode = UART_MODE_TX_RX;
+  huart6.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart6.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart6) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN USART6_Init 2 */
 
   /* USER CODE END USART6_Init 2 */
-
-}
-
-/**
-  * @brief WWDG Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_WWDG_Init(void)
-{
-
-  /* USER CODE BEGIN WWDG_Init 0 */
-
-  /* USER CODE END WWDG_Init 0 */
-
-  /* USER CODE BEGIN WWDG_Init 1 */
-
-  /* USER CODE END WWDG_Init 1 */
-  hwwdg.Instance = WWDG;
-  hwwdg.Init.Prescaler = WWDG_PRESCALER_1;
-  hwwdg.Init.Window = 64;
-  hwwdg.Init.Counter = 64;
-  hwwdg.Init.EWIMode = WWDG_EWI_DISABLE;
-  if (HAL_WWDG_Init(&hwwdg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN WWDG_Init 2 */
-
-  /* USER CODE END WWDG_Init 2 */
 
 }
 
@@ -500,6 +473,31 @@ void GPS_Start(void *argument)
   for(;;)
   {
     osDelay(1);
+    uint8_t messagebuf[320] = {0};
+    char ubx_nav_pvt_message[92] = {0};
+    int32_t messageClass = 0;
+    int32_t messageId = 0;
+    uint16_t numbytesreceived = 0;
+//    HAL_StatusTypeDef ret = HAL_UARTEx_ReceiveToIdle(&huart6, &messagebuf[0], 300, &numbytesreceived, 200);
+    HAL_UART_Receive(&huart6, &messagebuf[0], 160, 200);
+
+    int32_t retval = uUbxProtocolDecode((char*)&messagebuf[0], 192, &messageClass, &messageId, &ubx_nav_pvt_message[0], 92, NULL);
+
+    if (retval == 92) {
+	    int32_t lon = ubx_nav_pvt_message[24] + (ubx_nav_pvt_message[25]<<8) + (ubx_nav_pvt_message[26]<<16) + (ubx_nav_pvt_message[27]<<24);
+	    int32_t lat = ubx_nav_pvt_message[28] + (ubx_nav_pvt_message[29]<<8) + (ubx_nav_pvt_message[30]<<16) + (ubx_nav_pvt_message[31]<<24);
+	    int32_t vnorth = ubx_nav_pvt_message[48] + (ubx_nav_pvt_message[49] << 8) + (ubx_nav_pvt_message[50] << 16) + (ubx_nav_pvt_message[51] << 24);
+	    int32_t veast = ubx_nav_pvt_message[52] + (ubx_nav_pvt_message[53] << 8) + (ubx_nav_pvt_message[54] << 16) + (ubx_nav_pvt_message[55] << 24);
+	    int32_t vdown = ubx_nav_pvt_message[56] + (ubx_nav_pvt_message[57] << 8) + (ubx_nav_pvt_message[58] << 16) + (ubx_nav_pvt_message[59] << 24);
+
+	    char txstr[140] = {0};
+	    snprintf(txstr, 140, "\r\nLatitude: %ld\r\n Longitude: %ld\r\n Velocity North: %ld\r\n Velocity East: %ld\r\n Velocity Down: %ld\r\n", lon, lat, vnorth, veast, vdown);
+	    HAL_UART_Transmit(&huart2,(uint8_t*) txstr, sizeof(txstr), 10);
+    } else {
+    	uint8_t errormsg[] = "didn't grab message\r\n";
+    	HAL_UART_Transmit(&huart2, errormsg, sizeof(errormsg), 10);
+    }
+
   }
   /* USER CODE END 5 */
 }

@@ -5,7 +5,7 @@
  *      Author: Phil
  */
 
-#include "IMU.h"
+#include <imu.h>
 
 IMU::IMU() {
 	// TODO Auto-generated constructor stub

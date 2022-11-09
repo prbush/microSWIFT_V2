@@ -5,7 +5,7 @@
  *      Author: Phil
  */
 
-#include "Log.h"
+#include <log.h>
 
 Log::Log() {
 	// TODO Auto-generated constructor stub
