@@ -1,0 +1,3 @@
+../Core/Src/battery.cpp:10:1:Battery::Battery()	16	static
+../Core/Src/battery.cpp:15:1:Battery::~Battery()	16	static
+../Core/Src/battery.cpp:15:1:virtual Battery::~Battery()	16	static

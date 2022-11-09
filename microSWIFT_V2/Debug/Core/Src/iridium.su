@@ -1,0 +1,3 @@
+../Core/Src/iridium.cpp:10:1:Iridium::Iridium()	16	static
+../Core/Src/iridium.cpp:15:1:Iridium::~Iridium()	16	static
+../Core/Src/iridium.cpp:15:1:virtual Iridium::~Iridium()	16	static
