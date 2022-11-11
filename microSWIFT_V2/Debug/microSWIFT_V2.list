@@ -21,9 +21,9 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, ALLOC, LOAD, DATA
   8 .data         000001f4  20000000  0800a314  00020000  2**2
                   CONTENTS, ALLOC, LOAD, DATA
-  9 .bss          00004bbc  200001f4  0800a508  000201f4  2**2
+  9 .bss          00010fbc  200001f4  0800a508  000201f4  2**2
                   ALLOC
- 10 ._user_heap_stack 00000600  20004db0  0800a508  00024db0  2**0
+ 10 ._user_heap_stack 00000600  200111b0  0800a508  000211b0  2**0
                   ALLOC
  11 .ARM.attributes 00000030  00000000  00000000  000201f4  2**0
                   CONTENTS, READONLY
@@ -35,15 +35,15 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  15 .debug_ranges 00001830  00000000  00000000  00044fd8  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_macro  00009527  00000000  00000000  00046808  2**0
+ 16 .debug_macro  00009601  00000000  00000000  00046808  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   0001f62f  00000000  00000000  0004fd2f  2**0
+ 17 .debug_line   0001f75b  00000000  00000000  0004fe09  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000a4c05  00000000  00000000  0006f35e  2**0
+ 18 .debug_str    000a4c52  00000000  00000000  0006f564  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000050  00000000  00000000  00113f63  2**0
+ 19 .comment      00000050  00000000  00000000  001141b6  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  00007e18  00000000  00000000  00113fb4  2**2
+ 20 .debug_frame  00007e18  00000000  00000000  00114208  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -3343,7 +3343,7 @@ void *_sbrk(ptrdiff_t incr)
  8001af4:	20018000 	.word	0x20018000
  8001af8:	00000400 	.word	0x00000400
  8001afc:	20000374 	.word	0x20000374
- 8001b00:	20004db0 	.word	0x20004db0
+ 8001b00:	200111b0 	.word	0x200111b0
 
 08001b04 <SystemInit>:
   *         configuration.
@@ -3464,7 +3464,7 @@ LoopFillZerobss:
   ldr r2, =_sbss
  8001b70:	200001f4 	.word	0x200001f4
   ldr r4, =_ebss
- 8001b74:	20004db0 	.word	0x20004db0
+ 8001b74:	200111b0 	.word	0x200111b0
 
 08001b78 <ADC_IRQHandler>:
  * @retval None       
@@ -17717,12 +17717,12 @@ void *pvReturn = NULL;
  8006b52:	46bd      	mov	sp, r7
  8006b54:	bd80      	pop	{r7, pc}
  8006b56:	bf00      	nop
- 8006b58:	20004d88 	.word	0x20004d88
- 8006b5c:	20004d9c 	.word	0x20004d9c
- 8006b60:	20004d8c 	.word	0x20004d8c
- 8006b64:	20004d80 	.word	0x20004d80
- 8006b68:	20004d90 	.word	0x20004d90
- 8006b6c:	20004d94 	.word	0x20004d94
+ 8006b58:	20011188 	.word	0x20011188
+ 8006b5c:	2001119c 	.word	0x2001119c
+ 8006b60:	2001118c 	.word	0x2001118c
+ 8006b64:	20011180 	.word	0x20011180
+ 8006b68:	20011190 	.word	0x20011190
+ 8006b6c:	20011194 	.word	0x20011194
 
 08006b70 <vPortFree>:
 /*-----------------------------------------------------------*/
@@ -17853,9 +17853,9 @@ BlockLink_t *pxLink;
  8006c22:	46bd      	mov	sp, r7
  8006c24:	bd80      	pop	{r7, pc}
  8006c26:	bf00      	nop
- 8006c28:	20004d9c 	.word	0x20004d9c
- 8006c2c:	20004d8c 	.word	0x20004d8c
- 8006c30:	20004d98 	.word	0x20004d98
+ 8006c28:	2001119c 	.word	0x2001119c
+ 8006c2c:	2001118c 	.word	0x2001118c
+ 8006c30:	20011198 	.word	0x20011198
 
 08006c34 <prvHeapInit>:
 	/* This just exists to keep the linker quiet. */
@@ -17871,7 +17871,7 @@ BlockLink_t *pxFirstFreeBlock;
 uint8_t *pucAlignedHeap;
 size_t uxAddress;
 size_t xTotalHeapSize = configTOTAL_HEAP_SIZE;
- 8006c3a:	f44f 5370 	mov.w	r3, #15360	; 0x3c00
+ 8006c3a:	f44f 3380 	mov.w	r3, #65536	; 0x10000
  8006c3e:	60bb      	str	r3, [r7, #8]
 
 	/* Ensure the heap starts on a correctly aligned boundary. */
@@ -17989,11 +17989,11 @@ size_t xTotalHeapSize = configTOTAL_HEAP_SIZE;
  8006cda:	f85d 7b04 	ldr.w	r7, [sp], #4
  8006cde:	4770      	bx	lr
  8006ce0:	20001180 	.word	0x20001180
- 8006ce4:	20004d80 	.word	0x20004d80
- 8006ce8:	20004d88 	.word	0x20004d88
- 8006cec:	20004d90 	.word	0x20004d90
- 8006cf0:	20004d8c 	.word	0x20004d8c
- 8006cf4:	20004d9c 	.word	0x20004d9c
+ 8006ce4:	20011180 	.word	0x20011180
+ 8006ce8:	20011188 	.word	0x20011188
+ 8006cec:	20011190 	.word	0x20011190
+ 8006cf0:	2001118c 	.word	0x2001118c
+ 8006cf4:	2001119c 	.word	0x2001119c
 
 08006cf8 <prvInsertBlockIntoFreeList>:
 /*-----------------------------------------------------------*/
@@ -18137,8 +18137,8 @@ uint8_t *puc;
  8006d9c:	f85d 7b04 	ldr.w	r7, [sp], #4
  8006da0:	4770      	bx	lr
  8006da2:	bf00      	nop
- 8006da4:	20004d80 	.word	0x20004d80
- 8006da8:	20004d88 	.word	0x20004d88
+ 8006da4:	20011180 	.word	0x20011180
+ 8006da8:	20011188 	.word	0x20011188
 
 08006dac <__errno>:
  8006dac:	4b01      	ldr	r3, [pc, #4]	; (8006db4 <__errno+0x8>)
@@ -18207,25 +18207,25 @@ uint8_t *puc;
  8006e38:	4801      	ldr	r0, [pc, #4]	; (8006e40 <__sfp_lock_acquire+0x8>)
  8006e3a:	f000 b8d8 	b.w	8006fee <__retarget_lock_acquire_recursive>
  8006e3e:	bf00      	nop
- 8006e40:	20004da1 	.word	0x20004da1
+ 8006e40:	200111a1 	.word	0x200111a1
 
 08006e44 <__sfp_lock_release>:
  8006e44:	4801      	ldr	r0, [pc, #4]	; (8006e4c <__sfp_lock_release+0x8>)
  8006e46:	f000 b8d3 	b.w	8006ff0 <__retarget_lock_release_recursive>
  8006e4a:	bf00      	nop
- 8006e4c:	20004da1 	.word	0x20004da1
+ 8006e4c:	200111a1 	.word	0x200111a1
 
 08006e50 <__sinit_lock_acquire>:
  8006e50:	4801      	ldr	r0, [pc, #4]	; (8006e58 <__sinit_lock_acquire+0x8>)
  8006e52:	f000 b8cc 	b.w	8006fee <__retarget_lock_acquire_recursive>
  8006e56:	bf00      	nop
- 8006e58:	20004da2 	.word	0x20004da2
+ 8006e58:	200111a2 	.word	0x200111a2
 
 08006e5c <__sinit_lock_release>:
  8006e5c:	4801      	ldr	r0, [pc, #4]	; (8006e64 <__sinit_lock_release+0x8>)
  8006e5e:	f000 b8c7 	b.w	8006ff0 <__retarget_lock_release_recursive>
  8006e62:	bf00      	nop
- 8006e64:	20004da2 	.word	0x20004da2
+ 8006e64:	200111a2 	.word	0x200111a2
 
 08006e68 <__sinit>:
  8006e68:	b510      	push	{r4, lr}
@@ -18497,7 +18497,7 @@ uint8_t *puc;
  80070be:	e7ca      	b.n	8007056 <_free_r+0x26>
  80070c0:	b003      	add	sp, #12
  80070c2:	bd30      	pop	{r4, r5, pc}
- 80070c4:	20004da4 	.word	0x20004da4
+ 80070c4:	200111a4 	.word	0x200111a4
 
 080070c8 <sbrk_aligned>:
  80070c8:	b570      	push	{r4, r5, r6, lr}
@@ -18525,7 +18525,7 @@ uint8_t *puc;
  80070fc:	f04f 34ff 	mov.w	r4, #4294967295
  8007100:	4620      	mov	r0, r4
  8007102:	bd70      	pop	{r4, r5, r6, pc}
- 8007104:	20004da8 	.word	0x20004da8
+ 8007104:	200111a8 	.word	0x200111a8
 
 08007108 <_malloc_r>:
  8007108:	e92d 41f0 	stmdb	sp!, {r4, r5, r6, r7, r8, lr}
@@ -18629,7 +18629,7 @@ uint8_t *puc;
  80071e6:	6025      	str	r5, [r4, #0]
  80071e8:	e7de      	b.n	80071a8 <_malloc_r+0xa0>
  80071ea:	bf00      	nop
- 80071ec:	20004da4 	.word	0x20004da4
+ 80071ec:	200111a4 	.word	0x200111a4
 
 080071f0 <__cvt>:
  80071f0:	e92d 47ff 	stmdb	sp!, {r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, sl, lr}
@@ -19663,7 +19663,7 @@ uint8_t *puc;
  8007bae:	b103      	cbz	r3, 8007bb2 <_sbrk_r+0x1a>
  8007bb0:	6023      	str	r3, [r4, #0]
  8007bb2:	bd38      	pop	{r3, r4, r5, pc}
- 8007bb4:	20004dac 	.word	0x20004dac
+ 8007bb4:	200111ac 	.word	0x200111ac
 
 08007bb8 <sniprintf>:
  8007bb8:	b40c      	push	{r2, r3}
@@ -19786,7 +19786,7 @@ uint8_t *puc;
  8007cc2:	b103      	cbz	r3, 8007cc6 <_write_r+0x1e>
  8007cc4:	6023      	str	r3, [r4, #0]
  8007cc6:	bd38      	pop	{r3, r4, r5, pc}
- 8007cc8:	20004dac 	.word	0x20004dac
+ 8007cc8:	200111ac 	.word	0x200111ac
 
 08007ccc <_close_r>:
  8007ccc:	b538      	push	{r3, r4, r5, lr}
@@ -19802,7 +19802,7 @@ uint8_t *puc;
  8007ce2:	b103      	cbz	r3, 8007ce6 <_close_r+0x1a>
  8007ce4:	6023      	str	r3, [r4, #0]
  8007ce6:	bd38      	pop	{r3, r4, r5, pc}
- 8007ce8:	20004dac 	.word	0x20004dac
+ 8007ce8:	200111ac 	.word	0x200111ac
 
 08007cec <quorem>:
  8007cec:	e92d 4ff7 	stmdb	sp!, {r0, r1, r2, r4, r5, r6, r7, r8, r9, sl, fp, lr}
@@ -21313,19 +21313,19 @@ uint8_t *puc;
  8008b8a:	b103      	cbz	r3, 8008b8e <_lseek_r+0x1e>
  8008b8c:	6023      	str	r3, [r4, #0]
  8008b8e:	bd38      	pop	{r3, r4, r5, pc}
- 8008b90:	20004dac 	.word	0x20004dac
+ 8008b90:	200111ac 	.word	0x200111ac
 
 08008b94 <__malloc_lock>:
  8008b94:	4801      	ldr	r0, [pc, #4]	; (8008b9c <__malloc_lock+0x8>)
  8008b96:	f7fe ba2a 	b.w	8006fee <__retarget_lock_acquire_recursive>
  8008b9a:	bf00      	nop
- 8008b9c:	20004da0 	.word	0x20004da0
+ 8008b9c:	200111a0 	.word	0x200111a0
 
 08008ba0 <__malloc_unlock>:
  8008ba0:	4801      	ldr	r0, [pc, #4]	; (8008ba8 <__malloc_unlock+0x8>)
  8008ba2:	f7fe ba25 	b.w	8006ff0 <__retarget_lock_release_recursive>
  8008ba6:	bf00      	nop
- 8008ba8:	20004da0 	.word	0x20004da0
+ 8008ba8:	200111a0 	.word	0x200111a0
 
 08008bac <_Balloc>:
  8008bac:	b570      	push	{r4, r5, r6, lr}
@@ -22351,7 +22351,7 @@ uint8_t *puc;
  80095b2:	b103      	cbz	r3, 80095b6 <_read_r+0x1e>
  80095b4:	6023      	str	r3, [r4, #0]
  80095b6:	bd38      	pop	{r3, r4, r5, pc}
- 80095b8:	20004dac 	.word	0x20004dac
+ 80095b8:	200111ac 	.word	0x200111ac
 
 080095bc <__assert_func>:
  80095bc:	b51f      	push	{r0, r1, r2, r3, r4, lr}
@@ -23112,7 +23112,7 @@ uint8_t *puc;
  8009c82:	6023      	str	r3, [r4, #0]
  8009c84:	bd38      	pop	{r3, r4, r5, pc}
  8009c86:	bf00      	nop
- 8009c88:	20004dac 	.word	0x20004dac
+ 8009c88:	200111ac 	.word	0x200111ac
 
 08009c8c <_getpid_r>:
  8009c8c:	f7f7 be74 	b.w	8001978 <_getpid>
@@ -23133,7 +23133,7 @@ uint8_t *puc;
  8009caa:	6023      	str	r3, [r4, #0]
  8009cac:	bd38      	pop	{r3, r4, r5, pc}
  8009cae:	bf00      	nop
- 8009cb0:	20004dac 	.word	0x20004dac
+ 8009cb0:	200111ac 	.word	0x200111ac
 
 08009cb4 <_isatty_r>:
  8009cb4:	b538      	push	{r3, r4, r5, lr}
@@ -23149,7 +23149,7 @@ uint8_t *puc;
  8009cca:	b103      	cbz	r3, 8009cce <_isatty_r+0x1a>
  8009ccc:	6023      	str	r3, [r4, #0]
  8009cce:	bd38      	pop	{r3, r4, r5, pc}
- 8009cd0:	20004dac 	.word	0x20004dac
+ 8009cd0:	200111ac 	.word	0x200111ac
 
 08009cd4 <_init>:
  8009cd4:	b5f8      	push	{r3, r4, r5, r6, r7, lr}

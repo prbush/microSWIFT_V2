@@ -16,6 +16,7 @@
 #ifndef SRC_GPS_H_
 #define SRC_GPS_H_
 #include <stdint.h>
+#include <string.h>
 #include "stm32f4xx_hal.h"
 #include "stdio.h"
 #include "stdbool.h"
@@ -30,6 +31,7 @@
 #define MAX_ACCEPTABLE_TACC 50
 #define MAX_ACCEPTABLE_VACC 50 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
+#define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 
 // Error/ success codes
 #define GPS_SUCCESS 0
@@ -53,7 +55,7 @@ public:
 	int32_t getLocation(int32_t& latitude, int32_t& longitude);
 //	int32_t getVelocity(int32_t* north, int32_t* east, int32_t* down, uint32_t* spdAccuracy, int32_t* gndSpeed);
 	int32_t processMessage(void);
-	int32_t getRunningAverage(float* velocityValue, int32_t whichVelocity);
+	int32_t getRunningAverage(float& returnNorth, float& returnEast, float& returnDown);
 
 	bool sleep(void);
 
@@ -77,7 +79,7 @@ private:
 	uint16_t numberCyclesWithoutData = 0;
 
 	// Hold onto the current UBX_NAV_PVT message
-	char UBX_NAV_PVTmessageBuf[92];
+	char UBX_NAV_PVT_message_buf[128];
 
 	// Hold the current lat/long for whatever we might need it for (modem)
 	int32_t currentLatitude = 0;
@@ -87,6 +89,7 @@ private:
 	bool latLongIsValid = false;
 	bool velocityIsValid = false;
 	bool clockHasBeenSet = false;
+	bool validMessageProcessed = false;
 
 	UART_HandleTypeDef* gps_uart_handle;
 };
