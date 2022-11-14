@@ -16,30 +16,25 @@
 #ifndef SRC_GPS_H_
 #define SRC_GPS_H_
 #include <stdint.h>
+#include <string.h>
 #include "stm32f4xx_hal.h"
 #include "stdio.h"
 #include "stdbool.h"
 #include "u_ubx_protocol.h"
 #include "u_error_common.h"
+#include "gps_error_codes.h"
 
 // Macros
 #define MAX_POSSIBLE_VELOCITY 10000
 
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
+#define UBX_NAV_PVT_MESSAGE_LENGTH 92
 #define MAX_ACCEPTABLE_TACC 50
 #define MAX_ACCEPTABLE_VACC 50 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
+#define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 
-// Error/ success codes
-#define GPS_SUCCESS 0
-#define GPS_UNKNOWN_ERROR -1
-#define GPS_LOCATION_INVALID -2
-#define GPS_VELOCITY_INVALID -3
-#define GPS_NO_SAMPLES_ERROR -4
-#define GPS_TIMEOUT_ERROR -5
-#define GPS_BUSY_ERROR -6
-#define GPS_NO_MESSAGE_RECEIVED -7
 
 #ifdef __cplusplus
 
@@ -48,14 +43,12 @@ class GPS {
 public:
 	GPS(UART_HandleTypeDef* uart_handle);
 	virtual ~GPS();
-	int32_t init(void);
-	int32_t getUBX_NAV_PVT(void);
-	int32_t getLocation(int32_t& latitude, int32_t& longitude);
-//	int32_t getVelocity(int32_t* north, int32_t* east, int32_t* down, uint32_t* spdAccuracy, int32_t* gndSpeed);
-	int32_t processMessage(void);
-	int32_t getRunningAverage(float* velocityValue, int32_t whichVelocity);
+	gps_error_code_t init(void);
+	gps_error_code_t getAndProcessMessage(void);
+	gps_error_code_t getLocation(int32_t& latitude, int32_t& longitude);
+	gps_error_code_t getRunningAverage(float& returnNorth, float& returnEast, float& returnDown);
 
-	bool sleep(void);
+	gps_error_code_t sleep(void);
 
 	// Strictly for testing, remove in production
 	void testFunct(void);
@@ -77,7 +70,7 @@ private:
 	uint16_t numberCyclesWithoutData = 0;
 
 	// Hold onto the current UBX_NAV_PVT message
-	char UBX_NAV_PVTmessageBuf[92];
+	char UBX_NAV_PVT_message_buf[128];
 
 	// Hold the current lat/long for whatever we might need it for (modem)
 	int32_t currentLatitude = 0;
@@ -87,6 +80,7 @@ private:
 	bool latLongIsValid = false;
 	bool velocityIsValid = false;
 	bool clockHasBeenSet = false;
+	bool validMessageProcessed = false;
 
 	UART_HandleTypeDef* gps_uart_handle;
 };
