@@ -52,9 +52,9 @@ gps_error_code_t GPS::getAndProcessMessage(void){
     	// Something went wrong trying to pull from UART buffer
     	++numberCyclesWithoutData;
     	switch(ret){
-			case HAL_BUSY: {return GPS_BUSY_ERROR;}
-			case HAL_TIMEOUT: {return GPS_TIMEOUT_ERROR;}
-			default: {return GPS_UNKNOWN_ERROR;}
+		case HAL_BUSY: {return GPS_BUSY_ERROR;}
+		case HAL_TIMEOUT: {return GPS_TIMEOUT_ERROR;}
+		default: {return GPS_UNKNOWN_ERROR;}
     	}
     }
 	// Start with a fresh buffer all zero'd out
@@ -79,26 +79,28 @@ gps_error_code_t GPS::getAndProcessMessage(void){
     { // start for loop
 
 		if (messageClass != UBX_NAV_PVT_MESSAGE_CLASS ||
-				messageId != UBX_NAV_PVT_MESSAGE_ID) {
-			// Message was not of type UBX_NAV_PVT
+			messageId != UBX_NAV_PVT_MESSAGE_ID ||
+			numBytes != UBX_NAV_PVT_MESSAGE_LENGTH) {
+			// Message was not of type UBX_NAV_PVT or not the right length
 
 			// This will get our pointers pointing to the next message in the
-			// buf, and the for loop will try processing the next message
-			// (if there is one).
+			// buf, and the for loop will try processing the next message if
+			// there is one.
 			bufferLength -= UART_buffer_end - UART_buffer_start;
 			UART_buffer_start = UART_buffer_end;
+			continue;
 		}
+		// If we made it here, we're good to process a message
 
-		if (numBytes == UBX_NAV_PVT_MESSAGE_LENGTH) {
-			// Good to go, process message
-
-			// Start by checking time accuracy and set the clock if needed
+		// Start by setting the clock if needed
+		if (!clockHasBeenSet) {
+			// Grab time accuracy estimate
 			int32_t tAcc = UBX_NAV_PVT_message_buf[12] +
 					(UBX_NAV_PVT_message_buf[13]<<8) +
 					(UBX_NAV_PVT_message_buf[14]<<16) +
 					(UBX_NAV_PVT_message_buf[15]<<24);
 
-			if (tAcc < MAX_ACCEPTABLE_VACC && !clockHasBeenSet) {
+			if (tAcc < MAX_ACCEPTABLE_VACC) {
 				// TODO: Figure this out and then make it a function
 				// set clock
 				uint16_t year = UBX_NAV_PVT_message_buf[4];
@@ -113,83 +115,88 @@ gps_error_code_t GPS::getAndProcessMessage(void){
 				RTC_TimeTypeDef time = {hour, min, sec,
 						(isAM) ?
 						RTC_HOURFORMAT12_AM : RTC_HOURFORMAT12_PM, 0, 0};
+				// Set RTC time
+
+				clockHasBeenSet = true;
 			}
+		}
 
-			// Check Lat/Long accuracy, assign to class fields if good
-			int32_t lon = UBX_NAV_PVT_message_buf[24] +
-					(UBX_NAV_PVT_message_buf[25]<<8) +
-					(UBX_NAV_PVT_message_buf[26]<<16) +
-					(UBX_NAV_PVT_message_buf[27]<<24);
-			int32_t lat = UBX_NAV_PVT_message_buf[28] +
-					(UBX_NAV_PVT_message_buf[29]<<8) +
-					(UBX_NAV_PVT_message_buf[30]<<16) +
-					(UBX_NAV_PVT_message_buf[31]<<24);
-			int16_t pDOP =  UBX_NAV_PVT_message_buf[76] +
-					(UBX_NAV_PVT_message_buf[77]<<8);
-			if (pDOP < MAX_ACCEPTABLE_PDOP) {
-				currentLatitude = lat;
-				currentLongitude = lon;
-			}
+		// Check Lat/Long accuracy, assign to class fields if good
+		int32_t lon = UBX_NAV_PVT_message_buf[24] +
+				(UBX_NAV_PVT_message_buf[25]<<8) +
+				(UBX_NAV_PVT_message_buf[26]<<16) +
+				(UBX_NAV_PVT_message_buf[27]<<24);
+		int32_t lat = UBX_NAV_PVT_message_buf[28] +
+				(UBX_NAV_PVT_message_buf[29]<<8) +
+				(UBX_NAV_PVT_message_buf[30]<<16) +
+				(UBX_NAV_PVT_message_buf[31]<<24);
+		int16_t pDOP =  UBX_NAV_PVT_message_buf[76] +
+				(UBX_NAV_PVT_message_buf[77]<<8);
 
-			// Grab velocities
-			int32_t vAcc = UBX_NAV_PVT_message_buf[44] +
-					(UBX_NAV_PVT_message_buf[45] << 8) +
-					(UBX_NAV_PVT_message_buf[46] << 16) +
-					(UBX_NAV_PVT_message_buf[47] << 24);
-			if (vAcc > MAX_ACCEPTABLE_VACC) {
-				// This message was not within acceptable parameters,
-				// but there's probably more in the buffer we can try
-				bufferLength -= UART_buffer_end - UART_buffer_start;
-				UART_buffer_start = UART_buffer_end;
-			} else {
-				// vAcc was within acceptable range, still need to check
-				// individual velocities are less than 10m/s
-				int32_t vnorth = UBX_NAV_PVT_message_buf[48] +
-						(UBX_NAV_PVT_message_buf[49] << 8) +
-						(UBX_NAV_PVT_message_buf[50] << 16) +
-						(UBX_NAV_PVT_message_buf[51] << 24);
-				int32_t veast = UBX_NAV_PVT_message_buf[52] +
-						(UBX_NAV_PVT_message_buf[53] << 8) +
-						(UBX_NAV_PVT_message_buf[54] << 16) +
-						(UBX_NAV_PVT_message_buf[55] << 24);
-				int32_t vdown = UBX_NAV_PVT_message_buf[56] +
-						(UBX_NAV_PVT_message_buf[57] << 8) +
-						(UBX_NAV_PVT_message_buf[58] << 16) +
-						(UBX_NAV_PVT_message_buf[59] << 24);
+		if (pDOP < MAX_ACCEPTABLE_PDOP) {
+			currentLatitude = lat;
+			currentLongitude = lon;
+		}
 
-				if (vnorth > MAX_POSSIBLE_VELOCITY ||
-					veast > MAX_POSSIBLE_VELOCITY ||
-					vdown > MAX_POSSIBLE_VELOCITY) {
-					// One or more velocity component was greater than the
-					// max possible velocity. Loop around and try again
-					bufferLength -= UART_buffer_end - UART_buffer_start;
-					UART_buffer_start = UART_buffer_end;
-				} else {
-					// All velocity values are good to go, convert them to
-					// shorts and store them in the arrays
-					uint16_t vNorthShort = (uint16_t)vnorth;
-					uint16_t vEastShort = (uint16_t)veast;
-					uint16_t vDownShort = (uint16_t)vdown;
+		// Grab velocities, start by checking velocity accuracy estimate (vAcc)
+		int32_t vAcc = UBX_NAV_PVT_message_buf[44] +
+				(UBX_NAV_PVT_message_buf[45] << 8) +
+				(UBX_NAV_PVT_message_buf[46] << 16) +
+				(UBX_NAV_PVT_message_buf[47] << 24);
 
-					// TODO: add these values to the arrays
-					// TODO: increment whatever counters, trackers
-					numberCyclesWithoutData = 0;
-					++totalSamples;
-					validMessageProcessed = true;
-				}
-			}
-		} else {
-			// UBX_NAV_PVT message is 92 bytes -- if we didn't get all of them, then no valid message was received
+		if (vAcc > MAX_ACCEPTABLE_VACC) {
+			// This message was not within acceptable parameters,
 			bufferLength -= UART_buffer_end - UART_buffer_start;
 			UART_buffer_start = UART_buffer_end;
+			continue;
 		}
-    }
+
+		// vAcc was within acceptable range, still need to check
+		// individual velocities are less than MAX_POSSIBLE_VELOCITY
+		int32_t vnorth = UBX_NAV_PVT_message_buf[48] +
+				(UBX_NAV_PVT_message_buf[49] << 8) +
+				(UBX_NAV_PVT_message_buf[50] << 16) +
+				(UBX_NAV_PVT_message_buf[51] << 24);
+		int32_t veast = UBX_NAV_PVT_message_buf[52] +
+				(UBX_NAV_PVT_message_buf[53] << 8) +
+				(UBX_NAV_PVT_message_buf[54] << 16) +
+				(UBX_NAV_PVT_message_buf[55] << 24);
+		int32_t vdown = UBX_NAV_PVT_message_buf[56] +
+				(UBX_NAV_PVT_message_buf[57] << 8) +
+				(UBX_NAV_PVT_message_buf[58] << 16) +
+				(UBX_NAV_PVT_message_buf[59] << 24);
+
+		if (vnorth > MAX_POSSIBLE_VELOCITY ||
+			veast > MAX_POSSIBLE_VELOCITY ||
+			vdown > MAX_POSSIBLE_VELOCITY) {
+			// One or more velocity component was greater than the
+			// max possible velocity. Loop around and try again
+			bufferLength -= UART_buffer_end - UART_buffer_start;
+			UART_buffer_start = UART_buffer_end;
+			continue;
+		}
+
+		// All velocity values are good to go, convert them to
+		// shorts and store them in the arrays
+		uint16_t vNorthShort = (uint16_t)vnorth;
+		uint16_t vEastShort = (uint16_t)veast;
+		uint16_t vDownShort = (uint16_t)vdown;
+
+		// TODO: add these values to the arrays
+		// TODO: increment whatever counters, trackers
+		numberCyclesWithoutData = 0;
+		++totalSamples;
+		validMessageProcessed = true;
+	} // end for loop
 
     if (!validMessageProcessed) {
     	if (++numberCyclesWithoutData > MAX_EMPTY_CYCLES) {
     		// Some sort of bail out condition
     		// We might send a message with a specific payload to indicate
     		// things went wrong.
+
+    		//TODO: figure out what we'll do in this situation. Likely revert
+    		//      to taking measurements from the IMU
     	} else {
     		// We'll replace the values with running average
     		float north = 0, east = 0, down = 0;

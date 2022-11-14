@@ -25,15 +25,15 @@
 #include "gps_error_codes.h"
 
 // Macros
-#define MAX_POSSIBLE_VELOCITY 10000
+#define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
 
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 92
-#define MAX_ACCEPTABLE_TACC 50
+#define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
 #define MAX_ACCEPTABLE_VACC 50 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
-#define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
+#define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins TODO: verify this
 
 
 #ifdef __cplusplus
