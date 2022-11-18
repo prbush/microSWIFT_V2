@@ -33,7 +33,7 @@ gps_error_code_t GPS::init(void)
 	 *      Create arrays
 	 *      wait until good fix?
 	 */
-	return false;
+	return GPS_SUCCESS;
 }
 
 /**
@@ -42,18 +42,18 @@ gps_error_code_t GPS::init(void)
  * @return GPS error code (marcos defined in gps_error_codes.h)
  */
 gps_error_code_t GPS::getAndProcessMessage(void){
-	// Message + overhead bits = 97 bytes. We'll make enough space for 5 msgs
+	// Message + overhead bits = 99 bytes. We'll make enough space for 5 msgs
 	uint8_t UART_receive_buf[500];
 	memset(UART_receive_buf, 0, sizeof(UART_receive_buf));
 
     HAL_StatusTypeDef ret = HAL_UART_Receive(gps_uart_handle,
-    		&UART_receive_buf[0], 250, 200);
-    if (ret != HAL_OK) {
+    		&UART_receive_buf[0], 500, 200);
+    if (!(ret == HAL_OK || ret == HAL_TIMEOUT)) {
     	// Something went wrong trying to pull from UART buffer
     	++numberCyclesWithoutData;
     	switch(ret){
 		case HAL_BUSY: {return GPS_BUSY_ERROR;}
-		case HAL_TIMEOUT: {return GPS_TIMEOUT_ERROR;}
+//		case HAL_TIMEOUT: {return GPS_TIMEOUT_ERROR;}
 		default: {return GPS_UNKNOWN_ERROR;}
     	}
     }
@@ -100,7 +100,7 @@ gps_error_code_t GPS::getAndProcessMessage(void){
 					(UBX_NAV_PVT_message_buf[14]<<16) +
 					(UBX_NAV_PVT_message_buf[15]<<24);
 
-			if (tAcc < MAX_ACCEPTABLE_VACC) {
+			if (tAcc < MAX_ACCEPTABLE_TACC) {
 				// TODO: Figure this out and then make it a function
 				// set clock
 				uint16_t year = UBX_NAV_PVT_message_buf[4];
@@ -138,13 +138,13 @@ gps_error_code_t GPS::getAndProcessMessage(void){
 			currentLongitude = lon;
 		}
 
-		// Grab velocities, start by checking velocity accuracy estimate (vAcc)
-		int32_t vAcc = UBX_NAV_PVT_message_buf[44] +
-				(UBX_NAV_PVT_message_buf[45] << 8) +
-				(UBX_NAV_PVT_message_buf[46] << 16) +
-				(UBX_NAV_PVT_message_buf[47] << 24);
+		// Grab velocities, start by checking speed accuracy estimate (sAcc)
+		int32_t sAcc = UBX_NAV_PVT_message_buf[68] +
+				(UBX_NAV_PVT_message_buf[69] << 8) +
+				(UBX_NAV_PVT_message_buf[70] << 16) +
+				(UBX_NAV_PVT_message_buf[71] << 24);
 
-		if (vAcc > MAX_ACCEPTABLE_VACC) {
+		if (sAcc > MAX_ACCEPTABLE_SACC) {
 			// This message was not within acceptable parameters,
 			bufferLength -= UART_buffer_end - UART_buffer_start;
 			UART_buffer_start = UART_buffer_end;
@@ -178,9 +178,9 @@ gps_error_code_t GPS::getAndProcessMessage(void){
 
 		// All velocity values are good to go, convert them to
 		// shorts and store them in the arrays
-		uint16_t vNorthShort = (uint16_t)vnorth;
-		uint16_t vEastShort = (uint16_t)veast;
-		uint16_t vDownShort = (uint16_t)vdown;
+		int16_t vNorthShort = (uint16_t)vnorth;
+		int16_t vEastShort = (uint16_t)veast;
+		int16_t vDownShort = (uint16_t)vdown;
 
 		// TODO: add these values to the arrays
 		// TODO: increment whatever counters, trackers
@@ -190,6 +190,8 @@ gps_error_code_t GPS::getAndProcessMessage(void){
 	} // end for loop
 
     if (!validMessageProcessed) {
+    	// We weren't able to get a valid message from the buffer, so we'll sub
+    	// a running average iff there are more than 0 valid samples so far
     	if (++numberCyclesWithoutData > MAX_EMPTY_CYCLES) {
     		// Some sort of bail out condition
     		// We might send a message with a specific payload to indicate
@@ -201,8 +203,8 @@ gps_error_code_t GPS::getAndProcessMessage(void){
     		// We'll replace the values with running average
     		float north = 0, east = 0, down = 0;
     		// make sure there are samples to average
-    		if (gps_error_code_t code = getRunningAverage(north, east, down)
-    				!= GPS_SUCCESS) {
+    		gps_error_code_t code = getRunningAverage(north, east, down);
+    		if (code != GPS_SUCCESS) {
     			return code;
     		} else {
     			// got the averaged values

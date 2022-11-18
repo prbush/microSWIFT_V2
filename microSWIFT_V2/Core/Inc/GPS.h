@@ -31,7 +31,7 @@
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 92
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
-#define MAX_ACCEPTABLE_VACC 50 // need to confirm with Jim what this should be
+#define MAX_ACCEPTABLE_SACC 100 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins TODO: verify this
 

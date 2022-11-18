@@ -32,7 +32,7 @@ Core/Src/stm32f4xx_hal_msp.o: ../Core/Src/stm32f4xx_hal_msp.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h \
  ../Core/Inc/gps.h ../Drivers/UBXLIB/u_ubx_protocol.h \
- ../Drivers/UBXLIB/u_error_common.h
+ ../Drivers/UBXLIB/u_error_common.h ../Core/Inc/gps_error_codes.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
@@ -69,3 +69,4 @@ Core/Src/stm32f4xx_hal_msp.o: ../Core/Src/stm32f4xx_hal_msp.c \
 ../Core/Inc/gps.h:
 ../Drivers/UBXLIB/u_ubx_protocol.h:
 ../Drivers/UBXLIB/u_error_common.h:
+../Core/Inc/gps_error_codes.h:

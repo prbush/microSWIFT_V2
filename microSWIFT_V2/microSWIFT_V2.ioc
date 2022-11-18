@@ -1,7 +1,7 @@
 #MicroXplorer Configuration settings - do not modify
 FREERTOS.FootprintOK=true
 FREERTOS.IPParameters=Tasks01,FootprintOK,configUSE_IDLE_HOOK,configUSE_NEWLIB_REENTRANT,configTOTAL_HEAP_SIZE
-FREERTOS.Tasks01=GPS_Task,40,256,GPS_Start,Default,NULL,Dynamic,NULL,NULL;IMU_Task,24,128,IMU_Start,Default,NULL,Dynamic,NULL,NULL;GPSWaves_Task,40,256,GPSWaves_Start,Default,NULL,Dynamic,NULL,NULL;Update_Sys_Cloc,8,128,Update_Sys_Clock_Start,Default,NULL,Dynamic,NULL,NULL;CT_Task,24,128,CT_Start,Default,NULL,Dynamic,NULL,NULL;Write_Logs_Task,8,256,Write_Logs_Start,Default,NULL,Dynamic,NULL,NULL;Check_Batt_Task,8,128,Check_Battery_Start,Default,NULL,Dynamic,NULL,NULL;Send_Msg_Task,40,512,Send_Msg_Start,Default,NULL,Dynamic,NULL,NULL
+FREERTOS.Tasks01=GPS_Task,40,2032,GPS_Start,Default,NULL,Dynamic,NULL,NULL;IMU_Task,24,128,IMU_Start,Default,NULL,Dynamic,NULL,NULL;GPSWaves_Task,40,256,GPSWaves_Start,Default,NULL,Dynamic,NULL,NULL;Update_Sys_Cloc,8,128,Update_Sys_Clock_Start,Default,NULL,Dynamic,NULL,NULL;CT_Task,24,128,CT_Start,Default,NULL,Dynamic,NULL,NULL;Write_Logs_Task,8,256,Write_Logs_Start,Default,NULL,Dynamic,NULL,NULL;Check_Batt_Task,8,128,Check_Battery_Start,Default,NULL,Dynamic,NULL,NULL;Send_Msg_Task,40,512,Send_Msg_Start,Default,NULL,Dynamic,NULL,NULL
 FREERTOS.configTOTAL_HEAP_SIZE=65536
 FREERTOS.configUSE_IDLE_HOOK=1
 FREERTOS.configUSE_NEWLIB_REENTRANT=1
@@ -190,7 +190,7 @@ SH.GPXTI13.ConfNb=1
 USART2.BaudRate=115200
 USART2.IPParameters=VirtualMode,BaudRate
 USART2.VirtualMode=VM_ASYNC
-USART6.BaudRate=19200
+USART6.BaudRate=460800
 USART6.IPParameters=VirtualMode,BaudRate,Parity,WordLength
 USART6.Parity=PARITY_NONE
 USART6.VirtualMode=VM_ASYNC

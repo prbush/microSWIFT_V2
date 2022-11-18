@@ -1,0 +1,8 @@
+../Core/Src/gps.cpp:17:1:GPS::GPS(UART_HandleTypeDef*)	16	static
+../Core/Src/gps.cpp:22:1:GPS::~GPS()	16	static
+../Core/Src/gps.cpp:22:1:virtual GPS::~GPS()	16	static
+../Core/Src/gps.cpp:29:18:gps_error_code_t GPS::init()	16	static
+../Core/Src/gps.cpp:44:18:gps_error_code_t GPS::getAndProcessMessage()	640	static
+../Core/Src/gps.cpp:227:18:gps_error_code_t GPS::getLocation(int32_t&, int32_t&)	24	static
+../Core/Src/gps.cpp:246:18:gps_error_code_t GPS::getRunningAverage(float&, float&, float&)	40	static
+../Core/Src/gps.cpp:268:6:void GPS::testFunct()	496	static

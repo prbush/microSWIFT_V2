@@ -405,7 +405,7 @@ static void MX_USART6_UART_Init(void)
 
   /* USER CODE END USART6_Init 1 */
   huart6.Instance = USART6;
-  huart6.Init.BaudRate = 230400;
+  huart6.Init.BaudRate = 460800;
   huart6.Init.WordLength = UART_WORDLENGTH_8B;
   huart6.Init.StopBits = UART_STOPBITS_1;
   huart6.Init.Parity = UART_PARITY_NONE;
@@ -469,34 +469,11 @@ static void MX_GPIO_Init(void)
 void GPS_Start(void *argument)
 {
   /* USER CODE BEGIN 5 */
+	GPS gps(&huart6);
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
-    uint8_t messagebuf[320] = {0};
-    char ubx_nav_pvt_message[92] = {0};
-    int32_t messageClass = 0;
-    int32_t messageId = 0;
-    uint16_t numbytesreceived = 0;
-//    HAL_StatusTypeDef ret = HAL_UARTEx_ReceiveToIdle(&huart6, &messagebuf[0], 300, &numbytesreceived, 200);
-    HAL_UART_Receive(&huart6, &messagebuf[0], 160, 200);
-
-    int32_t retval = uUbxProtocolDecode((char*)&messagebuf[0], 192, &messageClass, &messageId, &ubx_nav_pvt_message[0], 92, NULL);
-
-    if (retval == 92) {
-	    int32_t lon = ubx_nav_pvt_message[24] + (ubx_nav_pvt_message[25]<<8) + (ubx_nav_pvt_message[26]<<16) + (ubx_nav_pvt_message[27]<<24);
-	    int32_t lat = ubx_nav_pvt_message[28] + (ubx_nav_pvt_message[29]<<8) + (ubx_nav_pvt_message[30]<<16) + (ubx_nav_pvt_message[31]<<24);
-	    int32_t vnorth = ubx_nav_pvt_message[48] + (ubx_nav_pvt_message[49] << 8) + (ubx_nav_pvt_message[50] << 16) + (ubx_nav_pvt_message[51] << 24);
-	    int32_t veast = ubx_nav_pvt_message[52] + (ubx_nav_pvt_message[53] << 8) + (ubx_nav_pvt_message[54] << 16) + (ubx_nav_pvt_message[55] << 24);
-	    int32_t vdown = ubx_nav_pvt_message[56] + (ubx_nav_pvt_message[57] << 8) + (ubx_nav_pvt_message[58] << 16) + (ubx_nav_pvt_message[59] << 24);
-
-	    char txstr[140] = {0};
-	    snprintf(txstr, 140, "\r\nLatitude: %ld\r\n Longitude: %ld\r\n Velocity North: %ld\r\n Velocity East: %ld\r\n Velocity Down: %ld\r\n", lon, lat, vnorth, veast, vdown);
-	    HAL_UART_Transmit(&huart2,(uint8_t*) txstr, sizeof(txstr), 10);
-    } else {
-    	uint8_t errormsg[] = "didn't grab message\r\n";
-    	HAL_UART_Transmit(&huart2, errormsg, sizeof(errormsg), 10);
-    }
+	  gps.getAndProcessMessage();
 
   }
   /* USER CODE END 5 */
