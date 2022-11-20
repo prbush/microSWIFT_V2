@@ -1,0 +1,13 @@
+../Core/Src/app_threadx.c:137:6:App_ThreadX_Init	64	static
+../Core/Src/app_threadx.c:315:6:MX_ThreadX_Init	8	static
+../Core/Src/app_threadx.c:333:6:App_ThreadX_LowPower_Timer_Setup	16	static
+../Core/Src/app_threadx.c:345:6:App_ThreadX_LowPower_Enter	4	static
+../Core/Src/app_threadx.c:357:6:App_ThreadX_LowPower_Exit	4	static
+../Core/Src/app_threadx.c:369:7:App_ThreadX_LowPower_Timer_Adjust	4	static
+../Core/Src/app_threadx.c:384:6:startup_thread_entry	16	static
+../Core/Src/app_threadx.c:395:6:gnss_thread_entry	16	static
+../Core/Src/app_threadx.c:406:6:imu_thread_entry	16	static
+../Core/Src/app_threadx.c:417:6:ct_thread_entry	16	static
+../Core/Src/app_threadx.c:429:6:waves_thread_entry	16	static
+../Core/Src/app_threadx.c:440:6:iridium_thread_entry	16	static
+../Core/Src/app_threadx.c:451:6:teardown_thread_entry	40	static
