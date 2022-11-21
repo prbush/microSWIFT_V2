@@ -41,24 +41,22 @@ gps_error_code_t GPS::init(void)
  *
  * @return GPS error code (marcos defined in gps_error_codes.h)
  */
-<<<<<<< HEAD
+
 int32_t GPS::getUBX_NAV_PVT(void){
 	// Message + overhead bits = 97 bytes. We'll make enough space for 5 msgs
-=======
+
 gps_error_code_t GPS::getAndProcessMessage(void){
 	// Message + overhead bits = 99 bytes. We'll make enough space for 5 msgs
->>>>>>> 290f347085cc7ca6c738cada52e5504d1047082a
 	uint8_t UART_receive_buf[500];
 	memset(UART_receive_buf, 0, sizeof(UART_receive_buf));
 
     HAL_StatusTypeDef ret = HAL_UART_Receive(gps_uart_handle,
-<<<<<<< HEAD
+
     		&UART_receive_buf[0], 250, 200);
     if (ret != HAL_OK) {
-=======
+
     		&UART_receive_buf[0], 500, 200);
     if (!(ret == HAL_OK || ret == HAL_TIMEOUT)) {
->>>>>>> 290f347085cc7ca6c738cada52e5504d1047082a
     	// Something went wrong trying to pull from UART buffer
     	++numberCyclesWithoutData;
     	switch(ret){
@@ -89,7 +87,6 @@ gps_error_code_t GPS::getAndProcessMessage(void){
     { // start for loop
 
 		if (messageClass != UBX_NAV_PVT_MESSAGE_CLASS ||
-<<<<<<< HEAD
 				messageId != UBX_NAV_PVT_MESSAGE_ID) {
 			// This will get our pointers pointing to the next message in the buf, and the for loop
 			// will try processing the next message (if there is one)
@@ -177,7 +174,6 @@ gps_error_code_t GPS::getAndProcessMessage(void){
     }
 
     if (!validMessageProcessed) {
-=======
 			messageId != UBX_NAV_PVT_MESSAGE_ID ||
 			numBytes != UBX_NAV_PVT_MESSAGE_LENGTH) {
 			// Message was not of type UBX_NAV_PVT or not the right length
@@ -291,29 +287,23 @@ gps_error_code_t GPS::getAndProcessMessage(void){
     if (!validMessageProcessed) {
     	// We weren't able to get a valid message from the buffer, so we'll sub
     	// a running average iff there are more than 0 valid samples so far
->>>>>>> 290f347085cc7ca6c738cada52e5504d1047082a
     	if (++numberCyclesWithoutData > MAX_EMPTY_CYCLES) {
     		// Some sort of bail out condition
     		// We might send a message with a specific payload to indicate
     		// things went wrong.
-<<<<<<< HEAD
-=======
 
     		//TODO: figure out what we'll do in this situation. Likely revert
     		//      to taking measurements from the IMU
->>>>>>> 290f347085cc7ca6c738cada52e5504d1047082a
     	} else {
     		// We'll replace the values with running average
     		float north = 0, east = 0, down = 0;
     		// make sure there are samples to average
-<<<<<<< HEAD
     		if (int32_t ret = getRunningAverage(north, east, down)
     				!= GPS_SUCCESS) {
     			return ret;
     		} else {
     			// got the averaged values
     			// !!!! add them to the arrays, increment some flags
-=======
     		gps_error_code_t code = getRunningAverage(north, east, down);
     		if (code != GPS_SUCCESS) {
     			return code;
@@ -321,7 +311,6 @@ gps_error_code_t GPS::getAndProcessMessage(void){
     			// got the averaged values
     			// TODO: add them to the arrays
     			++totalSamples;
->>>>>>> 290f347085cc7ca6c738cada52e5504d1047082a
     		}
     	}
 		return GPS_NO_MESSAGE_RECEIVED;

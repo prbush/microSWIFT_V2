@@ -15,14 +15,14 @@
 
 #ifndef SRC_GPS_H_
 #define SRC_GPS_H_
+#include <gnss_error_codes.h>
 #include <stdint.h>
 #include <string.h>
-#include "stm32f4xx_hal.h"
+#include "stm32u5xx_hal.h"
 #include "stdio.h"
 #include "stdbool.h"
 #include "u_ubx_protocol.h"
 #include "u_error_common.h"
-#include "gps_error_codes.h"
 
 // Macros
 #define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
@@ -33,71 +33,58 @@
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
 #define MAX_ACCEPTABLE_SACC 100 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
-<<<<<<< HEAD
+
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
-=======
+
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins TODO: verify this
->>>>>>> 290f347085cc7ca6c738cada52e5504d1047082a
 
+typedef struct GNSS {
+	// The UART handle for the GNSS interface
+	UART_HandleTypeDef* gnss_uart_handle;
 
-#ifdef __cplusplus
+	// Pointers to the arrays
+	int16_t* uGNSSArray;
+	int16_t* vGNSSArray;
+	int16_t* zGNSSArray;
 
-class GPS {
-
-public:
-	GPS(UART_HandleTypeDef* uart_handle);
-	virtual ~GPS();
-<<<<<<< HEAD
-	int32_t init(void);
-	int32_t getUBX_NAV_PVT(void);
-	int32_t getLocation(int32_t& latitude, int32_t& longitude);
-//	int32_t getVelocity(int32_t* north, int32_t* east, int32_t* down, uint32_t* spdAccuracy, int32_t* gndSpeed);
-	int32_t processMessage(void);
-	int32_t getRunningAverage(float& returnNorth, float& returnEast, float& returnDown);
-=======
-	gps_error_code_t init(void);
-	gps_error_code_t getAndProcessMessage(void);
-	gps_error_code_t getLocation(int32_t& latitude, int32_t& longitude);
-	gps_error_code_t getRunningAverage(float& returnNorth, float& returnEast, float& returnDown);
->>>>>>> 290f347085cc7ca6c738cada52e5504d1047082a
-
-	gps_error_code_t sleep(void);
-
-	// Strictly for testing, remove in production
-	void testFunct(void);
-
-private:
-	// Until we know better, these will be initialized to 10k float values each
-	float** vNorthArray;
-	float** vEastArray;
-	float** vDownArray;
 	// Keep a running track of sum -- to be used in getRunningAverage
-	float vNorthSum = 0;
-	float vEastSum = 0;
-	float vDownSum = 0;
-	// Increment with each sample or running average
-	uint16_t totalSamples = 0;
-	// We'll keep track of how many times we had to sub in a running average
-	uint16_t totalSamplesAveraged = 0; // Just do a %10 in the end
-	// How many times we've had to skip a sample - gets reset with valid data
-	uint16_t numberCyclesWithoutData = 0;
-
-	// Hold onto the current UBX_NAV_PVT message
-	char UBX_NAV_PVT_message_buf[128];
+	float vNorthSum;
+	float vEastSum;
+	float vDownSum;
 
 	// Hold the current lat/long for whatever we might need it for (modem)
-	int32_t currentLatitude = 0;
-	int32_t currentLongitude = 0;
+	int32_t currentLatitude;
+	int32_t currentLongitude;
+
+	// Increment with each sample or running average
+	uint16_t totalSamples;
+	// We'll keep track of how many times we had to sub in a running average
+	uint16_t totalSamplesAveraged; // Just do a %10 in the end
+	// How many times we've had to skip a sample - gets reset with valid data
+	uint16_t numberCyclesWithoutData;
 
 	// Flags
-	bool latLongIsValid = false;
-	bool velocityIsValid = false;
-	bool clockHasBeenSet = false;
-	bool validMessageProcessed = false;
+	bool latLongIsValid;
+	bool velocityIsValid;
+	bool clockHasBeenSet;
+	bool validMessageProcessed;
 
-	UART_HandleTypeDef* gps_uart_handle;
-};
+	// Function pointers
+	void (*init)(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
+			int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
+	gnss_error_code_t (*get_location)(GNSS* gnss_struct, int32_t* latitude,
+			int32_t* longitude);
+	gnss_error_code_t (*get_running_average_velocities)(GNSS* gnss_struct,
+			float* returnNorth, float* returnEast, float* returnDown);
+	gnss_error_code_t (*get_and_process_message)(GNSS* gnss_struct);
+	gnss_error_code_t (*sleep)(GNSS* gnss_struct)
+} GNSS;
 
-#endif // __cplusplus
+void gnss_init(GNSS* return_struct, UART_HandleTypeDef* gnss_uart_handle,
+		int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
+gnss_error_code_t gnss_get_location(GNSS* gnss_struct, int32_t* latitude, int32_t* longitude);
+gnss_error_code_t gnss_get_running_average_velocities(GNSS* gnss_struct, float* returnNorth, float* returnEast, float* returnDown);
+gnss_error_code_t gnss_get_and_process_message(GNSS* gnss_struct);
+gnss_error_code_t gnss_sleep(GNSS* gnss_struct);
 
 #endif /* SRC_GPS_H_ */

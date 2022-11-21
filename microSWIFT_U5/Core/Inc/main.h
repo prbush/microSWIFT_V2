@@ -31,12 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "gps.h"
-#include "battery.h"
-#include "ct_sensor.h"
-#include "imu.h"
-#include "iridium.h"
-#include "log.h"
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

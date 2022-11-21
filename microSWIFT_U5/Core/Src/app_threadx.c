@@ -116,6 +116,7 @@ double* wavesTempCopyArray;
 CHAR* ubx_nav_pvt_message_buf;
 CHAR* ct_data;
 CHAR* iridium_message;
+GNSS* gnss;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -136,175 +137,180 @@ void teardown_thread_entry(ULONG thread_input);
   */
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
-  UINT ret = TX_SUCCESS;
-  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
+	UINT ret = TX_SUCCESS;
+	TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
 
-   /* USER CODE BEGIN App_ThreadX_MEM_POOL */
-  (void)byte_pool;
-  CHAR *pointer = TX_NULL;
+	/* USER CODE BEGIN App_ThreadX_MEM_POOL */
+	(void)byte_pool;
+	CHAR *pointer = TX_NULL;
 
-  //
-  // Allocate stack for the startup thread
-  ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate stack for the startup thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Create the startup thread. HIGHEST priority level and no preemption possible
-  ret = tx_thread_create(&startup_thread, "startup thread", startup_thread_entry, 0, pointer,
+	}
+	// Create the startup thread. HIGHEST priority level and no preemption possible
+	ret = tx_thread_create(&startup_thread, "startup thread", startup_thread_entry, 0, pointer,
 		  THREAD_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
-  if (ret != TX_SUCCESS){
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
+	}
 
-  //
-  // Allocate stack for the gnss thread
-  ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate stack for the gnss thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Create the gnss thread. VERY_HIGH priority, no preemption-threshold
-  ret = tx_thread_create(&gnss_thread, "gnss thread", gnss_thread_entry, 0, pointer,
+	}
+	// Create the gnss thread. VERY_HIGH priority, no preemption-threshold
+	ret = tx_thread_create(&gnss_thread, "gnss thread", gnss_thread_entry, 0, pointer,
 		  THREAD_LARGE_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
-  if (ret != TX_SUCCESS){
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
+	}
 
-  //
-  // Allocate stack for the imu thread
-  ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate stack for the imu thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Create the imu thread. VERY_HIGH priority, no preemption-threshold
-  ret = tx_thread_create(&imu_thread, "imu thread", imu_thread_entry, 0, pointer,
+	}
+	// Create the imu thread. VERY_HIGH priority, no preemption-threshold
+	ret = tx_thread_create(&imu_thread, "imu thread", imu_thread_entry, 0, pointer,
 		  THREAD_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
-  if (ret != TX_SUCCESS){
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
+	}
 
-  //
-  // Allocate stack for the CT thread
-  ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate stack for the CT thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Create the CT thread. VERY_HIGH priority, no preemption-threshold
-  ret = tx_thread_create(&ct_thread, "ct thread", ct_thread_entry, 0, pointer,
+	}
+	// Create the CT thread. VERY_HIGH priority, no preemption-threshold
+	ret = tx_thread_create(&ct_thread, "ct thread", ct_thread_entry, 0, pointer,
 		  THREAD_SMALL_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
-  if (ret != TX_SUCCESS){
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
+	}
 
-  //
-  // Allocate stack for the waves thread
-  ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate stack for the waves thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Create the waves thread. MID priority, no preemption-threshold
-  ret = tx_thread_create(&waves_thread, "waves thread", waves_thread_entry, 0, pointer,
+	}
+	// Create the waves thread. MID priority, no preemption-threshold
+	ret = tx_thread_create(&waves_thread, "waves thread", waves_thread_entry, 0, pointer,
 		  THREAD_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
-  if (ret != TX_SUCCESS){
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
+	}
 
-  //
-  // Allocate stack for the Iridium thread
-  ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate stack for the Iridium thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Create the Iridium thread. VERY_HIGH priority, no preemption-threshold
-  ret = tx_thread_create(&iridium_thread, "iridium thread", iridium_thread_entry, 0, pointer,
+	}
+	// Create the Iridium thread. VERY_HIGH priority, no preemption-threshold
+	ret = tx_thread_create(&iridium_thread, "iridium thread", iridium_thread_entry, 0, pointer,
 		  THREAD_SMALL_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
-  if (ret != TX_SUCCESS){
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
+	}
 
-  //
-  // Allocate stack for the teardown thread
-  ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate stack for the teardown thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Create the teardown thread. HIGHEST priority, no preemption-threshold
-  ret = tx_thread_create(&teardown_thread, "teardown thread", teardown_thread_entry, 0, pointer,
+	}
+	// Create the teardown thread. HIGHEST priority, no preemption-threshold
+	ret = tx_thread_create(&teardown_thread, "teardown thread", teardown_thread_entry, 0, pointer,
 		  THREAD_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
-  if (ret != TX_SUCCESS){
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
+	}
 
-  //
-  // Create the event flags we'll use for triggering threads
-  ret = tx_event_flags_create(&thread_flags, "thread_flags");
-  if (ret != TX_SUCCESS) {
+	//
+	// Create the event flags we'll use for triggering threads
+	ret = tx_event_flags_create(&thread_flags, "thread_flags");
+	if (ret != TX_SUCCESS) {
 	  return ret;
-  }
+	}
 
-  //
-  // Allocate bytes for the sensor derived arrays
-  ret = tx_byte_allocate(byte_pool, (VOID**) &uGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	//
+	// Allocate bytes for the sensor derived arrays
+	ret = tx_byte_allocate(byte_pool, (VOID**) &uGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &vGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &vGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &vGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &vGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &uIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &uIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &vIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &vIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &zIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &zIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // Allocate bytes for the GPSWaves processing arrays
-  ret = tx_byte_allocate(byte_pool, (VOID**) &uWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	// Allocate bytes for the GPSWaves processing arrays
+	ret = tx_byte_allocate(byte_pool, (VOID**) &uWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &vWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &vWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &zWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &zWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  ret = tx_byte_allocate(byte_pool, (VOID**) &wavesTempCopyArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	ret = tx_byte_allocate(byte_pool, (VOID**) &wavesTempCopyArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // The UBX message array
-  ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_nav_pvt_message_buf, UBX_MESSAGE_BUF_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	// The UBX message array
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_nav_pvt_message_buf, UBX_MESSAGE_BUF_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // The CT data array
-  ret = tx_byte_allocate(byte_pool, (VOID**) &ct_data, CT_DATA_ARRAY_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	// The CT data array
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ct_data, CT_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  // The Iridium message array
-  ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_message, IRIDIUM_MESSAGE_SIZE, TX_NO_WAIT);
-  if (ret != TX_SUCCESS){
+	}
+	// The Iridium message array
+	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_message, IRIDIUM_MESSAGE_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
 	  return ret;
-  }
-  /* USER CODE END App_ThreadX_MEM_POOL */
+	}
+	// The gnss struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss, sizeof(GNSS), TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+	/* USER CODE END App_ThreadX_MEM_POOL */
 
-  /* USER CODE BEGIN App_ThreadX_Init */
-  /* USER CODE END App_ThreadX_Init */
+	/* USER CODE BEGIN App_ThreadX_Init */
+	/* USER CODE END App_ThreadX_Init */
 
-  return ret;
+	return ret;
 }
 
   /**
@@ -395,6 +401,8 @@ void startup_thread_entry(ULONG thread_input){
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
+	gnss_init(*gnss, &huart2, uGNSSArray, vGNSSArray, zGNSSArray);
+
 
 }
 

@@ -33,6 +33,12 @@
 /* USER CODE BEGIN Includes */
 #include "stm32u5xx_hal.h"
 #include "stdint.h"
+#include "gps.h"
+#include "battery.h"
+#include "ct_sensor.h"
+#include "imu.h"
+#include "iridium.h"
+#include "log.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
