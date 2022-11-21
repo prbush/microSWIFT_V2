@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "main.h"
 
 /* USER CODE END Includes */
 
@@ -117,6 +118,8 @@ CHAR* ubx_nav_pvt_message_buf;
 CHAR* ct_data;
 CHAR* iridium_message;
 GNSS* gnss;
+
+UART_HandleTypeDef* gps_uart;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -137,10 +140,10 @@ void teardown_thread_entry(ULONG thread_input);
   */
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
-	UINT ret = TX_SUCCESS;
-	TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
+  UINT ret = TX_SUCCESS;
+  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
 
-	/* USER CODE BEGIN App_ThreadX_MEM_POOL */
+   /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
 	CHAR *pointer = TX_NULL;
 
@@ -305,12 +308,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
-	/* USER CODE END App_ThreadX_MEM_POOL */
+  /* USER CODE END App_ThreadX_MEM_POOL */
 
-	/* USER CODE BEGIN App_ThreadX_Init */
-	/* USER CODE END App_ThreadX_Init */
+  /* USER CODE BEGIN App_ThreadX_Init */
+  /* USER CODE END App_ThreadX_Init */
 
-	return ret;
+  return ret;
 }
 
   /**
@@ -321,7 +324,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 void MX_ThreadX_Init(void)
 {
   /* USER CODE BEGIN  Before_Kernel_Start */
-
+  gps_uart = gps_uart_handle;
   /* USER CODE END  Before_Kernel_Start */
 
   tx_kernel_enter();
@@ -401,8 +404,10 @@ void startup_thread_entry(ULONG thread_input){
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
-	gnss_init(*gnss, &huart2, uGNSSArray, vGNSSArray, zGNSSArray);
-
+	gnss_init(gnss, gps_uart, uGNSSArray, vGNSSArray, zGNSSArray);
+	while(1){
+		gnss->get_and_process_message(gnss);
+	}
 
 }
 

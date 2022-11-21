@@ -48,9 +48,9 @@ typedef struct GNSS {
 	int16_t* zGNSSArray;
 
 	// Keep a running track of sum -- to be used in getRunningAverage
-	float vNorthSum;
-	float vEastSum;
-	float vDownSum;
+	int64_t vNorthSum;
+	int64_t vEastSum;
+	int64_t vDownSum;
 
 	// Hold the current lat/long for whatever we might need it for (modem)
 	int32_t currentLatitude;
@@ -70,21 +70,21 @@ typedef struct GNSS {
 	bool validMessageProcessed;
 
 	// Function pointers
-	void (*init)(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
-			int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
-	gnss_error_code_t (*get_location)(GNSS* gnss_struct, int32_t* latitude,
+//	void (*init)(struct GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
+//			int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
+	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
-	gnss_error_code_t (*get_running_average_velocities)(GNSS* gnss_struct,
+	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self,
 			float* returnNorth, float* returnEast, float* returnDown);
-	gnss_error_code_t (*get_and_process_message)(GNSS* gnss_struct);
-	gnss_error_code_t (*sleep)(GNSS* gnss_struct)
+	gnss_error_code_t (*get_and_process_message)(struct GNSS* self);
+	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
 
-void gnss_init(GNSS* return_struct, UART_HandleTypeDef* gnss_uart_handle,
+void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 		int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
-gnss_error_code_t gnss_get_location(GNSS* gnss_struct, int32_t* latitude, int32_t* longitude);
-gnss_error_code_t gnss_get_running_average_velocities(GNSS* gnss_struct, float* returnNorth, float* returnEast, float* returnDown);
-gnss_error_code_t gnss_get_and_process_message(GNSS* gnss_struct);
-gnss_error_code_t gnss_sleep(GNSS* gnss_struct);
+gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
+gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, float* returnNorth, float* returnEast, float* returnDown);
+gnss_error_code_t gnss_get_and_process_message(GNSS* self);
+gnss_error_code_t gnss_sleep(GNSS* self);
 
 #endif /* SRC_GPS_H_ */

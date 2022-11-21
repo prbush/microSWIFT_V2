@@ -42,9 +42,8 @@ extern "C" {
 /* Using static memory allocation via threadX Byte memory pools */
 
 #define USE_STATIC_ALLOCATION                1
-// Need to keep all memory allocations in 64 bit alignment
-// We'll allocate 655360 bytes for our project
-#define TX_APP_MEM_POOL_SIZE                 655360
+
+#define TX_APP_MEM_POOL_SIZE                     655360
 
 /* USER CODE BEGIN EC */
 

@@ -202,7 +202,7 @@
 
 /* Define the common timer tick reference for use by other middleware components. */
 
-#define TX_TIMER_TICKS_PER_SECOND                5
+#define TX_TIMER_TICKS_PER_SECOND                1
 
 /* Defined, the basic parameter error checking is disabled. */
 
