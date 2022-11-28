@@ -221,7 +221,7 @@ extern   "C" {
    as a compilation option.  */
 
 #ifndef TX_TIMER_TICKS_PER_SECOND
-#define TX_TIMER_TICKS_PER_SECOND       ((ULONG) 1000)
+#define TX_TIMER_TICKS_PER_SECOND       ((ULONG) 100)
 #endif
 
 

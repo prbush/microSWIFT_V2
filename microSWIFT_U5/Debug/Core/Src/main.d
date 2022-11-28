@@ -19,9 +19,6 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_dma.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_dma_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_cortex.h \
- ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_adc.h \
- ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_adc.h \
- ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_adc_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_flash.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_flash_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pwr.h \
@@ -41,7 +38,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/tx_user.h ../Core/Inc/gps.h ../Core/Inc/gnss_error_codes.h \
  ../Core/Inc/u_ubx_protocol.h ../Core/Inc/u_error_common.h \
  ../Core/Inc/battery.h ../Core/Inc/ct_sensor.h ../Core/Inc/imu.h \
- ../Core/Inc/iridium.h ../Core/Inc/log.h
+ ../Core/Inc/iridium.h ../Core/Inc/log.h ../Core/Inc/linked_list.h \
+ ../Core/Inc/main.h
 ../Core/Inc/main.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal.h:
 ../Core/Inc/stm32u5xx_hal_conf.h:
@@ -63,9 +61,6 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_dma.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_dma_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_cortex.h:
-../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_adc.h:
-../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_adc.h:
-../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_adc_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_flash.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_flash_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pwr.h:
@@ -93,3 +88,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/imu.h:
 ../Core/Inc/iridium.h:
 ../Core/Inc/log.h:
+../Core/Inc/linked_list.h:
+../Core/Inc/main.h:

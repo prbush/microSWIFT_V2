@@ -42,6 +42,9 @@ typedef struct GNSS {
 	// The UART handle for the GNSS interface
 	UART_HandleTypeDef* gnss_uart_handle;
 
+	// The UART receive buffer
+	uint8_t* uart_buffer;
+
 	// Pointers to the arrays
 	int16_t* uGNSSArray;
 	int16_t* vGNSSArray;
@@ -80,7 +83,7 @@ typedef struct GNSS {
 	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
 
-void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
+void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, uint8_t* uart_buffer,
 		int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, float* returnNorth, float* returnEast, float* returnDown);
