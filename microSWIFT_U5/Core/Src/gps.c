@@ -211,6 +211,12 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 			}
     	}
     }
+    // Lastly, flush the queue and start fresh
+    ret = tx_queue_flush(self->ubx_queue);
+    if (ret != TX_SUCCESS) {
+    	// Maybe something got weird from the ISR, try again
+    	ret = tx_queue_flush(self->ubx_queue);
+    }
     // A valid message was processed
     return GNSS_SUCCESS;
 }
