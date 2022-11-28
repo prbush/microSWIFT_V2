@@ -58,7 +58,7 @@
 
 /* Exported functions prototypes ---------------------------------------------*/
 UINT App_ThreadX_Init(VOID *memory_ptr);
-void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0);
+void MX_ThreadX_Init(UART_HandleTypeDef *gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0);
 
 /* USER CODE BEGIN EFP */
 

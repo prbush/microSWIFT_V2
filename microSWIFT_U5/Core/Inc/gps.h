@@ -16,6 +16,7 @@
 #ifndef SRC_GPS_H_
 #define SRC_GPS_H_
 #include <gnss_error_codes.h>
+#include "tx_api.h"
 #include <stdint.h>
 #include <string.h>
 #include "stm32u5xx_hal.h"
@@ -79,15 +80,15 @@ typedef struct GNSS {
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self,
-			float* returnNorth, float* returnEast, float* returnDown);
-	gnss_error_code_t (*get_and_process_message)(struct GNSS* self);
+			int16_t* returnNorth, int16_t* returnEast, int16_t* returnDown);
+	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
 
 void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, TX_QUEUE* ubx_queue,
 		int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
-gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, float* returnNorth, float* returnEast, float* returnDown);
+gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, int16_t* returnNorth, int16_t* returnEast, int16_t* returnDown);
 gnss_error_code_t gnss_process_message(GNSS* self);
 gnss_error_code_t gnss_sleep(GNSS* self);
 

@@ -17,6 +17,7 @@
 #include "gps.h"
 
 
+
 void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, TX_QUEUE* ubx_queue,
 		int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray)
 {
@@ -46,7 +47,7 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, TX_QUEUE* ubx_q
 //	self->init = gnss_init;
 	self->get_location = gnss_get_location;
 	self->get_running_average_velocities = gnss_get_running_average_velocities;
-	self->get_and_process_message = gnss_get_and_process_message;
+	self->gnss_process_message = gnss_process_message;
 	self->sleep = gnss_sleep;
 }
 
@@ -60,27 +61,30 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 {
 	ULONG num_msgs_enqueued, available_space;
 	UINT ret;
-	uint8_t message[UBX_NAV_PVT_MESSAGE_LENGTH];
-	uint8_t payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
+	const char message[UBX_NAV_PVT_MESSAGE_LENGTH];
+	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
     int32_t message_class = 0;
     int32_t message_id = 0;
     int32_t num_payload_bytes = 0;
+    // start with 0'd out buffers;
+    memset(message, 0, sizeof(message));
+    memset(payload, 0, sizeof(payload));
     // Reset the valid message processed flag
     self->validMessageProcessed = false;
 	// How many messages are on the queue
-	ret = tx_queue_info_get(ubx_queue, TX_NULL, num_msgs_enqueued,
-						available_space, TX_NULL, TX_NULL, TX_NULL);
+	ret = tx_queue_info_get(self->ubx_queue, TX_NULL, &num_msgs_enqueued,
+						&available_space, TX_NULL, TX_NULL, TX_NULL);
 	// More messages may be added while processing, but we'll leave those
 	// for the next time around and only get those on the queue right now.
 	while (num_msgs_enqueued > 0) {
-		ret = tx_queue_receive(ubx_queue, (VOID*)message, TX_NO_WAIT);
+		ret = tx_queue_receive(self->ubx_queue, (VOID*)message, TX_NO_WAIT);
 		if (ret != TX_SUCCESS) {
 			--num_msgs_enqueued;
 			continue;
 		}
 	    // Try to decode message
-	    num_payload_bytes = uUbxProtocolDecode(message, UBX_NAV_PVT_MESSAGE_LENGTH,
-	    		&message_class, &message_id, payload, sizeof(payload), nullptr);
+	    num_payload_bytes = uUbxProtocolDecode(&(message[0]), UBX_NAV_PVT_MESSAGE_LENGTH,
+	    		&message_class, &message_id, payload, sizeof(payload), NULL);
 	    // UBX_NAV_PVT payload is 92 bytes, if we don't have that many, its
 	    // a bad message
 		if (num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH) {
@@ -92,22 +96,22 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 		if (!self->clockHasBeenSet) {
 			// Grab time accuracy estimate
 			// TODO: check valid time flag first
-			int32_t tAcc = UBX_NAV_PVT_message_buf[12] +
-					(UBX_NAV_PVT_message_buf[13]<<8) +
-					(UBX_NAV_PVT_message_buf[14]<<16) +
-					(UBX_NAV_PVT_message_buf[15]<<24);
+			int32_t tAcc = payload[12] +
+					(payload[13]<<8) +
+					(payload[14]<<16) +
+					(payload[15]<<24);
 
 			if (tAcc < MAX_ACCEPTABLE_TACC) {
 				// TODO: Figure this out and then make it a function
 				// set clock
-				uint16_t year = UBX_NAV_PVT_message_buf[4];
-				uint8_t month = UBX_NAV_PVT_message_buf[6];
-				uint8_t day = UBX_NAV_PVT_message_buf[7];
-				uint8_t hour = UBX_NAV_PVT_message_buf[8];
+				uint16_t year = payload[4];
+				uint8_t month = payload[6];
+				uint8_t day = payload[7];
+				uint8_t hour = payload[8];
 				bool isAM = true;
 				if (hour > 12) { hour %= 12; isAM = false;}
-				uint8_t min = UBX_NAV_PVT_message_buf[9];
-				uint8_t sec = UBX_NAV_PVT_message_buf[10];
+				uint8_t min = payload[9];
+				uint8_t sec = payload[10];
 
 				RTC_TimeTypeDef time = {hour, min, sec,
 						(isAM) ?
@@ -118,16 +122,16 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 			}
 
 			// Check Lat/Long accuracy, assign to class fields if good
-			int32_t lon = UBX_NAV_PVT_message_buf[24] +
-					(UBX_NAV_PVT_message_buf[25]<<8) +
-					(UBX_NAV_PVT_message_buf[26]<<16) +
-					(UBX_NAV_PVT_message_buf[27]<<24);
-			int32_t lat = UBX_NAV_PVT_message_buf[28] +
-					(UBX_NAV_PVT_message_buf[29]<<8) +
-					(UBX_NAV_PVT_message_buf[30]<<16) +
-					(UBX_NAV_PVT_message_buf[31]<<24);
-			int16_t pDOP =  UBX_NAV_PVT_message_buf[76] +
-					(UBX_NAV_PVT_message_buf[77]<<8);
+			int32_t lon = payload[24] +
+					(payload[25]<<8) +
+					(payload[26]<<16) +
+					(payload[27]<<24);
+			int32_t lat = payload[28] +
+					(payload[29]<<8) +
+					(payload[30]<<16) +
+					(payload[31]<<24);
+			int16_t pDOP =  payload[76] +
+					(payload[77]<<8);
 
 			if (pDOP < MAX_ACCEPTABLE_PDOP) {
 				self->currentLatitude = lat;
@@ -135,10 +139,10 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 			}
 
 			// Grab velocities, start by checking speed accuracy estimate (sAcc)
-			int32_t sAcc = UBX_NAV_PVT_message_buf[68] +
-					(UBX_NAV_PVT_message_buf[69] << 8) +
-					(UBX_NAV_PVT_message_buf[70] << 16) +
-					(UBX_NAV_PVT_message_buf[71] << 24);
+			int32_t sAcc = payload[68] +
+					(payload[69] << 8) +
+					(payload[70] << 16) +
+					(payload[71] << 24);
 
 			if (sAcc > MAX_ACCEPTABLE_SACC) {
 				// This message was not within acceptable parameters,
@@ -148,18 +152,18 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 
 			// vAcc was within acceptable range, still need to check
 			// individual velocities are less than MAX_POSSIBLE_VELOCITY
-			int32_t vnorth = UBX_NAV_PVT_message_buf[48] +
-					(UBX_NAV_PVT_message_buf[49] << 8) +
-					(UBX_NAV_PVT_message_buf[50] << 16) +
-					(UBX_NAV_PVT_message_buf[51] << 24);
-			int32_t veast = UBX_NAV_PVT_message_buf[52] +
-					(UBX_NAV_PVT_message_buf[53] << 8) +
-					(UBX_NAV_PVT_message_buf[54] << 16) +
-					(UBX_NAV_PVT_message_buf[55] << 24);
-			int32_t vdown = UBX_NAV_PVT_message_buf[56] +
-					(UBX_NAV_PVT_message_buf[57] << 8) +
-					(UBX_NAV_PVT_message_buf[58] << 16) +
-					(UBX_NAV_PVT_message_buf[59] << 24);
+			int32_t vnorth = payload[48] +
+					(payload[49] << 8) +
+					(payload[50] << 16) +
+					(payload[51] << 24);
+			int32_t veast = payload[52] +
+					(payload[53] << 8) +
+					(payload[54] << 16) +
+					(payload[55] << 24);
+			int32_t vdown = payload[56] +
+					(payload[57] << 8) +
+					(payload[58] << 16) +
+					(payload[59] << 24);
 
 			if ((vnorth > MAX_POSSIBLE_VELOCITY) ||
 				(veast > MAX_POSSIBLE_VELOCITY) ||

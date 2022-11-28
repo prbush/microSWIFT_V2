@@ -23,7 +23,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tx_api.h"
-#include "linked_list.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,16 +51,7 @@ DMA_HandleTypeDef handle_GPDMA1_Channel0;
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
-uint8_t aRXBufferUser[RX_BUFFER_SIZE];
 
-uint8_t aRXBufferA[RX_BUFFER_SIZE];
-uint8_t aRXBufferB[RX_BUFFER_SIZE];
-
-__IO uint32_t     uwNbReceivedChars;
-uint8_t *pBufferReadyForUser;
-uint8_t *pBufferReadyForReception;
-
-extern DMA_QListTypeDef List_GPDMA1_Channel0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,9 +66,7 @@ static void MX_USART3_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ICACHE_Init(void);
 /* USER CODE BEGIN PFP */
-void PrintInfo(UART_HandleTypeDef *huart, uint8_t *String, uint16_t Size);
-void StartReception(void);
-void UserDataTreatment(UART_HandleTypeDef *huart, uint8_t* pData, uint16_t Size);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -125,20 +113,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
-  MX_List_GPDMA1_Channel0_Config();
-  __HAL_LINKDMA(&huart3, hdmarx, handle_GPDMA1_Channel0);
 
-  if (HAL_DMAEx_List_SetCircularMode(&List_GPDMA1_Channel0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_DMAEx_List_LinkQ(&handle_GPDMA1_Channel0, &List_GPDMA1_Channel0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* Initiate Continuous reception */
-  StartReception();
   /* USER CODE END 2 */
 
   MX_ThreadX_Init(&huart3, &handle_GPDMA1_Channel0);
@@ -470,9 +445,7 @@ static void MX_USART3_UART_Init(void)
   huart3.Init.OverSampling = UART_OVERSAMPLING_16;
   huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
   huart3.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_AUTOBAUDRATE_INIT;
-  huart3.AdvancedInit.AutoBaudRateEnable = UART_ADVFEATURE_AUTOBAUDRATE_ENABLE;
-  huart3.AdvancedInit.AutoBaudRateMode = UART_ADVFEATURE_AUTOBAUDRATE_ONSTARTBIT;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
   if (HAL_UART_Init(&huart3) != HAL_OK)
   {
     Error_Handler();

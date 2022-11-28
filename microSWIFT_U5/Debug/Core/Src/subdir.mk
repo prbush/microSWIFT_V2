@@ -11,7 +11,6 @@ C_SRCS += \
 ../Core/Src/gps.c \
 ../Core/Src/imu.c \
 ../Core/Src/iridium.c \
-../Core/Src/linked_list.c \
 ../Core/Src/log.c \
 ../Core/Src/main.c \
 ../Core/Src/stm32u5xx_hal_msp.c \
@@ -31,7 +30,6 @@ C_DEPS += \
 ./Core/Src/gps.d \
 ./Core/Src/imu.d \
 ./Core/Src/iridium.d \
-./Core/Src/linked_list.d \
 ./Core/Src/log.d \
 ./Core/Src/main.d \
 ./Core/Src/stm32u5xx_hal_msp.d \
@@ -48,7 +46,6 @@ OBJS += \
 ./Core/Src/gps.o \
 ./Core/Src/imu.o \
 ./Core/Src/iridium.o \
-./Core/Src/linked_list.o \
 ./Core/Src/log.o \
 ./Core/Src/main.o \
 ./Core/Src/stm32u5xx_hal_msp.o \
@@ -72,7 +69,7 @@ Core/Src/%.o: ../Core/Src/%.S Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/app_threadx.d ./Core/Src/app_threadx.o ./Core/Src/app_threadx.su ./Core/Src/battery.d ./Core/Src/battery.o ./Core/Src/battery.su ./Core/Src/ct_sensor.d ./Core/Src/ct_sensor.o ./Core/Src/ct_sensor.su ./Core/Src/gps.d ./Core/Src/gps.o ./Core/Src/gps.su ./Core/Src/imu.d ./Core/Src/imu.o ./Core/Src/imu.su ./Core/Src/iridium.d ./Core/Src/iridium.o ./Core/Src/iridium.su ./Core/Src/linked_list.d ./Core/Src/linked_list.o ./Core/Src/linked_list.su ./Core/Src/log.d ./Core/Src/log.o ./Core/Src/log.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32u5xx_hal_msp.d ./Core/Src/stm32u5xx_hal_msp.o ./Core/Src/stm32u5xx_hal_msp.su ./Core/Src/stm32u5xx_hal_timebase_tim.d ./Core/Src/stm32u5xx_hal_timebase_tim.o ./Core/Src/stm32u5xx_hal_timebase_tim.su ./Core/Src/stm32u5xx_it.d ./Core/Src/stm32u5xx_it.o ./Core/Src/stm32u5xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32u5xx.d ./Core/Src/system_stm32u5xx.o ./Core/Src/system_stm32u5xx.su ./Core/Src/tx_initialize_low_level.d ./Core/Src/tx_initialize_low_level.o
+	-$(RM) ./Core/Src/app_threadx.d ./Core/Src/app_threadx.o ./Core/Src/app_threadx.su ./Core/Src/battery.d ./Core/Src/battery.o ./Core/Src/battery.su ./Core/Src/ct_sensor.d ./Core/Src/ct_sensor.o ./Core/Src/ct_sensor.su ./Core/Src/gps.d ./Core/Src/gps.o ./Core/Src/gps.su ./Core/Src/imu.d ./Core/Src/imu.o ./Core/Src/imu.su ./Core/Src/iridium.d ./Core/Src/iridium.o ./Core/Src/iridium.su ./Core/Src/log.d ./Core/Src/log.o ./Core/Src/log.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32u5xx_hal_msp.d ./Core/Src/stm32u5xx_hal_msp.o ./Core/Src/stm32u5xx_hal_msp.su ./Core/Src/stm32u5xx_hal_timebase_tim.d ./Core/Src/stm32u5xx_hal_timebase_tim.o ./Core/Src/stm32u5xx_hal_timebase_tim.su ./Core/Src/stm32u5xx_it.d ./Core/Src/stm32u5xx_it.o ./Core/Src/stm32u5xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32u5xx.d ./Core/Src/system_stm32u5xx.o ./Core/Src/system_stm32u5xx.su ./Core/Src/tx_initialize_low_level.d ./Core/Src/tx_initialize_low_level.o
 
 .PHONY: clean-Core-2f-Src
 

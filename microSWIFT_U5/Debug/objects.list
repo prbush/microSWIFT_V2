@@ -6,7 +6,6 @@
 "./Core/Src/gps.o"
 "./Core/Src/imu.o"
 "./Core/Src/iridium.o"
-"./Core/Src/linked_list.o"
 "./Core/Src/log.o"
 "./Core/Src/main.o"
 "./Core/Src/stm32u5xx_hal_msp.o"
