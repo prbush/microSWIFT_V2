@@ -435,6 +435,7 @@ void startup_thread_entry(ULONG thread_input){
 	// TODO: memset all arrays and such to 0 initialized
 	// TODO: figure out self-check
 	// TODO: set event flags to "ready" for all threads except waves
+	// TODO: start DMA transfer in here, make sure queue overwrites oldest
 }
 
 /**
@@ -450,7 +451,7 @@ void gnss_thread_entry(ULONG thread_input){
 	// No need for the half-transfer complete interrupt, so disable it
 	__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
 	// Initialize GNSS
-	gnss_init(gnss, gnss_uart, uGNSSArray, vGNSSArray, zGNSSArray);
+	gnss_init(gnss, gnss_uart, ubx_queue, uGNSSArray, vGNSSArray, zGNSSArray);
 
 	while(1){
 		gnss->process_message(gnss);
@@ -637,7 +638,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 			}
 
 			memcpy(current_msg, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-			tx_queue_send(ubx_queue, queue_buf, TX_NO_WAIT);
+			tx_queue_front_send(ubx_queue, current_msg, TX_NO_WAIT);
 		}
 		// Restart DMA receive to idle
 		HAL_UARTEx_ReceiveToIdle_DMA(gnss_uart, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);

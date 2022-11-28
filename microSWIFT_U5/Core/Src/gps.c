@@ -17,7 +17,7 @@
 #include "gps.h"
 
 
-void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, uint8_t* uart_buffer,
+void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, TX_QUEUE* ubx_queue,
 		int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray)
 {
 	/* TODO:Turn on power pin
@@ -27,7 +27,7 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, uint8_t* uart_b
 	 */
 	// initialize everything to 0/false
 	self->gnss_uart_handle = gnss_uart_handle;
-	self->uart_buffer = uart_buffer;
+	self->ubx_queue = ubx_queue,
 	self->uGNSSArray = uGNSSArray;
 	self->vGNSSArray = vGNSSArray;
 	self->zGNSSArray = zGNSSArray;
@@ -56,56 +56,37 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, uint8_t* uart_b
  * @return GPS error code (marcos defined in gps_error_codes.h)
  */
 	// Message + overhead bits = 97 bytes. We'll make enough space for 5 msgs
-gnss_error_code_t gnss_get_and_process_message(GNSS* self)
+gnss_error_code_t gnss_process_message(GNSS* self)
 {
-	// Message + overhead bits = 99 bytes. We'll make enough space for 5 msgs
-//	uint8_t UART_receive_buf[512];
-//	memset(UART_receive_buf, 0, sizeof(UART_receive_buf));
-//
-//	HAL_StatusTypeDef ret = HAL_UART_Receive_IT(self->gnss_uart_handle, &UART_receive_buf[0], 400);
-////    HAL_StatusTypeDef ret = HAL_UART_Receive(self->gnss_uart_handle, &UART_receive_buf[0], 256, 20000);
-//    if (!(ret == HAL_OK || ret == HAL_TIMEOUT)) {
-//    	// Something went wrong trying to pull from UART buffer
-//    	self->numberCyclesWithoutData++;
-//    	switch(ret){
-//		case HAL_BUSY: {return GNSS_BUSY_ERROR;}
-////		case HAL_TIMEOUT: {return GPS_TIMEOUT_ERROR;}
-//		default: {return GNSS_UNKNOWN_ERROR;}
-//    	}
-//    }
-	// Hold onto the current UBX_NAV_PVT message
-	char UBX_NAV_PVT_message_buf[128];
-	// Start with a fresh buffer all zero'd out
-    memset(UBX_NAV_PVT_message_buf, 0, sizeof(UBX_NAV_PVT_message_buf));
+	ULONG num_msgs_enqueued, available_space;
+	UINT ret;
+	uint8_t message[UBX_NAV_PVT_MESSAGE_LENGTH];
+	uint8_t payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
+    int32_t message_class = 0;
+    int32_t message_id = 0;
+    int32_t num_payload_bytes = 0;
+    // Reset the valid message processed flag
     self->validMessageProcessed = false;
-	// Some fields to keep track of
-    int32_t messageClass = 0;
-    int32_t messageId = 0;
-    const char* UART_buffer_start = (const char*)&(self->uart_buffer[0]);
-    const char* UART_buffer_end = UART_buffer_start;
-    size_t bufferLength = sizeof(self->uart_buffer);
-
-    // Really hideous for loop
-    for (int32_t numBytes = uUbxProtocolDecode(UART_buffer_start,
-    			bufferLength, &messageClass, &messageId,
-				&(UBX_NAV_PVT_message_buf[0]), sizeof(UBX_NAV_PVT_message_buf),
-				&UART_buffer_end);
-    	numBytes > 0;
-    	numBytes = uUbxProtocolDecode(UART_buffer_start, bufferLength,
-				&messageClass, &messageId, &(UBX_NAV_PVT_message_buf[0]),
-				sizeof(UBX_NAV_PVT_message_buf), &UART_buffer_end))
-    { // start for loop
-
-		if (messageClass != UBX_NAV_PVT_MESSAGE_CLASS ||
-				messageId != UBX_NAV_PVT_MESSAGE_ID) {
-			// This will get our pointers pointing to the next message in the buf, and the for loop
-			// will try processing the next message (if there is one)
-			bufferLength -= UART_buffer_end - UART_buffer_start;
-			UART_buffer_start = UART_buffer_end;
+	// How many messages are on the queue
+	ret = tx_queue_info_get(ubx_queue, TX_NULL, num_msgs_enqueued,
+						available_space, TX_NULL, TX_NULL, TX_NULL);
+	// More messages may be added while processing, but we'll leave those
+	// for the next time around and only get those on the queue right now.
+	while (num_msgs_enqueued > 0) {
+		ret = tx_queue_receive(ubx_queue, (VOID*)message, TX_NO_WAIT);
+		if (ret != TX_SUCCESS) {
+			--num_msgs_enqueued;
+			continue;
 		}
-
-		if (numBytes == 92) { // Good to go, process message
-		// If we made it here, we're good to process a message
+	    // Try to decode message
+	    num_payload_bytes = uUbxProtocolDecode(message, UBX_NAV_PVT_MESSAGE_LENGTH,
+	    		&message_class, &message_id, payload, sizeof(payload), nullptr);
+	    // UBX_NAV_PVT payload is 92 bytes, if we don't have that many, its
+	    // a bad message
+		if (num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH) {
+			--num_msgs_enqueued;
+			continue;
+		}
 
 		// Start by setting the clock if needed
 		if (!self->clockHasBeenSet) {
@@ -135,74 +116,72 @@ gnss_error_code_t gnss_get_and_process_message(GNSS* self)
 
 				self->clockHasBeenSet = true;
 			}
+
+			// Check Lat/Long accuracy, assign to class fields if good
+			int32_t lon = UBX_NAV_PVT_message_buf[24] +
+					(UBX_NAV_PVT_message_buf[25]<<8) +
+					(UBX_NAV_PVT_message_buf[26]<<16) +
+					(UBX_NAV_PVT_message_buf[27]<<24);
+			int32_t lat = UBX_NAV_PVT_message_buf[28] +
+					(UBX_NAV_PVT_message_buf[29]<<8) +
+					(UBX_NAV_PVT_message_buf[30]<<16) +
+					(UBX_NAV_PVT_message_buf[31]<<24);
+			int16_t pDOP =  UBX_NAV_PVT_message_buf[76] +
+					(UBX_NAV_PVT_message_buf[77]<<8);
+
+			if (pDOP < MAX_ACCEPTABLE_PDOP) {
+				self->currentLatitude = lat;
+				self->currentLongitude = lon;
+			}
+
+			// Grab velocities, start by checking speed accuracy estimate (sAcc)
+			int32_t sAcc = UBX_NAV_PVT_message_buf[68] +
+					(UBX_NAV_PVT_message_buf[69] << 8) +
+					(UBX_NAV_PVT_message_buf[70] << 16) +
+					(UBX_NAV_PVT_message_buf[71] << 24);
+
+			if (sAcc > MAX_ACCEPTABLE_SACC) {
+				// This message was not within acceptable parameters,
+				--num_msgs_enqueued;
+				continue;
+			}
+
+			// vAcc was within acceptable range, still need to check
+			// individual velocities are less than MAX_POSSIBLE_VELOCITY
+			int32_t vnorth = UBX_NAV_PVT_message_buf[48] +
+					(UBX_NAV_PVT_message_buf[49] << 8) +
+					(UBX_NAV_PVT_message_buf[50] << 16) +
+					(UBX_NAV_PVT_message_buf[51] << 24);
+			int32_t veast = UBX_NAV_PVT_message_buf[52] +
+					(UBX_NAV_PVT_message_buf[53] << 8) +
+					(UBX_NAV_PVT_message_buf[54] << 16) +
+					(UBX_NAV_PVT_message_buf[55] << 24);
+			int32_t vdown = UBX_NAV_PVT_message_buf[56] +
+					(UBX_NAV_PVT_message_buf[57] << 8) +
+					(UBX_NAV_PVT_message_buf[58] << 16) +
+					(UBX_NAV_PVT_message_buf[59] << 24);
+
+			if ((vnorth > MAX_POSSIBLE_VELOCITY) ||
+				(veast > MAX_POSSIBLE_VELOCITY) ||
+				(vdown > MAX_POSSIBLE_VELOCITY)) {
+				// One or more velocity component was greater than the
+				// max possible velocity. Loop around and try again
+				--num_msgs_enqueued;
+				continue;
+			}
+
+			// All velocity values are good to go, convert them to
+			// shorts and store them in the arrays
+			self->uGNSSArray[self->totalSamples] = (int16_t)veast;
+			self->vGNSSArray[self->totalSamples] = (int16_t)vnorth;
+			self->zGNSSArray[self->totalSamples] = (int16_t)(vdown * -1);
+
+			self->numberCyclesWithoutData = 0;
+			self->totalSamples++;
+			self->validMessageProcessed = true;
 		}
 
-		// Check Lat/Long accuracy, assign to class fields if good
-		int32_t lon = UBX_NAV_PVT_message_buf[24] +
-				(UBX_NAV_PVT_message_buf[25]<<8) +
-				(UBX_NAV_PVT_message_buf[26]<<16) +
-				(UBX_NAV_PVT_message_buf[27]<<24);
-		int32_t lat = UBX_NAV_PVT_message_buf[28] +
-				(UBX_NAV_PVT_message_buf[29]<<8) +
-				(UBX_NAV_PVT_message_buf[30]<<16) +
-				(UBX_NAV_PVT_message_buf[31]<<24);
-		int16_t pDOP =  UBX_NAV_PVT_message_buf[76] +
-				(UBX_NAV_PVT_message_buf[77]<<8);
-
-		if (pDOP < MAX_ACCEPTABLE_PDOP) {
-			self->currentLatitude = lat;
-			self->currentLongitude = lon;
-		}
-
-		// Grab velocities, start by checking speed accuracy estimate (sAcc)
-		int32_t sAcc = UBX_NAV_PVT_message_buf[68] +
-				(UBX_NAV_PVT_message_buf[69] << 8) +
-				(UBX_NAV_PVT_message_buf[70] << 16) +
-				(UBX_NAV_PVT_message_buf[71] << 24);
-
-		if (sAcc > MAX_ACCEPTABLE_SACC) {
-			// This message was not within acceptable parameters,
-			bufferLength -= UART_buffer_end - UART_buffer_start;
-			UART_buffer_start = UART_buffer_end;
-			continue;
-		}
-
-		// vAcc was within acceptable range, still need to check
-		// individual velocities are less than MAX_POSSIBLE_VELOCITY
-		int32_t vnorth = UBX_NAV_PVT_message_buf[48] +
-				(UBX_NAV_PVT_message_buf[49] << 8) +
-				(UBX_NAV_PVT_message_buf[50] << 16) +
-				(UBX_NAV_PVT_message_buf[51] << 24);
-		int32_t veast = UBX_NAV_PVT_message_buf[52] +
-				(UBX_NAV_PVT_message_buf[53] << 8) +
-				(UBX_NAV_PVT_message_buf[54] << 16) +
-				(UBX_NAV_PVT_message_buf[55] << 24);
-		int32_t vdown = UBX_NAV_PVT_message_buf[56] +
-				(UBX_NAV_PVT_message_buf[57] << 8) +
-				(UBX_NAV_PVT_message_buf[58] << 16) +
-				(UBX_NAV_PVT_message_buf[59] << 24);
-
-		if (vnorth > MAX_POSSIBLE_VELOCITY ||
-			veast > MAX_POSSIBLE_VELOCITY ||
-			vdown > MAX_POSSIBLE_VELOCITY) {
-			// One or more velocity component was greater than the
-			// max possible velocity. Loop around and try again
-			bufferLength -= UART_buffer_end - UART_buffer_start;
-			UART_buffer_start = UART_buffer_end;
-			continue;
-		}
-
-		// All velocity values are good to go, convert them to
-		// shorts and store them in the arrays
-		self->uGNSSArray[self->totalSamples] = (int16_t)veast;
-		self->vGNSSArray[self->totalSamples] = (int16_t)vnorth;
-		self->zGNSSArray[self->totalSamples] = (int16_t)vdown * -1;
-
-		self->numberCyclesWithoutData = 0;
-		self->totalSamples++;
-		self->validMessageProcessed = true;
-		}
-	} // end for loop
+	}
 
     if (!self->validMessageProcessed) {
     	// We weren't able to get a valid message from the buffer, so we'll sub
@@ -216,15 +195,15 @@ gnss_error_code_t gnss_get_and_process_message(GNSS* self)
     		//      to taking measurements from the IMU
     	} else {
     		// We'll replace the values with running average
-    		float north = 0, east = 0, down = 0;
+    		int16_t north = 0, east = 0, down = 0;
     		// make sure there are samples to average
     		gnss_error_code_t ret = self->get_running_average_velocities(
     				self, &north, &east, &down);
     		if (ret == GNSS_SUCCESS) {
     			// got the averaged values
-    			self->uGNSSArray[self->totalSamples] = (int16_t)north;
-    			self->vGNSSArray[self->totalSamples] = (int16_t)east;
-    			self->zGNSSArray[self->totalSamples] = (int16_t)down * -1;
+    			self->uGNSSArray[self->totalSamples] = north;
+    			self->vGNSSArray[self->totalSamples] = east;
+    			self->zGNSSArray[self->totalSamples] = down * -1;
     		} else {
     			// Wasn't able to get a running average -- this will return
     			// GNSS_NO_SAMPLES_ERROR
@@ -265,22 +244,22 @@ gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude,
  * @return GPS error code (marcos defined in gps_error_codes.h)
  */
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self,
-		float* returnNorth, float* returnEast, float* returnDown)
+		int16_t* returnNorth, int16_t* returnEast, int16_t* returnDown)
 {
 	if (self->totalSamples > 0) {
 		float substituteNorth = self->vNorthSum /
 				((float)self->totalSamples);
-		*returnNorth = substituteNorth;
+		*returnNorth = (int16_t)substituteNorth;
 		self->vNorthSum += substituteNorth;
 
 		float substituteEast = self->vEastSum /
 				((float)self->totalSamples);
-		*returnEast = substituteEast;
+		*returnEast = (int16_t)substituteEast;
 		self->vEastSum += substituteEast;
 
 		float substituteDown = self->vDownSum /
 				((float)self->totalSamples);
-		*returnDown = substituteDown;
+		*returnDown = (int16_t)substituteDown;
 		self->vDownSum += substituteDown;
 
 		self->totalSamplesAveraged++;

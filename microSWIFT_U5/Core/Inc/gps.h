@@ -29,10 +29,13 @@
 
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
-#define UBX_NAV_PVT_MESSAGE_LENGTH 92
+#define UBX_NAV_PVT_MESSAGE_LENGTH 100
+#define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
 #define MAX_ACCEPTABLE_SACC 100 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
+
+#define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 
@@ -41,10 +44,8 @@
 typedef struct GNSS {
 	// The UART handle for the GNSS interface
 	UART_HandleTypeDef* gnss_uart_handle;
-
-	// The UART receive buffer
-	uint8_t* uart_buffer;
-
+	// Our message queue
+	TX_QUEUE* ubx_queue;
 	// Pointers to the arrays
 	int16_t* uGNSSArray;
 	int16_t* vGNSSArray;
@@ -83,11 +84,11 @@ typedef struct GNSS {
 	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
 
-void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, uint8_t* uart_buffer,
+void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle, TX_QUEUE* ubx_queue,
 		int16_t* uGNSSArray, int16_t* vGNSSArray, int16_t* zGNSSArray);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, float* returnNorth, float* returnEast, float* returnDown);
-gnss_error_code_t gnss_get_and_process_message(GNSS* self);
+gnss_error_code_t gnss_process_message(GNSS* self);
 gnss_error_code_t gnss_sleep(GNSS* self);
 
 #endif /* SRC_GPS_H_ */
