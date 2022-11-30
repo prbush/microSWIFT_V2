@@ -236,7 +236,6 @@ static void MX_GPDMA1_Init(void)
   HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
 
   /* USER CODE END GPDMA1_Init 1 */
-
   /* USER CODE BEGIN GPDMA1_Init 2 */
 
   /* USER CODE END GPDMA1_Init 2 */

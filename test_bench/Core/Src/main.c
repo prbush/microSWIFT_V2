@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -70,7 +70,8 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+uint8_t volatile ubx_DMA_message_buf[100];
+uint8_t volatile message[100];
 /* USER CODE END 0 */
 
 /**
@@ -118,8 +119,15 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
+	  __HAL_DMA_DISABLE_IT(&handle_GPDMA1_Channel0, DMA_IT_HT);
+	  HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(&huart3,
+	  			&(ubx_DMA_message_buf[0]), 100);
+	  if (ret != HAL_OK) {
+	  	while(1);
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -593,7 +601,20 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
+	// Need to make sure this is being called by USART3 (the GNSS UART port)
+	if (huart->Instance == USART3) {
+		memcpy((void*)message, (void*)ubx_DMA_message_buf, 100);
+
+		HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(&huart3,
+				&(ubx_DMA_message_buf[0]), 100);
+
+		if (ret != HAL_OK) {
+			while(1);
+		}
+	}
+}
 /* USER CODE END 4 */
 
 /**
