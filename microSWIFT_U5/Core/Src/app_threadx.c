@@ -117,11 +117,11 @@ double* vWavesArray;
 double* zWavesArray;
 double* wavesTempCopyArray;
 CHAR* ubx_DMA_message_buf;
-CHAR* queue_message_1;
-CHAR* queue_message_2;
-CHAR* queue_message_3;
-CHAR* queue_message_4;
-CHAR* queue_message_5;
+CHAR* volatile queue_message_1;
+CHAR* volatile queue_message_2;
+CHAR* volatile queue_message_3;
+CHAR* volatile queue_message_4;
+CHAR* volatile queue_message_5;
 CHAR* ct_data;
 CHAR* iridium_message;
 GNSS* gnss;
@@ -255,7 +255,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Create our UBX message queue
-	ret = tx_queue_create(&ubx_queue, "ubx queue", sizeof(CHAR*), pointer, UBX_QUEUE_SIZE*sizeof(CHAR*));
+	ret = tx_queue_create(&ubx_queue, "ubx queue", TX_1_ULONG, pointer, (UBX_QUEUE_SIZE * sizeof(ULONG)));
 	if (ret != TX_SUCCESS) {
 		return ret;
 	}
@@ -361,7 +361,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   * @param  None
   * @retval None
   */
-void MX_ThreadX_Init(UART_HandleTypeDef *gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0)
+void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0)
 {
   /* USER CODE BEGIN  Before_Kernel_Start */
   gnss_uart = gnss_uart_handle;
@@ -448,10 +448,15 @@ void startup_thread_entry(ULONG thread_input){
 void gnss_thread_entry(ULONG thread_input){
 	// Initialize GNSS
 	gnss_init(gnss, gnss_uart, &ubx_queue, uGNSSArray, vGNSSArray, zGNSSArray);
-	// start DMA receive to idle
-	HAL_UARTEx_ReceiveToIdle_DMA(gnss->gnss_uart_handle, (uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 	// No need for the half-transfer complete interrupt, so disable it
 	__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+
+	// start DMA receive to idle
+	HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
+			(uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+	if (ret != HAL_OK) {
+		while(1);
+	}
 
 	while(1){
 		gnss->gnss_process_message(gnss);
@@ -593,13 +598,13 @@ void teardown_thread_entry(ULONG thread_input){
   * 		uint16_t Size - number of bytes received
   * @retval void
   */
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	// !!! Save the thread context
 	_tx_thread_context_save();
 	// Need to make sure this is being called by USART3 (the GNSS UART port)
 	if (huart->Instance == USART3) {
 		// If we receive more or less than 100 bytes, discard
-		if (Size == UBX_MESSAGE_SIZE - 1) {
+//		if (Size == UBX_MESSAGE_SIZE - 1) {
 			ULONG num_msgs_enqueued, available_space;
 			UINT ret;
 			// get info on the number of enqueued messages and available space
@@ -607,10 +612,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 					&available_space, TX_NULL, TX_NULL, TX_NULL);
 			if ((ret != TX_SUCCESS) || ((num_msgs_enqueued + available_space) != UBX_QUEUE_SIZE)) {
 				// Something went wrong trying to get status, restart
-				// Restart DMA receive to idle
-				HAL_UARTEx_ReceiveToIdle_DMA(gnss_uart, (uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-				// No need for the half-transfer complete interrupt, so disable it
-				__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+				// restart DMA receive to idle
+				HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
+						(uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 				return;
 			}
 
@@ -639,11 +643,10 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
 			memcpy(current_msg, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 			tx_queue_front_send(gnss->ubx_queue, current_msg, TX_NO_WAIT);
-		}
-		// Restart DMA receive to idle
-		HAL_UARTEx_ReceiveToIdle_DMA(gnss_uart, (uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-		// No need for the half-transfer complete interrupt, so disable it
-		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+//		}
+		// restart DMA receive to idle
+		HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
+				(uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 	}
 	// !!! Restore the thread context
 	_tx_thread_context_restore();
