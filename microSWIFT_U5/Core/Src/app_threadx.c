@@ -116,15 +116,14 @@ double* uWavesArray;
 double* vWavesArray;
 double* zWavesArray;
 double* wavesTempCopyArray;
-CHAR volatile ubx_DMA_message_buf[UBX_MESSAGE_SIZE];
-CHAR volatile queue_message_1[UBX_MESSAGE_SIZE];
-CHAR volatile queue_message_2[UBX_MESSAGE_SIZE];
-CHAR volatile queue_message_3[UBX_MESSAGE_SIZE];
-CHAR volatile queue_message_4[UBX_MESSAGE_SIZE];
-CHAR volatile queue_message_5[UBX_MESSAGE_SIZE];
-//CHAR volatile message_buf[500];
-CHAR volatile ct_data;
-CHAR volatile iridium_message;
+CHAR ubx_DMA_message_buf[UBX_MESSAGE_SIZE + 8];
+CHAR queue_message_1[UBX_MESSAGE_SIZE];
+CHAR queue_message_2[UBX_MESSAGE_SIZE];
+CHAR queue_message_3[UBX_MESSAGE_SIZE];
+CHAR queue_message_4[UBX_MESSAGE_SIZE];
+CHAR queue_message_5[UBX_MESSAGE_SIZE];
+CHAR ct_data;
+CHAR iridium_message;
 GNSS* gnss;
 
 UART_HandleTypeDef* gnss_uart;
@@ -304,8 +303,9 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
+
 	// The UBX message array
-	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, UBX_MESSAGE_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, UBX_MESSAGE_SIZE + 8, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -334,10 +334,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-//	ret = tx_byte_allocate(byte_pool, (VOID**) &message_buf, 500, TX_NO_WAIT);
-//	if (ret != TX_SUCCESS){
-//	  return ret;
-//	}
+
 	// The CT data array
 	ret = tx_byte_allocate(byte_pool, (VOID**) &ct_data, CT_DATA_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
@@ -458,7 +455,7 @@ void gnss_thread_entry(ULONG thread_input){
 
 	// start DMA receive to idle
 	HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-			(uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+			ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 //	HAL_StatusTypeDef ret = HAL_UART_Receive_IT(gnss->gnss_uart_handle, (uint8_t*)ubx_DMA_message_buf, 500);
 	if (ret != HAL_OK) {
 		while(1);
@@ -466,8 +463,8 @@ void gnss_thread_entry(ULONG thread_input){
 
 	while(1){
 		gnss->gnss_process_message(gnss);
-		HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-				(uint8_t*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+//		HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
+//				ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 	}
 
 }
@@ -621,7 +618,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			// Something went wrong trying to get status, restart
 			// restart DMA receive to idle
 			HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-					((uint8_t*)ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
+					ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 			return;
 		}
 
@@ -651,16 +648,20 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		memcpy(current_msg, (void*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 		tx_queue_front_send(gnss->ubx_queue, current_msg, TX_NO_WAIT);
 
+		LL_DMA_ResetChannel(dma_handle, LL_DMA_CHANNEL_0);
+
 		HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-				((uint8_t*)ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
+				ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 		if (HAL_ret != HAL_OK) {
 			HAL_ret = HAL_OK;
 		}
 	}
 	_tx_thread_context_restore();
-
-
-
-
 }
+
+//void align32Bytes(CHAR* pointer){
+//	if (pointer % 32 != 0) {
+//		pointer += pointer % 32;
+//	}
+//}
 /* USER CODE END 1 */
