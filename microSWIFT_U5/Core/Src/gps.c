@@ -61,7 +61,8 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 {
 	ULONG num_msgs_enqueued, available_space;
 	UINT ret;
-	const char message[UBX_NAV_PVT_MESSAGE_LENGTH];
+//	const char message[UBX_NAV_PVT_MESSAGE_LENGTH];
+	const char message[UBX_NAV_PVT_MESSAGE_LENGTH * 2];
 	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
     int32_t message_class = 0;
     int32_t message_id = 0;
@@ -83,7 +84,7 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 			continue;
 		}
 	    // Try to decode message
-	    num_payload_bytes = uUbxProtocolDecode(&(message[0]), UBX_NAV_PVT_MESSAGE_LENGTH,
+	    num_payload_bytes = uUbxProtocolDecode(&(message[0]), UBX_NAV_PVT_MESSAGE_LENGTH * 2,
 	    		&message_class, &message_id, payload, sizeof(payload), NULL);
 	    // UBX_NAV_PVT payload is 92 bytes, if we don't have that many, its
 	    // a bad message

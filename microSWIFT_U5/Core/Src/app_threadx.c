@@ -81,7 +81,7 @@ typedef enum status_flags{
 // Size of an Iridium message TODO: figure this out
 #define IRIDIUM_MESSAGE_SIZE 340
 // UBX_NAV_PVT is 100 bytes
-#define UBX_MESSAGE_SIZE 100
+#define UBX_MESSAGE_SIZE 200
 // The size of our queue
 #define UBX_QUEUE_SIZE 5
 /* USER CODE END PD */
@@ -448,23 +448,18 @@ void startup_thread_entry(ULONG thread_input){
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
+	HAL_StatusTypeDef ret;
 	// Initialize GNSS
 	gnss_init(gnss, gnss_uart, &ubx_queue, uGNSSArray, vGNSSArray, zGNSSArray);
-//	// No need for the half-transfer complete interrupt, so disable it
-//	__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+//  No need for the half-transfer complete interrupt, so disable it
 
-	// start DMA receive to idle
-	HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-			ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-//	HAL_StatusTypeDef ret = HAL_UART_Receive_IT(gnss->gnss_uart_handle, (uint8_t*)ubx_DMA_message_buf, 500);
-	if (ret != HAL_OK) {
-		while(1);
-	}
+	LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
+	ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+	__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
 
 	while(1){
 		gnss->gnss_process_message(gnss);
-//		HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-//				ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 	}
 
 }
@@ -617,11 +612,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		if ((ret != TX_SUCCESS) || ((num_msgs_enqueued + available_space) != UBX_QUEUE_SIZE)) {
 			// Something went wrong trying to get status, restart
 			// restart DMA receive to idle
+			LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
 			HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
 					ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 			return;
 		}
-
+		// TODO: figure out why the ubx buf is not getting copied to the msg
 		CHAR* current_msg;
 		// Find the right queue message pointer to assign to
 		switch(num_msgs_enqueued){
@@ -647,11 +643,89 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 		memcpy(current_msg, (void*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
 		tx_queue_front_send(gnss->ubx_queue, current_msg, TX_NO_WAIT);
-
-		LL_DMA_ResetChannel(dma_handle, LL_DMA_CHANNEL_0);
-
+//		HAL_DMA_Init(dma_handle);
+////	    if (HAL_DMA_Init(dma_handle) != HAL_OK)
+////	    {
+////	      Error_Handler();
+////	    }
+	    HAL_UART_Init(gnss->gnss_uart_handle);
+//		gnss->gnss_uart_handle->Instance->ICR |= (1 << 4);
 		HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
 				ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+		if (HAL_ret != HAL_OK) {
+			HAL_ret = HAL_OK;
+		}
+	}
+	_tx_thread_context_restore();
+}
+
+/**
+  * @brief  UART ISR callback
+  *         We are receiving UBX messages via DMA, waiting for IDLE condition.
+  *         Once idle occurs, this ISR callback is called. We will take the
+  *         received message and push it onto the ubx_queue for processing.
+  *         If we receive less than UBX_MESSAGE_SIZE bytes, the message will
+  *         be discarded.
+  * @param  UART_HandleTypeDef *huart - pointer to the UART handle
+  * 		uint16_t Size - number of bytes received
+  * @retval void
+  */
+void HAL_UART_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
+	// !!! Save the thread context
+	_tx_thread_context_save();
+	HAL_StatusTypeDef HAL_ret;
+	// Need to make sure this is being called by USART3 (the GNSS UART port)
+	if (huart->Instance == USART3) {
+		if (Size == 100) {
+			ULONG num_msgs_enqueued, available_space;
+			UINT ret;
+			// get info on the number of enqueued messages and available space
+			ret = tx_queue_info_get(gnss->ubx_queue, TX_NULL, &num_msgs_enqueued,
+					&available_space, TX_NULL, TX_NULL, TX_NULL);
+			if ((ret != TX_SUCCESS) || ((num_msgs_enqueued + available_space) != UBX_QUEUE_SIZE)) {
+				// Something went wrong trying to get status, restart
+				// restart DMA receive to idle
+				HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
+						ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+				return;
+			}
+
+			CHAR* current_msg;
+			// Find the right queue message pointer to assign to
+			switch(num_msgs_enqueued){
+			case 0:
+				current_msg = queue_message_1;
+				break;
+			case 1:
+				current_msg = queue_message_2;
+				break;
+			case 2:
+				current_msg = queue_message_3;
+				break;
+			case 3:
+				current_msg = queue_message_4;
+				break;
+			case 4:
+				current_msg = queue_message_5;
+				break;
+			default:
+				current_msg = queue_message_1;
+				break;
+			}
+
+			memcpy(current_msg, (void*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+			tx_queue_front_send(gnss->ubx_queue, current_msg, TX_NO_WAIT);
+
+//			LL_DMA_ResetChannel(dma_handle, LL_DMA_CHANNEL_0);
+
+			HAL_ret = HAL_UARTEx_ReceiveToIdle_DMA(gnss->gnss_uart_handle, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+			if (HAL_ret != HAL_OK) {
+				HAL_ret = HAL_OK;
+			}
+		}
+	} else {
+		HAL_ret = HAL_UARTEx_ReceiveToIdle_DMA(gnss->gnss_uart_handle, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
 		if (HAL_ret != HAL_OK) {
 			HAL_ret = HAL_OK;
 		}

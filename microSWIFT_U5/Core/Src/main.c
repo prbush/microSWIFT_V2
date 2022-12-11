@@ -105,15 +105,16 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_GPDMA1_Init();
+
   MX_USART1_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
   MX_RTC_Init();
+  MX_GPDMA1_Init();
   MX_USART3_UART_Init();
   MX_USART2_UART_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
-
+  //TODO: enable SMPS
   /* USER CODE END 2 */
 
   MX_ThreadX_Init(&huart3, &handle_GPDMA1_Channel0);
@@ -232,8 +233,8 @@ static void MX_GPDMA1_Init(void)
   /* USER CODE BEGIN GPDMA1_Init 1 */
 
   /* GPDMA1 interrupt Init */
-  HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+//  HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
+//  HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
 
   /* USER CODE END GPDMA1_Init 1 */
   /* USER CODE BEGIN GPDMA1_Init 2 */
@@ -436,7 +437,7 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 19200;
+  huart3.Init.BaudRate = 115200;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;

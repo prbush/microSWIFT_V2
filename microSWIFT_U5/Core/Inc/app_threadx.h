@@ -31,6 +31,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "main.h"
 #include "stm32u5xx_hal.h"
 #include "stdint.h"
 #include "gps.h"

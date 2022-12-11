@@ -29,6 +29,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "stm32u5xx_hal.h"
 #include "stm32u5xx_ll_dma.h"
+#include "stm32u5xx_ll_usart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
