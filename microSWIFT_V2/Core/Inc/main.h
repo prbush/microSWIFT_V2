@@ -31,7 +31,9 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdlib.h>
+#include <stdlib.h>
+#include "gps.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -66,14 +68,6 @@ void Error_Handler(void);
 #define IRIDIUM_UART_RX_GPIO_Port GPIOA
 #define LD2_Pin GPIO_PIN_5
 #define LD2_GPIO_Port GPIOA
-#define GPS_UART_TX_Pin GPIO_PIN_6
-#define GPS_UART_TX_GPIO_Port GPIOC
-#define GPS_UART_RX_Pin GPIO_PIN_7
-#define GPS_UART_RX_GPIO_Port GPIOC
-#define CT_UART_TX_Pin GPIO_PIN_9
-#define CT_UART_TX_GPIO_Port GPIOA
-#define CT_UART_RX_Pin GPIO_PIN_10
-#define CT_UART_RX_GPIO_Port GPIOA
 #define TMS_Pin GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14

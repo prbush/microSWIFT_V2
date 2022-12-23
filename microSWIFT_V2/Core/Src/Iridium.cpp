@@ -5,7 +5,7 @@
  *      Author: Phil
  */
 
-#include "Iridium.h"
+#include <iridium.h>
 
 Iridium::Iridium() {
 	// TODO Auto-generated constructor stub
