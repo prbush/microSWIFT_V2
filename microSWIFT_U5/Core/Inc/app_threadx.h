@@ -34,6 +34,7 @@
 #include "main.h"
 #include "stm32u5xx_hal.h"
 #include "stdint.h"
+#include "stdbool.h"
 #include "gps.h"
 #include "battery.h"
 #include "ct_sensor.h"

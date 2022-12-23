@@ -1,5 +1,4 @@
 "./AZURE_RTOS/App/app_azure_rtos.o"
-"./Core/Inc/u_ubx_protocol.o"
 "./Core/Src/app_threadx.o"
 "./Core/Src/battery.o"
 "./Core/Src/ct_sensor.o"
@@ -15,6 +14,7 @@
 "./Core/Src/sysmem.o"
 "./Core/Src/system_stm32u5xx.o"
 "./Core/Src/tx_initialize_low_level.o"
+"./Core/Src/u_ubx_protocol.o"
 "./Core/Startup/startup_stm32u575zitxq.o"
 "./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal.o"
 "./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_cortex.o"

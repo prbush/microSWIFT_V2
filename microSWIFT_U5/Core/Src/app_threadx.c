@@ -29,45 +29,53 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef enum thread_priorities{
-	HIGHEST = 0,
-	VERY_HIGH = 1,
-	HIGH = 2,
-	MID= 3,
-	LOW = 4,
-	LOWEST = 5
-}thread_priorities_t;
+ typedef enum thread_priorities{
+ 	HIGHEST = 0,
+ 	VERY_HIGH = 1,
+ 	HIGH = 2,
+ 	MID= 3,
+ 	LOW = 4,
+ 	LOWEST = 5
+ }thread_priorities_t;
 
-typedef enum status_flags{
-	// Ready states
-	GNSS_READY = 1 << 0,
-	IMU_READY = 1 << 1,
-	CT_READY = 1 << 2,
-	MODEM_READY = 1 << 3,
-	WAVES_READY = 1 << 4,
-	// Done states
-	GNSS_DONE = 1 << 4,
-	IMU_DONE = 1 << 5,
-	CT_DONE = 1 << 6,
-	MODEM_DONE = 1 << 7,
-	// Sleep states
-	SET_STOP_2 = 1 << 8,
-	RESET_STOP_2 = 1 << 9,
-	SET_SHUTDOWN = 1 << 10,
-	RESET_SHUTDOWN = 1 << 11,
-	// Error states
-	GPS_ERROR = 1 << 12,
-	IMU_ERROR = 1 << 13,
-	CT_ERROR = 1 << 14,
-	MODEM_ERROR = 1 << 15,
-	MEMORY_ALLOC_ERROR = 1 << 16
-}status_flags_t;
+ typedef enum status_flags{
+ 	// Ready states
+ 	GNSS_READY = 1 << 0,
+ 	GNSS_MSG_BUF_A_READY = 1 << 1,
+ 	GNSS_MSG_BUF_B_READY = 1 << 2,
+ 	IMU_READY = 1 << 3,
+ 	CT_READY = 1 << 4,
+ 	MODEM_READY = 1 << 5,
+ 	WAVES_READY = 1 << 6,
+ 	// Done states
+ 	GNSS_DONE = 1 << 7,
+ 	IMU_DONE = 1 << 8,
+ 	CT_DONE = 1 << 9,
+ 	MODEM_DONE = 1 << 10,
+ 	// Sleep states
+ 	SET_STOP_2 = 1 << 11,
+ 	RESET_STOP_2 = 1 << 12,
+ 	SET_SHUTDOWN = 1 << 13,
+ 	RESET_SHUTDOWN = 1 << 14,
+ 	// Error states
+ 	GNSS_ERROR = 1 << 15,
+ 	IMU_ERROR = 1 << 16,
+ 	CT_ERROR = 1 << 17,
+ 	MODEM_ERROR = 1 << 18,
+ 	MEMORY_ALLOC_ERROR = 1 << 19,
+ 	DMA_ERROR = 1 << 20,
+ 	UART_ERROR = 1 << 21,
+ 	// Misc
+ 	GNSS_CONFIG_RECVD = 1 << 22,
+	GNSS_CONFIG_STARTED = 1 << 23
+ }status_flags_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // gps_thread, imu_thread, and waves_thread will get a large stack, startup_thread
 // and teardown_thread will get small stacks.
+#define THREAD_EXTRA_LARGE_STACK_SIZE 4096
 #define THREAD_LARGE_STACK_SIZE 2048
 #define THREAD_SMALL_STACK_SIZE 512
 // Sensor data arrays -> 2bytes * 5Hz * 2500 seconds = 25,000 bytes
@@ -81,7 +89,7 @@ typedef enum status_flags{
 // Size of an Iridium message TODO: figure this out
 #define IRIDIUM_MESSAGE_SIZE 340
 // UBX_NAV_PVT is 100 bytes
-#define UBX_MESSAGE_SIZE 200
+#define UBX_MESSAGE_SIZE 100
 // The size of our queue
 #define UBX_QUEUE_SIZE 5
 /* USER CODE END PD */
@@ -101,27 +109,24 @@ TX_THREAD ct_thread;
 TX_THREAD waves_thread;
 TX_THREAD iridium_thread;
 TX_THREAD teardown_thread;
-// We'll use flags to signal other threads to run/shutdown
-TX_EVENT_FLAGS_GROUP thread_flags;
 // The UBX message queue, fed by UART via DMA, processed by gnss
 TX_QUEUE ubx_queue;
+// We'll use flags to signal other threads to run/shutdown
+TX_EVENT_FLAGS_GROUP thread_flags;
 // All our data to store/ process
-int16_t* uGNSSArray;
-int16_t* vGNSSArray;
-int16_t* zGNSSArray;
-int16_t* uIMUArray;
-int16_t* vIMUArray;
-int16_t* zIMUArray;
-double* uWavesArray;
-double* vWavesArray;
-double* zWavesArray;
+int16_t* GNSS_N_Array;
+int16_t* GNSS_E_Array;
+int16_t* GNSS_D_Array;
+int16_t* IMU_N_Array;
+int16_t* IMU_E_Array;
+int16_t* IMU_D_Array;
+double* waves_N_Array;
+double* waves_E_Array;
+double* waves_D_Array;
 double* wavesTempCopyArray;
-CHAR ubx_DMA_message_buf[UBX_MESSAGE_SIZE + 8];
-CHAR queue_message_1[UBX_MESSAGE_SIZE];
-CHAR queue_message_2[UBX_MESSAGE_SIZE];
-CHAR queue_message_3[UBX_MESSAGE_SIZE];
-CHAR queue_message_4[UBX_MESSAGE_SIZE];
-CHAR queue_message_5[UBX_MESSAGE_SIZE];
+CHAR ubx_DMA_message_buf[(UBX_MESSAGE_SIZE) + 32];
+CHAR ubx_process_buf_a[(UBX_MESSAGE_SIZE * 10)];
+CHAR ubx_process_buf_b[(UBX_MESSAGE_SIZE * 10)];
 CHAR ct_data;
 CHAR iridium_message;
 GNSS* gnss;
@@ -157,26 +162,26 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Allocate stack for the startup thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Create the startup thread. HIGHEST priority level and no preemption possible
 	ret = tx_thread_create(&startup_thread, "startup thread", startup_thread_entry, 0, pointer,
-		  THREAD_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_LARGE_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 
 	//
 	// Allocate stack for the gnss thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Create the gnss thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&gnss_thread, "gnss thread", gnss_thread_entry, 0, pointer,
-		  THREAD_LARGE_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+		  THREAD_EXTRA_LARGE_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -241,7 +246,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the teardown thread. HIGHEST priority, no preemption-threshold
 	ret = tx_thread_create(&teardown_thread, "teardown thread", teardown_thread_entry, 0, pointer,
-		  THREAD_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+		  THREAD_SMALL_STACK_SIZE, LOWEST, LOWEST, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -262,40 +267,40 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Allocate bytes for the sensor derived arrays
-	ret = tx_byte_allocate(byte_pool, (VOID**) &uGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_N_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &vGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_E_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &vGNSSArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_D_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &uIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_N_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &vIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_E_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &zIMUArray, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_D_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Allocate bytes for the GPSWaves processing arrays
-	ret = tx_byte_allocate(byte_pool, (VOID**) &uWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &waves_N_Array, WAVES_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &vWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &waves_E_Array, WAVES_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &zWavesArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &waves_D_Array, WAVES_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -309,28 +314,15 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	// Queue message 1
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_1, UBX_MESSAGE_SIZE, TX_NO_WAIT);
+
+	// ubx process buffer a
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_process_buf_a, (UBX_MESSAGE_SIZE * 10), TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	// Queue message 2
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_2, UBX_MESSAGE_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	// Queue message 3
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_3, UBX_MESSAGE_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	// Queue message 4
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_4, UBX_MESSAGE_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	// Queue message 5
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_5, UBX_MESSAGE_SIZE, TX_NO_WAIT);
+
+	// ubx process buffer b
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_process_buf_b, (UBX_MESSAGE_SIZE * 10), TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -437,7 +429,34 @@ void startup_thread_entry(ULONG thread_input){
 	// TODO: memset all arrays and such to 0 initialized
 	// TODO: figure out self-check
 	// TODO: set event flags to "ready" for all threads except waves
-	// TODO: start DMA transfer in here, make sure queue overwrites oldest
+	// TODO: start DMA transfer in here
+	HAL_StatusTypeDef HAL_return;
+	UINT threadx_return;
+	ULONG actual_flags;
+	// Initialize GNSS struct
+	gnss_init(gnss, gnss_uart, &thread_flags, GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
+	tx_event_flags_set(&thread_flags, GNSS_CONFIG_STARTED, TX_OR);
+	// Must send the configuration commands to the GNSS unit.
+	if (gnss->config(gnss, dma_handle) == GNSS_SUCCESS) {
+		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
+		HAL_UART_Receive_DMA(gnss->gnss_uart_handle, (uint8_t*)&(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
+		//  No need for the half-transfer complete interrupt, so disable it
+		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+		//	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
+
+		// Wait until the ubx_process_buf_a buffer is full and ready to process
+		tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+		// We got the GNSS_MSG_BUF_A_READY flag, now set the GNSS_READY flag
+		tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+		if (threadx_return != TX_SUCCESS) {
+			// TODO: create a "handle_tx_error" function and call it in here
+			HAL_Delay(10);
+			tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+		}
+	} else {
+		// TODO: figure out this error condition
+	}
+	// This thread will suspend on exit and will not be restarted
 }
 
 /**
@@ -448,20 +467,25 @@ void startup_thread_entry(ULONG thread_input){
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
-	HAL_StatusTypeDef ret;
-	// Initialize GNSS
-	gnss_init(gnss, gnss_uart, &ubx_queue, uGNSSArray, vGNSSArray, zGNSSArray);
-//  No need for the half-transfer complete interrupt, so disable it
-
-	LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
-	ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-	__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
-	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
+	UINT threadx_retern;
+	ULONG actual_flags;
+	// Make sure we have the ready flag
+	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	while(1){
-		gnss->gnss_process_message(gnss);
+		tx_event_flags_get(&thread_flags, (GNSS_MSG_BUF_A_READY | GNSS_MSG_BUF_B_READY),
+				TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+		// TODO: check if the error flags have been set
+		if (actual_flags & GNSS_MSG_BUF_A_READY) {
+			gnss->gnss_process_message(gnss, &ubx_process_buf_a[0]);
+		} else if (actual_flags & GNSS_MSG_BUF_B_READY) {
+			gnss->gnss_process_message(gnss, &ubx_process_buf_b[0]);
+		} else {
+			// Something went wrong
+			// TODO: figure out this error condition
+			// Probably something like cycle power and try again
+		}
 	}
-
 }
 
 /**
@@ -526,7 +550,7 @@ void teardown_thread_entry(ULONG thread_input){
 								IMU_DONE &
 								CT_DONE &
 								MODEM_DONE;
-	ULONG error_flags_to_check = GPS_ERROR &
+	ULONG error_flags_to_check = GNSS_ERROR &
 								 IMU_ERROR &
 								 CT_ERROR &
 								 MODEM_ERROR &
@@ -568,15 +592,15 @@ void teardown_thread_entry(ULONG thread_input){
 	tx_byte_release(&iridium_thread);
 	tx_byte_release(&teardown_thread);
 	tx_byte_release(&thread_flags);
-	tx_byte_release(&uGNSSArray);
-	tx_byte_release(&vGNSSArray);
-	tx_byte_release(&zGNSSArray);
-	tx_byte_release(&uIMUArray);
-	tx_byte_release(&vIMUArray);
-	tx_byte_release(&zIMUArray);
-	tx_byte_release(&uWavesArray);
-	tx_byte_release(&vWavesArray);
-	tx_byte_release(&zWavesArray);
+//	tx_byte_release(&uGNSSArray);
+//	tx_byte_release(&vGNSSArray);
+//	tx_byte_release(&zGNSSArray);
+//	tx_byte_release(&uIMUArray);
+//	tx_byte_release(&vIMUArray);
+//	tx_byte_release(&zIMUArray);
+//	tx_byte_release(&uWavesArray);
+//	tx_byte_release(&vWavesArray);
+//	tx_byte_release(&zWavesArray);
 	tx_byte_release(&wavesTempCopyArray);
 	tx_byte_release(&ubx_DMA_message_buf);
 	tx_byte_release(&ct_data);
@@ -589,153 +613,73 @@ void teardown_thread_entry(ULONG thread_input){
 
 /**
   * @brief  UART ISR callback
-  *         We are receiving UBX messages via DMA, waiting for IDLE condition.
-  *         Once idle occurs, this ISR callback is called. We will take the
-  *         received message and push it onto the ubx_queue for processing.
-  *         If we receive less than UBX_MESSAGE_SIZE bytes, the message will
-  *         be discarded.
+  *
   * @param  UART_HandleTypeDef *huart - pointer to the UART handle
-  * 		uint16_t Size - number of bytes received
+
   * @retval void
   */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-	// !!! Save the thread context
+	// Save the thread context
 	_tx_thread_context_save();
-	HAL_StatusTypeDef HAL_ret;
+
+	static bool use_b_buffer = false;
+	static uint32_t buf_pos = 0;
+	static int msg_count = 0;
+	ULONG actual_flags = 0;
 	// Need to make sure this is being called by USART3 (the GNSS UART port)
 	if (huart->Instance == USART3) {
-		ULONG num_msgs_enqueued, available_space;
-		UINT ret;
-		// get info on the number of enqueued messages and available space
-		ret = tx_queue_info_get(gnss->ubx_queue, TX_NULL, &num_msgs_enqueued,
-				&available_space, TX_NULL, TX_NULL, TX_NULL);
-		if ((ret != TX_SUCCESS) || ((num_msgs_enqueued + available_space) != UBX_QUEUE_SIZE)) {
-			// Something went wrong trying to get status, restart
-			// restart DMA receive to idle
-			LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
-			HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-					ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+		tx_event_flags_get(&thread_flags,
+				GNSS_CONFIG_STARTED,
+				TX_OR, &actual_flags, TX_NO_WAIT);
+
+		if (!(actual_flags & GNSS_READY)) {
+			// GNSS has not yet been configured, the last DMA receive was for
+			// the acknowledgment message, no need to restart DMA transfer
+			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_OR);
+			_tx_thread_context_restore();
 			return;
-		}
-		// TODO: figure out why the ubx buf is not getting copied to the msg
-		CHAR* current_msg;
-		// Find the right queue message pointer to assign to
-		switch(num_msgs_enqueued){
-		case 0:
-			current_msg = queue_message_1;
-			break;
-		case 1:
-			current_msg = queue_message_2;
-			break;
-		case 2:
-			current_msg = queue_message_3;
-			break;
-		case 3:
-			current_msg = queue_message_4;
-			break;
-		case 4:
-			current_msg = queue_message_5;
-			break;
-		default:
-			current_msg = queue_message_1;
-			break;
-		}
-
-		memcpy(current_msg, (void*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-		tx_queue_front_send(gnss->ubx_queue, current_msg, TX_NO_WAIT);
-//		HAL_DMA_Init(dma_handle);
-////	    if (HAL_DMA_Init(dma_handle) != HAL_OK)
-////	    {
-////	      Error_Handler();
-////	    }
-	    HAL_UART_Init(gnss->gnss_uart_handle);
-//		gnss->gnss_uart_handle->Instance->ICR |= (1 << 4);
-		HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-				ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-		if (HAL_ret != HAL_OK) {
-			HAL_ret = HAL_OK;
+		} else if (actual_flags & GNSS_MSG_BUF_A_READY & GNSS_MSG_BUF_B_READY) {
+			// Both buffers are full and have not been processed
+			// TODO: figure out this error condition
+		} else {
+			HAL_StatusTypeDef HAL_return;
+			// Grab a pointer to the correct processing buffer to use
+			CHAR* process_buffer = (use_b_buffer) ? ubx_process_buf_b : ubx_process_buf_a;
+			// Copy the contents to the right buffer
+			memcpy(&process_buffer[buf_pos], ((void*)&ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
+			// If msg_count == 9, the processing buffer is full and we need to
+			// switch to the alternate buffer
+			if (msg_count == 9) {
+				msg_count = 0;
+				buf_pos = 0;
+				// Set the event flag for the correct buffer
+				if (use_b_buffer) {
+					tx_event_flags_set(&thread_flags, GNSS_MSG_BUF_B_READY, TX_OR);
+					use_b_buffer = false;
+				} else {
+					tx_event_flags_set(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR);
+					use_b_buffer = true;
+				}
+			} else {
+				// buffer not full -- increment msg_count, adjust buffer position
+				buf_pos = ++msg_count * UBX_MESSAGE_SIZE;
+			}
+			// Reinitialize the UART port and restart DMA receive
+			HAL_return = HAL_UART_Init(gnss->gnss_uart_handle);
+			if (HAL_return != HAL_OK) {
+				// Something went wrong with reinitializing UART
+				tx_event_flags_set(&thread_flags, UART_ERROR, TX_OR);
+			}
+			HAL_return = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
+					(uint8_t*)&(ubx_DMA_message_buf[buf_pos]), UBX_MESSAGE_SIZE);
+			if (HAL_return != HAL_OK) {
+				// Something went wrong with restarting DMA
+				tx_event_flags_set(&thread_flags, DMA_ERROR, TX_OR);
+			}
 		}
 	}
+	// Restore the thread context
 	_tx_thread_context_restore();
 }
 
-/**
-  * @brief  UART ISR callback
-  *         We are receiving UBX messages via DMA, waiting for IDLE condition.
-  *         Once idle occurs, this ISR callback is called. We will take the
-  *         received message and push it onto the ubx_queue for processing.
-  *         If we receive less than UBX_MESSAGE_SIZE bytes, the message will
-  *         be discarded.
-  * @param  UART_HandleTypeDef *huart - pointer to the UART handle
-  * 		uint16_t Size - number of bytes received
-  * @retval void
-  */
-void HAL_UART_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
-	// !!! Save the thread context
-	_tx_thread_context_save();
-	HAL_StatusTypeDef HAL_ret;
-	// Need to make sure this is being called by USART3 (the GNSS UART port)
-	if (huart->Instance == USART3) {
-		if (Size == 100) {
-			ULONG num_msgs_enqueued, available_space;
-			UINT ret;
-			// get info on the number of enqueued messages and available space
-			ret = tx_queue_info_get(gnss->ubx_queue, TX_NULL, &num_msgs_enqueued,
-					&available_space, TX_NULL, TX_NULL, TX_NULL);
-			if ((ret != TX_SUCCESS) || ((num_msgs_enqueued + available_space) != UBX_QUEUE_SIZE)) {
-				// Something went wrong trying to get status, restart
-				// restart DMA receive to idle
-				HAL_ret = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-						ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-				return;
-			}
-
-			CHAR* current_msg;
-			// Find the right queue message pointer to assign to
-			switch(num_msgs_enqueued){
-			case 0:
-				current_msg = queue_message_1;
-				break;
-			case 1:
-				current_msg = queue_message_2;
-				break;
-			case 2:
-				current_msg = queue_message_3;
-				break;
-			case 3:
-				current_msg = queue_message_4;
-				break;
-			case 4:
-				current_msg = queue_message_5;
-				break;
-			default:
-				current_msg = queue_message_1;
-				break;
-			}
-
-			memcpy(current_msg, (void*)ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-			tx_queue_front_send(gnss->ubx_queue, current_msg, TX_NO_WAIT);
-
-//			LL_DMA_ResetChannel(dma_handle, LL_DMA_CHANNEL_0);
-
-			HAL_ret = HAL_UARTEx_ReceiveToIdle_DMA(gnss->gnss_uart_handle, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-			if (HAL_ret != HAL_OK) {
-				HAL_ret = HAL_OK;
-			}
-		}
-	} else {
-		HAL_ret = HAL_UARTEx_ReceiveToIdle_DMA(gnss->gnss_uart_handle, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
-		if (HAL_ret != HAL_OK) {
-			HAL_ret = HAL_OK;
-		}
-	}
-	_tx_thread_context_restore();
-}
-
-//void align32Bytes(CHAR* pointer){
-//	if (pointer % 32 != 0) {
-//		pointer += pointer % 32;
-//	}
-//}
 /* USER CODE END 1 */
