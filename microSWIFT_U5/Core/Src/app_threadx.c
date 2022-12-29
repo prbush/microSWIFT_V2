@@ -434,10 +434,10 @@ void startup_thread_entry(ULONG thread_input){
 	UINT threadx_return;
 	ULONG actual_flags;
 	// Initialize GNSS struct
-	gnss_init(gnss, gnss_uart, &thread_flags, GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
+	gnss_init(gnss, gnss_uart, dma_handle, &thread_flags, GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
 	tx_event_flags_set(&thread_flags, GNSS_CONFIG_STARTED, TX_OR);
 	// Must send the configuration commands to the GNSS unit.
-	if (gnss->config(gnss, dma_handle) == GNSS_SUCCESS) {
+	if (gnss->config(gnss) == GNSS_SUCCESS) {
 		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
 		HAL_UART_Receive_DMA(gnss->gnss_uart_handle, (uint8_t*)&(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
 		//  No need for the half-transfer complete interrupt, so disable it
@@ -455,6 +455,7 @@ void startup_thread_entry(ULONG thread_input){
 		}
 	} else {
 		// TODO: figure out this error condition
+		// Probably cycle power and restart
 	}
 	// This thread will suspend on exit and will not be restarted
 }
@@ -632,7 +633,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 				GNSS_CONFIG_STARTED,
 				TX_OR, &actual_flags, TX_NO_WAIT);
 
-		if (!(actual_flags & GNSS_READY)) {
+		if (actual_flags & GNSS_CONFIG_STARTED) {
 			// GNSS has not yet been configured, the last DMA receive was for
 			// the acknowledgment message, no need to restart DMA transfer
 			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_OR);

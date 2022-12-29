@@ -21,6 +21,7 @@
 #include "stdint.h"
 #include "string.h"
 #include "stm32u5xx_hal.h"
+#include "stm32u5xx_ll_dma.h"
 #include "stdio.h"
 #include "stdbool.h"
 #include "u_ubx_protocol.h"
@@ -33,6 +34,7 @@
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 100
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
+#define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
 #define MAX_ACCEPTABLE_SACC 100 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
@@ -44,8 +46,9 @@
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins TODO: verify this
 
 typedef struct GNSS {
-	// The UART handle for the GNSS interface
+	// The UART and DMA handle for the GNSS interface
 	UART_HandleTypeDef* gnss_uart_handle;
+	DMA_HandleTypeDef* gnss_dma_handle;
 	// Pointers to the arrays
 	int16_t* GNSS_N_Array;
 	int16_t* GNSS_E_Array;
@@ -77,7 +80,7 @@ typedef struct GNSS {
 	TX_EVENT_FLAGS_GROUP* event_flags;
 
 	// Function pointers
-	gnss_error_code_t (*config)(struct GNSS* self, DMA_HandleTypeDef* dma_handle);
+	gnss_error_code_t (*config)(struct GNSS* self);
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self,
@@ -86,14 +89,22 @@ typedef struct GNSS {
 	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
 
+/* Function declarations */
 void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, int16_t* GNSS_N_Array,
-		int16_t* GNSS_E_Array, int16_t* GNSS_D_Array);
-gnss_error_code_t gnss_config(GNSS* self, DMA_HandleTypeDef* dma_handle);
+		DMA_HandleTypeDef* gnss_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags,
+		int16_t* GNSS_N_Array, int16_t* GNSS_E_Array, int16_t* GNSS_D_Array);
+
+gnss_error_code_t gnss_config(GNSS* self);
+
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
+
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, int16_t* returnNorth,
 		int16_t* returnEast, int16_t* returnDown);
+
 gnss_error_code_t gnss_process_message(GNSS* self, char* process_buf);
+
 gnss_error_code_t gnss_sleep(GNSS* self);
+
+
 
 #endif /* SRC_GPS_H_ */

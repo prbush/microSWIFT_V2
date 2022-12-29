@@ -33,6 +33,7 @@
 /* USER CODE BEGIN Includes */
 #include "main.h"
 #include "stm32u5xx_hal.h"
+#include "stm32u5xx_ll_dma.h"
 #include "stdint.h"
 #include "stdbool.h"
 #include "gps.h"

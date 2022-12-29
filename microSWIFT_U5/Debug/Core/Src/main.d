@@ -33,11 +33,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_usb.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pcd_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_exti.h \
- ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h \
- ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_usart.h \
  ../Core/Inc/app_threadx.h ../Middlewares/ST/threadx/common/inc/tx_api.h \
  ../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc/tx_port.h \
- ../Core/Inc/tx_user.h ../Core/Inc/main.h ../Core/Inc/gps.h \
+ ../Core/Inc/tx_user.h ../Core/Inc/main.h \
+ ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h ../Core/Inc/gps.h \
  ../Core/Inc/gnss_error_codes.h ../Core/Inc/u_ubx_protocol.h \
  ../Core/Inc/u_error_common.h ../Core/Inc/battery.h \
  ../Core/Inc/ct_sensor.h ../Core/Inc/imu.h ../Core/Inc/iridium.h \
@@ -77,13 +76,12 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_usb.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pcd_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_exti.h:
-../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h:
-../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_usart.h:
 ../Core/Inc/app_threadx.h:
 ../Middlewares/ST/threadx/common/inc/tx_api.h:
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc/tx_port.h:
 ../Core/Inc/tx_user.h:
 ../Core/Inc/main.h:
+../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h:
 ../Core/Inc/gps.h:
 ../Core/Inc/gnss_error_codes.h:
 ../Core/Inc/u_ubx_protocol.h:

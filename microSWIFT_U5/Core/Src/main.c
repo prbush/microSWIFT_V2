@@ -58,10 +58,10 @@ PCD_HandleTypeDef hpcd_USB_OTG_FS;
 void SystemClock_Config(void);
 static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART1_UART_Init(void);
+static void MX_GPDMA1_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_RTC_Init(void);
-static void MX_GPDMA1_Init(void);
+static void MX_USART1_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ICACHE_Init(void);
@@ -105,16 +105,15 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-
-  MX_USART1_UART_Init();
+  MX_GPDMA1_Init();
   MX_USB_OTG_FS_PCD_Init();
   MX_RTC_Init();
-  MX_GPDMA1_Init();
+  MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_USART2_UART_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
-  //TODO: enable SMPS
+
   /* USER CODE END 2 */
 
   MX_ThreadX_Init(&huart3, &handle_GPDMA1_Channel0);
@@ -178,12 +177,12 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
                               |RCC_CLOCKTYPE_PCLK3;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV4;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
