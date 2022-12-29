@@ -51,6 +51,11 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-# Eclipse files
+# STM#@CubeIde Files
 *.prefs
 *.list
+*.metadata
+**/g491_test_bed
+**/microSWIFT_U5/Debug
+**/test_bed
+**/test_bench/Debug
