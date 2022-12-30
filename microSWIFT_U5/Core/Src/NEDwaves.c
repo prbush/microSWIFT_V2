@@ -5,11 +5,11 @@
  * File: NEDwaves.c
  *
  * MATLAB Coder version            : 5.5
- * C/C++ source code generated on  : 29-Dec-2022 10:05:59
+ * C/C++ source code generated on  : 30-Dec-2022 11:49:41
  */
 
 /* Include Files */
-#include <NEDwaves.h>
+#include "NEDwaves.h"
 #include "NEDwaves_data.h"
 #include "NEDwaves_emxutil.h"
 #include "NEDwaves_types.h"
@@ -875,7 +875,7 @@ void NEDwaves(emxArray_real32_T *north, emxArray_real32_T *east,
   emxInit_creal32_T(&b_UVwindow);
   emxInit_creal_T(&b_UVwindowmerged, 2);
   guard1 = false;
-  if ((east->size[0] >= 5120) && (fs >= 1.0)) {
+  if ((east->size[0] >= 512) && (fs >= 1.0)) {
     vlen = bad->size[0];
     if (bad->size[0] == 0) {
       nx = 0;
@@ -951,7 +951,7 @@ void NEDwaves(emxArray_real32_T *north, emxArray_real32_T *east,
             (float)b_Dp * (down_data[vlen + 1] - down_data[vlen]);
       }
       /*  break into windows (use 75 percent overlap) */
-      win = rt_roundd_snf(fs * 2560.0);
+      win = rt_roundd_snf(fs * 256.0);
       /*  window length in data points */
       if (rt_remd_snf(win, 2.0) != 0.0) {
         win--;
@@ -1656,7 +1656,7 @@ void NEDwaves(emxArray_real32_T *north, emxArray_real32_T *east,
       /*  freq (Hz) bandwitdh */
       /*  find middle of each freq band, ONLY WORKS WHEN MERGING ODD NUMBER OF
        * BANDS! */
-      b_Dp = bandwidth / 2.0 + 0.000390625;
+      b_Dp = bandwidth / 2.0 + 0.00390625;
       i = f->size[0] * f->size[1];
       f->size[0] = 1;
       f->size[1] = (int)(d - 1.0) + 1;

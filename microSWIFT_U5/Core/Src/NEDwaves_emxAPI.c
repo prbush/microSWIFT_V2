@@ -56,7 +56,7 @@ emxArray_real16_T *emxCreateND_real16_T(int numDimensions, const int *size)
     numEl *= size[i];
     emx->size[i] = size[i];
   }
-  emx->data = (real16_T *)calloc((unsigned int)numEl, sizeof(real16_T));
+  emx->data = (real16_T *)calloc_replacement((unsigned int)numEl, sizeof(real16_T));
   emx->numDimensions = numDimensions;
   emx->allocatedSize = numEl;
   return emx;
@@ -78,7 +78,7 @@ emxArray_real32_T *emxCreateND_real32_T(int numDimensions, const int *size)
     numEl *= size[i];
     emx->size[i] = size[i];
   }
-  emx->data = (float *)calloc((unsigned int)numEl, sizeof(float));
+  emx->data = (float *)calloc_replacement((unsigned int)numEl, sizeof(float));
   emx->numDimensions = numDimensions;
   emx->allocatedSize = numEl;
   return emx;
@@ -101,7 +101,7 @@ emxArray_uint8_T *emxCreateND_uint8_T(int numDimensions, const int *size)
     emx->size[i] = size[i];
   }
   emx->data =
-      (unsigned char *)calloc((unsigned int)numEl, sizeof(unsigned char));
+      (unsigned char *)calloc_replacement((unsigned int)numEl, sizeof(unsigned char));
   emx->numDimensions = numDimensions;
   emx->allocatedSize = numEl;
   return emx;
@@ -297,7 +297,7 @@ emxArray_int8_T *emxCreate_int8_T(int rows, int cols)
   emx->size[0] = rows;
   numEl = rows * cols;
   emx->size[1] = cols;
-  emx->data = (signed char *)calloc((unsigned int)numEl, sizeof(signed char));
+  emx->data = (signed char *)calloc_replacement((unsigned int)numEl, sizeof(signed char));
   emx->numDimensions = 2;
   emx->allocatedSize = numEl;
   return emx;
@@ -316,7 +316,7 @@ emxArray_real16_T *emxCreate_real16_T(int rows, int cols)
   emx->size[0] = rows;
   numEl = rows * cols;
   emx->size[1] = cols;
-  emx->data = (real16_T *)calloc((unsigned int)numEl, sizeof(real16_T));
+  emx->data = (real16_T *)calloc_replacement((unsigned int)numEl, sizeof(real16_T));
   emx->numDimensions = 2;
   emx->allocatedSize = numEl;
   return emx;
@@ -335,7 +335,7 @@ emxArray_real32_T *emxCreate_real32_T(int rows, int cols)
   emx->size[0] = rows;
   numEl = rows * cols;
   emx->size[1] = cols;
-  emx->data = (float *)calloc((unsigned int)numEl, sizeof(float));
+  emx->data = (float *)calloc_replacement((unsigned int)numEl, sizeof(float));
   emx->numDimensions = 2;
   emx->allocatedSize = numEl;
   return emx;
@@ -355,7 +355,7 @@ emxArray_uint8_T *emxCreate_uint8_T(int rows, int cols)
   numEl = rows * cols;
   emx->size[1] = cols;
   emx->data =
-      (unsigned char *)calloc((unsigned int)numEl, sizeof(unsigned char));
+      (unsigned char *)calloc_replacement((unsigned int)numEl, sizeof(unsigned char));
   emx->numDimensions = 2;
   emx->allocatedSize = numEl;
   return emx;
