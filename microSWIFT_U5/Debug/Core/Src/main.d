@@ -40,7 +40,7 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/gnss_error_codes.h ../Core/Inc/u_ubx_protocol.h \
  ../Core/Inc/u_error_common.h ../Core/Inc/battery.h \
  ../Core/Inc/ct_sensor.h ../Core/Inc/imu.h ../Core/Inc/iridium.h \
- ../Core/Inc/log.h
+ ../Core/Inc/log.h ../Core/Inc/mem_replacements.h
 ../Core/Inc/main.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal.h:
 ../Core/Inc/stm32u5xx_hal_conf.h:
@@ -91,3 +91,4 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/imu.h:
 ../Core/Inc/iridium.h:
 ../Core/Inc/log.h:
+../Core/Inc/mem_replacements.h:

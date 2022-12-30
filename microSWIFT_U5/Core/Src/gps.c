@@ -320,7 +320,6 @@ gnss_error_code_t gnss_get_running_average_velocities(GNSS* self,
  */
 gnss_error_code_t gnss_sleep(GNSS* self)
 {
-	int* a = (int*)calloc(5,sizeof(int));
 }
 
 /**

@@ -81,7 +81,7 @@ VOID tx_application_define(VOID *first_unused_memory)
   if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN TX_Byte_Pool_Error */
-	  //TODO: reset the device here
+	  HAL_NVIC_SystemReset();
     /* USER CODE END TX_Byte_Pool_Error */
   }
   else

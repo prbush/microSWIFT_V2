@@ -101,7 +101,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-// Out threads
+TX_BYTE_POOL *byte_pool;
+// Our threads
 TX_THREAD startup_thread;
 TX_THREAD gnss_thread;
 TX_THREAD imu_thread;
@@ -154,7 +155,8 @@ void teardown_thread_entry(ULONG thread_input);
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
-  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
+//  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
+  	byte_pool = (TX_BYTE_POOL*)memory_ptr;
 
    /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
@@ -262,6 +264,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	// Create our UBX message queue
 	ret = tx_queue_create(&ubx_queue, "ubx queue", TX_1_ULONG, pointer, (UBX_QUEUE_SIZE * sizeof(ULONG)));
 	if (ret != TX_SUCCESS) {
+		return ret;
+	}
+
+	ret = memory_pool_init(pointer, 300000);
+	if (ret == -1) {
 		return ret;
 	}
 
@@ -520,6 +527,9 @@ void ct_thread_entry(ULONG thread_input){
   * @retval void
   */
 void waves_thread_entry(ULONG thread_input){
+
+	// Write waves test in here
+
 
 }
 

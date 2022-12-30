@@ -42,6 +42,7 @@
 #include "imu.h"
 #include "iridium.h"
 #include "log.h"
+#include "mem_replacements.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

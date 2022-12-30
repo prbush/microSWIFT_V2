@@ -9,3 +9,6 @@ void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* ha
 
 app_threadx.h
 void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0)
+
+tx_user.h
+#define TX_TIMER_TICKS_PER_SECOND                5 <or whatever>
