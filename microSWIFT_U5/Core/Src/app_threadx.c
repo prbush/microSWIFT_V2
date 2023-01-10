@@ -98,70 +98,61 @@
 /* USER CODE BEGIN PM */
  /* Function Declarations */
 
- // NEDWaves test support
- static emxArray_real32_T *argInit_Unboundedx1_real32_T(void);
+// NEDWaves test support
+static emxArray_real32_T *argInit_1xUnbounded_real32_T_down(void);
+static emxArray_real32_T *argInit_1xUnbounded_real32_T_north_east(void);
 
- static float argInit_real32_T(void);
+static double argInit_real_T(void);
 
- static double argInit_real_T(void);
+static int num_samples = 16384;
 
- /* Function Definitions */
- /*
-  * Arguments    : void
-  * Return Type  : emxArray_real32_T *
-  */
- static emxArray_real32_T *argInit_Unboundedx1_real32_T_Down(void)
- {
-   emxArray_real32_T *result;
-   float *result_data;
-   const int i = 2560;
-   int idx0;
-   /* Set the size of the array.*/
-   result = emxCreateND_real32_T(1, &i);
-   result_data = result->data;
-   /* Loop over the array to initialize each element. */
-   for (idx0 = 0; idx0 < result->size[0U]; idx0++) {
-     /* Set the value of the array element. */
-     result_data[idx0] = -2.51327 * sin(-0.12566*idx0);
-   }
-   return result;
- }
+/* Function Definitions */
+static emxArray_real32_T *argInit_1xUnbounded_real32_T_down(void)
+{
+	emxArray_real32_T *result;
+	float *result_data;
+	int idx0;
+	int idx1;
+	/* Set the size of the array.
+	Change this size to the value that the application requires. */
+	result = emxCreate_real32_T(1, num_samples);
+	result_data = result->data;
+	/* Loop over the array to initialize each element. */
+	for (idx0 = 0; idx0 < 1; idx0++) {
+		for (idx1 = 0; idx1 < result->size[0U]; idx1++) {
+		/* Set the value of the array element.
+		Change this value to the value that the application requires. */
+		result_data[idx1] = -2.51327 * sin(-0.12566*idx1);
+		}
+	}
+	return result;
+}
 
- static emxArray_real32_T *argInit_Unboundedx1_real32_T_North_East(void)
- {
-   emxArray_real32_T *result;
-   float *result_data;
-   const int i = 2560;
-   int idx0;
-   /* Set the size of the array.*/
-   result = emxCreateND_real32_T(1, &i);
-   result_data = result->data;
-   /* Loop over the array to initialize each element. */
-   for (idx0 = 0; idx0 < result->size[0U]; idx0++) {
-     /* Set the value of the array element.
- Change this value to the value that the application requires. */
-     result_data[idx0] = 0.707 * 2.51327 * cos(-0.12566*idx0);
-   }
-   return result;
- }
+static emxArray_real32_T *argInit_1xUnbounded_real32_T_north_east(void)
+{
+	emxArray_real32_T *result;
+	float *result_data;
+	int idx0;
+	int idx1;
+	/* Set the size of the array.
+	Change this size to the value that the application requires. */
+	result = emxCreate_real32_T(1, num_samples);
+	result_data = result->data;
+	/* Loop over the array to initialize each element. */
+	for (idx0 = 0; idx0 < 1; idx0++) {
+		for (idx1 = 0; idx1 < result->size[0U]; idx1++) {
+		/* Set the value of the array element.
+		Change this value to the value that the application requires. */
+		result_data[idx1] = 0.707 * 2.51327 * cos(-0.12566*idx1);
+		}
+	}
+	return result;
+}
 
- /*
-  * Arguments    : void
-  * Return Type  : float
-  */
- static float argInit_real32_T(void)
- {
-   return 0.0F;
- }
-
- /*
-  * Arguments    : void
-  * Return Type  : double
-  */
- static double argInit_real_T(void)
- {
-   return 0.0;
- }
+static double argInit_real_T(void)
+{
+  return 0.0;
+}
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -600,47 +591,33 @@ void ct_thread_entry(ULONG thread_input){
 void waves_thread_entry(ULONG thread_input){
 
 	// Write waves test in here
-	  emxArray_int8_T *a1;
-	  emxArray_int8_T *a2;
-	  emxArray_int8_T *b1;
-	  emxArray_int8_T *b2;
-	  emxArray_real16_T *E;
 	  emxArray_real32_T *down;
 	  emxArray_real32_T *east;
 	  emxArray_real32_T *north;
-	  emxArray_uint8_T *check;
+	  real16_T E[42];
 	  real16_T Dp;
 	  real16_T Hs;
 	  real16_T Tp;
 	  real16_T b_fmax;
 	  real16_T b_fmin;
-	  /* Initialize function 'NEDwaves' input arguments. */
+	  signed char a1[42];
+	  signed char a2[42];
+	  signed char b1[42];
+	  signed char b2[42];
+	  unsigned char check[42];
+	  /* Initialize function 'NEDwaves_memlight' input arguments. */
 	  /* Initialize function input argument 'north'. */
-	  north = argInit_Unboundedx1_real32_T_North_East();
+	  north = argInit_1xUnbounded_real32_T_down();
 	  /* Initialize function input argument 'east'. */
-	  east = argInit_Unboundedx1_real32_T_North_East();
+	  east = argInit_1xUnbounded_real32_T_north_east();
 	  /* Initialize function input argument 'down'. */
-	  down = argInit_Unboundedx1_real32_T_Down();
-	  /* Call the entry-point 'NEDwaves'. */
-	  emxInitArray_real16_T(&E, 2);
-	  emxInitArray_int8_T(&a1, 2);
-	  emxInitArray_int8_T(&b1, 2);
-	  emxInitArray_int8_T(&a2, 2);
-	  emxInitArray_int8_T(&b2, 2);
-	  emxInitArray_uint8_T(&check, 2);
-	  NEDwaves(north, east, down, 5.0, &Hs, &Tp, &Dp, E, &b_fmin,
-	           &b_fmax, a1, b1, a2, b2, check);
+	  down = argInit_1xUnbounded_real32_T_north_east();
+	  /* Call the entry-point 'NEDwaves_memlight'. */
+	  NEDwaves_memlight(north, east, down, argInit_real_T(), &Hs, &Tp, &Dp, E,
+	                    &b_fmin, &b_fmax, a1, b1, a2, b2, check);
 	  emxDestroyArray_real32_T(down);
 	  emxDestroyArray_real32_T(east);
 	  emxDestroyArray_real32_T(north);
-	  emxDestroyArray_real16_T(E);
-	  emxDestroyArray_int8_T(a1);
-	  emxDestroyArray_int8_T(b1);
-	  emxDestroyArray_int8_T(a2);
-	  emxDestroyArray_int8_T(b2);
-	  emxDestroyArray_uint8_T(check);
-
-
 }
 
 /**

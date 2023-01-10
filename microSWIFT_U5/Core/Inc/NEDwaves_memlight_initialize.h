@@ -2,17 +2,16 @@
  * Academic License - for use in teaching, academic research, and meeting
  * course requirements at degree granting institutions only.  Not for
  * government, commercial, or other organizational use.
- * File: std.h
+ * File: NEDwaves_memlight_initialize.h
  *
- * MATLAB Coder version            : 5.5
- * C/C++ source code generated on  : 29-Dec-2022 10:05:59
+ * MATLAB Coder version            : 5.4
+ * C/C++ source code generated on  : 06-Jan-2023 10:46:55
  */
 
-#ifndef STD_H
-#define STD_H
+#ifndef NEDWAVES_MEMLIGHT_INITIALIZE_H
+#define NEDWAVES_MEMLIGHT_INITIALIZE_H
 
 /* Include Files */
-#include "NEDwaves_types.h"
 #include "rtwtypes.h"
 #include <stddef.h>
 #include <stdlib.h>
@@ -22,7 +21,7 @@ extern "C" {
 #endif
 
 /* Function Declarations */
-float b_std(const emxArray_real32_T *x);
+extern void NEDwaves_memlight_initialize(void);
 
 #ifdef __cplusplus
 }
@@ -30,7 +29,7 @@ float b_std(const emxArray_real32_T *x);
 
 #endif
 /*
- * File trailer for std.h
+ * File trailer for NEDwaves_memlight_initialize.h
  *
  * [EOF]
  */

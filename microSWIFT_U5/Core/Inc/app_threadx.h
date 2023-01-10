@@ -45,10 +45,10 @@
 #include "mem_replacements.h"
 
  // NEDWaves test
-#include "NEDwaves.h"
-#include "NEDwaves_emxAPI.h"
-#include "NEDwaves_terminate.h"
-#include "NEDwaves_types.h"
+#include "NEDwaves_memlight.h"
+#include "NEDwaves_memlight_emxAPI.h"
+#include "NEDwaves_memlight_terminate.h"
+#include "NEDwaves_memlight_types.h"
 #include "rt_nonfinite.h"
 #include "rtwhalf.h"
 /* USER CODE END Includes */

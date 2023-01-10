@@ -4,53 +4,53 @@
  * government, commercial, or other organizational use.
  * File: FFTImplementationCallback.c
  *
- * MATLAB Coder version            : 5.5
- * C/C++ source code generated on  : 29-Dec-2022 10:05:59
+ * MATLAB Coder version            : 5.4
+ * C/C++ source code generated on  : 06-Jan-2023 10:46:55
  */
 
 /* Include Files */
 #include "FFTImplementationCallback.h"
-#include "NEDwaves_emxutil.h"
-#include "NEDwaves_types.h"
+#include "NEDwaves_memlight_emxutil.h"
+#include "NEDwaves_memlight_types.h"
 #include "rt_nonfinite.h"
 #include <math.h>
 
 /* Function Declarations */
-static void c_FFTImplementationCallback_r2b(const emxArray_creal_T *x,
+static void c_FFTImplementationCallback_r2b(const emxArray_creal32_T *x,
                                             int unsigned_nRows,
-                                            const emxArray_real_T *costab,
-                                            const emxArray_real_T *sintab,
-                                            emxArray_creal_T *y);
+                                            const emxArray_real32_T *costab,
+                                            const emxArray_real32_T *sintab,
+                                            emxArray_creal32_T *y);
 
 static void d_FFTImplementationCallback_doH(
-    const emxArray_real_T *x, int xoffInit, emxArray_creal_T *y, int nrowsx,
-    int nRows, int nfft, const emxArray_creal_T *wwc,
-    const emxArray_real_T *costab, const emxArray_real_T *sintab,
-    const emxArray_real_T *costabinv, const emxArray_real_T *sintabinv);
+    const emxArray_real32_T *x, emxArray_creal32_T *y, int nrowsx, int nRows,
+    int nfft, const emxArray_creal32_T *wwc, const emxArray_real32_T *costab,
+    const emxArray_real32_T *sintab, const emxArray_real32_T *costabinv,
+    const emxArray_real32_T *sintabinv);
 
 /* Function Definitions */
 /*
- * Arguments    : const emxArray_creal_T *x
+ * Arguments    : const emxArray_creal32_T *x
  *                int unsigned_nRows
- *                const emxArray_real_T *costab
- *                const emxArray_real_T *sintab
- *                emxArray_creal_T *y
+ *                const emxArray_real32_T *costab
+ *                const emxArray_real32_T *sintab
+ *                emxArray_creal32_T *y
  * Return Type  : void
  */
-static void c_FFTImplementationCallback_r2b(const emxArray_creal_T *x,
+static void c_FFTImplementationCallback_r2b(const emxArray_creal32_T *x,
                                             int unsigned_nRows,
-                                            const emxArray_real_T *costab,
-                                            const emxArray_real_T *sintab,
-                                            emxArray_creal_T *y)
+                                            const emxArray_real32_T *costab,
+                                            const emxArray_real32_T *sintab,
+                                            emxArray_creal32_T *y)
 {
-  const creal_T *x_data;
-  creal_T *y_data;
-  const double *costab_data;
-  const double *sintab_data;
-  double temp_im;
-  double temp_re;
-  double temp_re_tmp;
-  double twid_re;
+  const creal32_T *x_data;
+  creal32_T *y_data;
+  const float *costab_data;
+  const float *sintab_data;
+  float temp_im;
+  float temp_re;
+  float temp_re_tmp;
+  float twid_re;
   int i;
   int iDelta2;
   int iheight;
@@ -64,16 +64,16 @@ static void c_FFTImplementationCallback_r2b(const emxArray_creal_T *x,
   x_data = x->data;
   iy = y->size[0];
   y->size[0] = unsigned_nRows;
-  emxEnsureCapacity_creal_T(y, iy);
+  emxEnsureCapacity_creal32_T(y, iy);
   y_data = y->data;
   if (unsigned_nRows > x->size[0]) {
     iy = y->size[0];
     y->size[0] = unsigned_nRows;
-    emxEnsureCapacity_creal_T(y, iy);
+    emxEnsureCapacity_creal32_T(y, iy);
     y_data = y->data;
     for (iy = 0; iy < unsigned_nRows; iy++) {
-      y_data[iy].re = 0.0;
-      y_data[iy].im = 0.0;
+      y_data[iy].re = 0.0F;
+      y_data[iy].im = 0.0F;
     }
   }
   iDelta2 = x->size[0];
@@ -81,7 +81,7 @@ static void c_FFTImplementationCallback_r2b(const emxArray_creal_T *x,
     iDelta2 = unsigned_nRows;
   }
   iheight = unsigned_nRows - 2;
-  nRowsD2 = (int)((unsigned int)unsigned_nRows >> 1);
+  nRowsD2 = unsigned_nRows / 2;
   k = nRowsD2 / 2;
   iy = 0;
   ju = 0;
@@ -126,7 +126,7 @@ static void c_FFTImplementationCallback_r2b(const emxArray_creal_T *x,
     }
     ju = 1;
     for (j = k; j < nRowsD2; j += k) {
-      double twid_im;
+      float twid_im;
       int ihi;
       twid_re = costab_data[j];
       twid_im = sintab_data[j];
@@ -154,62 +154,60 @@ static void c_FFTImplementationCallback_r2b(const emxArray_creal_T *x,
 }
 
 /*
- * Arguments    : const emxArray_real_T *x
- *                int xoffInit
- *                emxArray_creal_T *y
+ * Arguments    : const emxArray_real32_T *x
+ *                emxArray_creal32_T *y
  *                int nrowsx
  *                int nRows
  *                int nfft
- *                const emxArray_creal_T *wwc
- *                const emxArray_real_T *costab
- *                const emxArray_real_T *sintab
- *                const emxArray_real_T *costabinv
- *                const emxArray_real_T *sintabinv
+ *                const emxArray_creal32_T *wwc
+ *                const emxArray_real32_T *costab
+ *                const emxArray_real32_T *sintab
+ *                const emxArray_real32_T *costabinv
+ *                const emxArray_real32_T *sintabinv
  * Return Type  : void
  */
 static void d_FFTImplementationCallback_doH(
-    const emxArray_real_T *x, int xoffInit, emxArray_creal_T *y, int nrowsx,
-    int nRows, int nfft, const emxArray_creal_T *wwc,
-    const emxArray_real_T *costab, const emxArray_real_T *sintab,
-    const emxArray_real_T *costabinv, const emxArray_real_T *sintabinv)
+    const emxArray_real32_T *x, emxArray_creal32_T *y, int nrowsx, int nRows,
+    int nfft, const emxArray_creal32_T *wwc, const emxArray_real32_T *costab,
+    const emxArray_real32_T *sintab, const emxArray_real32_T *costabinv,
+    const emxArray_real32_T *sintabinv)
 {
-  emxArray_creal_T *fv;
-  emxArray_creal_T *fy;
-  emxArray_creal_T *reconVar1;
-  emxArray_creal_T *reconVar2;
-  emxArray_creal_T *ytmp;
+  emxArray_creal32_T *fv;
+  emxArray_creal32_T *fy;
+  emxArray_creal32_T *reconVar1;
+  emxArray_creal32_T *reconVar2;
+  emxArray_creal32_T *ytmp;
   emxArray_int32_T *wrapIndex;
-  emxArray_real_T *b_costab;
-  emxArray_real_T *b_sintab;
-  emxArray_real_T *costab1q;
-  emxArray_real_T *hcostabinv;
-  emxArray_real_T *hsintab;
-  emxArray_real_T *hsintabinv;
-  const creal_T *wwc_data;
-  creal_T *fv_data;
-  creal_T *fy_data;
-  creal_T *reconVar1_data;
-  creal_T *reconVar2_data;
-  creal_T *y_data;
-  creal_T *ytmp_data;
-  const double *costab_data;
-  const double *costabinv_data;
-  const double *sintab_data;
-  const double *sintabinv_data;
-  const double *x_data;
-  double e;
-  double temp_im;
-  double temp_re;
-  double temp_re_tmp;
-  double twid_im;
-  double twid_re;
-  double z;
-  double *b_costab_data;
-  double *b_sintab_data;
-  double *costab1q_data;
-  double *hcostabinv_data;
-  double *hsintab_data;
-  double *hsintabinv_data;
+  emxArray_real32_T *b_costab;
+  emxArray_real32_T *b_sintab;
+  emxArray_real32_T *costab1q;
+  emxArray_real32_T *hcostabinv;
+  emxArray_real32_T *hsintab;
+  emxArray_real32_T *hsintabinv;
+  const creal32_T *wwc_data;
+  creal32_T *fv_data;
+  creal32_T *fy_data;
+  creal32_T *reconVar1_data;
+  creal32_T *reconVar2_data;
+  creal32_T *y_data;
+  creal32_T *ytmp_data;
+  double z_tmp;
+  const float *costab_data;
+  const float *costabinv_data;
+  const float *sintab_data;
+  const float *sintabinv_data;
+  const float *x_data;
+  float b_temp_re_tmp;
+  float temp_im;
+  float temp_re;
+  float twid_im;
+  float twid_re;
+  float *b_costab_data;
+  float *b_sintab_data;
+  float *costab1q_data;
+  float *hcostabinv_data;
+  float *hsintab_data;
+  float *hsintabinv_data;
   int hnRows;
   int hszCostab;
   int i;
@@ -219,6 +217,7 @@ static void d_FFTImplementationCallback_doH(
   int k;
   int nRowsD2;
   int nd2;
+  int temp_re_tmp;
   int *wrapIndex_data;
   bool tst;
   sintabinv_data = sintabinv->data;
@@ -228,20 +227,20 @@ static void d_FFTImplementationCallback_doH(
   wwc_data = wwc->data;
   y_data = y->data;
   x_data = x->data;
-  hnRows = (int)((unsigned int)nRows >> 1);
-  emxInit_creal_T(&ytmp, 1);
+  emxInit_creal32_T(&ytmp, 1);
+  hnRows = nRows / 2;
   istart = ytmp->size[0];
   ytmp->size[0] = hnRows;
-  emxEnsureCapacity_creal_T(ytmp, istart);
+  emxEnsureCapacity_creal32_T(ytmp, istart);
   ytmp_data = ytmp->data;
   if (hnRows > nrowsx) {
     istart = ytmp->size[0];
     ytmp->size[0] = hnRows;
-    emxEnsureCapacity_creal_T(ytmp, istart);
+    emxEnsureCapacity_creal32_T(ytmp, istart);
     ytmp_data = ytmp->data;
     for (istart = 0; istart < hnRows; istart++) {
-      ytmp_data[istart].re = 0.0;
-      ytmp_data[istart].im = 0.0;
+      ytmp_data[istart].re = 0.0F;
+      ytmp_data[istart].im = 0.0F;
     }
   }
   if ((x->size[0] & 1) == 0) {
@@ -254,45 +253,45 @@ static void d_FFTImplementationCallback_doH(
     tst = false;
     ju = x->size[0] - 1;
   }
+  emxInit_real32_T(&costab1q, 2);
   if (ju > nRows) {
     ju = nRows;
   }
   nd2 = nRows << 1;
-  e = 6.2831853071795862 / (double)nd2;
-  j = (int)((unsigned int)nd2 >> 1) >> 1;
-  emxInit_real_T(&costab1q, 2);
+  temp_im = 6.28318548F / (float)nd2;
+  j = nd2 / 2 / 2;
   istart = costab1q->size[0] * costab1q->size[1];
   costab1q->size[0] = 1;
   costab1q->size[1] = j + 1;
-  emxEnsureCapacity_real_T(costab1q, istart);
+  emxEnsureCapacity_real32_T(costab1q, istart);
   costab1q_data = costab1q->data;
-  costab1q_data[0] = 1.0;
+  costab1q_data[0] = 1.0F;
   nd2 = j / 2 - 1;
   for (k = 0; k <= nd2; k++) {
-    costab1q_data[k + 1] = cos(e * ((double)k + 1.0));
+    costab1q_data[k + 1] = cosf(temp_im * (float)(k + 1));
   }
   istart = nd2 + 2;
-  nd2 = j - 1;
-  for (k = istart; k <= nd2; k++) {
-    costab1q_data[k] = sin(e * (double)(j - k));
+  hszCostab = j - 1;
+  for (k = istart; k <= hszCostab; k++) {
+    costab1q_data[k] = sinf(temp_im * (float)(j - k));
   }
-  costab1q_data[j] = 0.0;
+  emxInit_real32_T(&b_costab, 2);
+  emxInit_real32_T(&b_sintab, 2);
+  costab1q_data[j] = 0.0F;
   j = costab1q->size[1] - 1;
   nd2 = (costab1q->size[1] - 1) << 1;
-  emxInit_real_T(&b_costab, 2);
   istart = b_costab->size[0] * b_costab->size[1];
   b_costab->size[0] = 1;
   b_costab->size[1] = nd2 + 1;
-  emxEnsureCapacity_real_T(b_costab, istart);
+  emxEnsureCapacity_real32_T(b_costab, istart);
   b_costab_data = b_costab->data;
-  emxInit_real_T(&b_sintab, 2);
   istart = b_sintab->size[0] * b_sintab->size[1];
   b_sintab->size[0] = 1;
   b_sintab->size[1] = nd2 + 1;
-  emxEnsureCapacity_real_T(b_sintab, istart);
+  emxEnsureCapacity_real32_T(b_sintab, istart);
   b_sintab_data = b_sintab->data;
-  b_costab_data[0] = 1.0;
-  b_sintab_data[0] = 0.0;
+  b_costab_data[0] = 1.0F;
+  b_sintab_data[0] = 0.0F;
   for (k = 0; k < j; k++) {
     b_costab_data[k + 1] = costab1q_data[k + 1];
     b_sintab_data[k + 1] = -costab1q_data[(j - k) - 1];
@@ -302,29 +301,29 @@ static void d_FFTImplementationCallback_doH(
     b_costab_data[k] = -costab1q_data[nd2 - k];
     b_sintab_data[k] = -costab1q_data[k - j];
   }
-  hszCostab = (int)((unsigned int)costab->size[1] >> 1);
+  emxInit_real32_T(&hsintab, 2);
+  emxInit_real32_T(&hcostabinv, 2);
+  emxInit_real32_T(&hsintabinv, 2);
+  hszCostab = costab->size[1] / 2;
   istart = costab1q->size[0] * costab1q->size[1];
   costab1q->size[0] = 1;
   costab1q->size[1] = hszCostab;
-  emxEnsureCapacity_real_T(costab1q, istart);
+  emxEnsureCapacity_real32_T(costab1q, istart);
   costab1q_data = costab1q->data;
-  emxInit_real_T(&hsintab, 2);
   istart = hsintab->size[0] * hsintab->size[1];
   hsintab->size[0] = 1;
   hsintab->size[1] = hszCostab;
-  emxEnsureCapacity_real_T(hsintab, istart);
+  emxEnsureCapacity_real32_T(hsintab, istart);
   hsintab_data = hsintab->data;
-  emxInit_real_T(&hcostabinv, 2);
   istart = hcostabinv->size[0] * hcostabinv->size[1];
   hcostabinv->size[0] = 1;
   hcostabinv->size[1] = hszCostab;
-  emxEnsureCapacity_real_T(hcostabinv, istart);
+  emxEnsureCapacity_real32_T(hcostabinv, istart);
   hcostabinv_data = hcostabinv->data;
-  emxInit_real_T(&hsintabinv, 2);
   istart = hsintabinv->size[0] * hsintabinv->size[1];
   hsintabinv->size[0] = 1;
   hsintabinv->size[1] = hszCostab;
-  emxEnsureCapacity_real_T(hsintabinv, istart);
+  emxEnsureCapacity_real32_T(hsintabinv, istart);
   hsintabinv_data = hsintabinv->data;
   for (i = 0; i < hszCostab; i++) {
     nd2 = ((i + 1) << 1) - 2;
@@ -333,17 +332,17 @@ static void d_FFTImplementationCallback_doH(
     hcostabinv_data[i] = costabinv_data[nd2];
     hsintabinv_data[i] = sintabinv_data[nd2];
   }
-  emxInit_creal_T(&reconVar1, 1);
+  emxInit_int32_T(&wrapIndex, 2);
+  emxInit_creal32_T(&reconVar1, 1);
+  emxInit_creal32_T(&reconVar2, 1);
   istart = reconVar1->size[0];
   reconVar1->size[0] = hnRows;
-  emxEnsureCapacity_creal_T(reconVar1, istart);
+  emxEnsureCapacity_creal32_T(reconVar1, istart);
   reconVar1_data = reconVar1->data;
-  emxInit_creal_T(&reconVar2, 1);
   istart = reconVar2->size[0];
   reconVar2->size[0] = hnRows;
-  emxEnsureCapacity_creal_T(reconVar2, istart);
+  emxEnsureCapacity_creal32_T(reconVar2, istart);
   reconVar2_data = reconVar2->data;
-  emxInit_int32_T(&wrapIndex, 2);
   istart = wrapIndex->size[0] * wrapIndex->size[1];
   wrapIndex->size[0] = 1;
   wrapIndex->size[1] = hnRows;
@@ -351,81 +350,83 @@ static void d_FFTImplementationCallback_doH(
   wrapIndex_data = wrapIndex->data;
   for (i = 0; i < hnRows; i++) {
     istart = i << 1;
-    e = b_sintab_data[istart];
-    temp_im = b_costab_data[istart];
-    reconVar1_data[i].re = e + 1.0;
-    reconVar1_data[i].im = -temp_im;
-    reconVar2_data[i].re = 1.0 - e;
-    reconVar2_data[i].im = temp_im;
+    temp_im = b_sintab_data[istart];
+    temp_re = b_costab_data[istart];
+    reconVar1_data[i].re = temp_im + 1.0F;
+    reconVar1_data[i].im = -temp_re;
+    reconVar2_data[i].re = 1.0F - temp_im;
+    reconVar2_data[i].im = temp_re;
     if (i + 1 != 1) {
       wrapIndex_data[i] = (hnRows - i) + 1;
     } else {
       wrapIndex_data[0] = 1;
     }
   }
-  emxFree_real_T(&b_sintab);
-  emxFree_real_T(&b_costab);
-  e = (double)ju / 2.0;
+  emxFree_real32_T(&b_sintab);
+  emxFree_real32_T(&b_costab);
+  z_tmp = (double)ju / 2.0;
   istart = (int)((double)ju / 2.0);
   for (hszCostab = 0; hszCostab < istart; hszCostab++) {
-    temp_re = wwc_data[(hnRows + hszCostab) - 1].re;
-    temp_im = wwc_data[(hnRows + hszCostab) - 1].im;
-    nd2 = xoffInit + (hszCostab << 1);
+    temp_re_tmp = (hnRows + hszCostab) - 1;
+    temp_re = wwc_data[temp_re_tmp].re;
+    temp_im = wwc_data[temp_re_tmp].im;
+    nd2 = hszCostab << 1;
     twid_re = x_data[nd2];
     twid_im = x_data[nd2 + 1];
     ytmp_data[hszCostab].re = temp_re * twid_re + temp_im * twid_im;
     ytmp_data[hszCostab].im = temp_re * twid_im - temp_im * twid_re;
   }
   if (!tst) {
-    temp_re = wwc_data[(hnRows + (int)e) - 1].re;
-    temp_im = wwc_data[(hnRows + (int)e) - 1].im;
-    twid_re = x_data[xoffInit + ((int)e << 1)];
-    ytmp_data[(int)e].re = temp_re * twid_re + temp_im * 0.0;
-    ytmp_data[(int)e].im = temp_re * 0.0 - temp_im * twid_re;
-    if ((int)e + 2 <= hnRows) {
+    temp_re_tmp = (hnRows + (int)z_tmp) - 1;
+    temp_re = wwc_data[temp_re_tmp].re;
+    temp_im = wwc_data[temp_re_tmp].im;
+    twid_re = x_data[(int)z_tmp << 1];
+    ytmp_data[(int)z_tmp].re = temp_re * twid_re + temp_im * 0.0F;
+    ytmp_data[(int)z_tmp].im = temp_re * 0.0F - temp_im * twid_re;
+    if ((int)z_tmp + 2 <= hnRows) {
       istart = (int)((double)ju / 2.0) + 2;
       for (i = istart; i <= hnRows; i++) {
-        ytmp_data[i - 1].re = 0.0;
-        ytmp_data[i - 1].im = 0.0;
+        ytmp_data[i - 1].re = 0.0F;
+        ytmp_data[i - 1].im = 0.0F;
       }
     }
-  } else if ((int)e + 1 <= hnRows) {
+  } else if ((int)z_tmp + 1 <= hnRows) {
     istart = (int)((double)ju / 2.0) + 1;
     for (i = istart; i <= hnRows; i++) {
-      ytmp_data[i - 1].re = 0.0;
-      ytmp_data[i - 1].im = 0.0;
+      ytmp_data[i - 1].re = 0.0F;
+      ytmp_data[i - 1].im = 0.0F;
     }
   }
-  z = (double)nfft / 2.0;
-  emxInit_creal_T(&fy, 1);
-  nd2 = (int)z;
+  emxInit_creal32_T(&fy, 1);
+  z_tmp = (double)nfft / 2.0;
+  nd2 = (int)z_tmp;
   istart = fy->size[0];
-  fy->size[0] = (int)z;
-  emxEnsureCapacity_creal_T(fy, istart);
+  fy->size[0] = (int)z_tmp;
+  emxEnsureCapacity_creal32_T(fy, istart);
   fy_data = fy->data;
-  if ((int)z > ytmp->size[0]) {
+  if ((int)z_tmp > ytmp->size[0]) {
     istart = fy->size[0];
-    fy->size[0] = (int)z;
-    emxEnsureCapacity_creal_T(fy, istart);
+    fy->size[0] = (int)z_tmp;
+    emxEnsureCapacity_creal32_T(fy, istart);
     fy_data = fy->data;
     for (istart = 0; istart < nd2; istart++) {
-      fy_data[istart].re = 0.0;
-      fy_data[istart].im = 0.0;
+      fy_data[istart].re = 0.0F;
+      fy_data[istart].im = 0.0F;
     }
   }
   ju = ytmp->size[0];
-  istart = (int)z;
+  istart = (int)z_tmp;
   if (ju <= istart) {
     istart = ju;
   }
-  hszCostab = (int)z - 2;
-  nRowsD2 = (int)((unsigned int)(int)z >> 1);
+  hszCostab = (int)z_tmp - 2;
+  nRowsD2 = (int)z_tmp / 2;
   k = nRowsD2 / 2;
   nd2 = 0;
   ju = 0;
   for (i = 0; i <= istart - 2; i++) {
     fy_data[nd2] = ytmp_data[i];
-    j = (int)z;
+    j = (int)z_tmp;
     tst = true;
     while (tst) {
       j >>= 1;
@@ -435,29 +436,28 @@ static void d_FFTImplementationCallback_doH(
     nd2 = ju;
   }
   fy_data[nd2] = ytmp_data[istart - 1];
-  if ((int)z > 1) {
+  if ((int)z_tmp > 1) {
     for (i = 0; i <= hszCostab; i += 2) {
-      temp_re_tmp = fy_data[i + 1].re;
-      e = fy_data[i + 1].im;
+      b_temp_re_tmp = fy_data[i + 1].re;
+      temp_re = fy_data[i + 1].im;
       twid_im = fy_data[i].re;
       temp_im = fy_data[i].im;
-      fy_data[i + 1].re = twid_im - temp_re_tmp;
-      fy_data[i + 1].im = temp_im - e;
-      fy_data[i].re = twid_im + temp_re_tmp;
-      fy_data[i].im = temp_im + e;
+      fy_data[i + 1].re = twid_im - b_temp_re_tmp;
+      fy_data[i + 1].im = temp_im - temp_re;
+      fy_data[i].re = twid_im + b_temp_re_tmp;
+      fy_data[i].im = temp_im + temp_re;
     }
   }
   nd2 = 2;
   hszCostab = 4;
   ju = ((k - 1) << 2) + 1;
   while (k > 0) {
-    int b_temp_re_tmp;
     for (i = 0; i < ju; i += hszCostab) {
-      b_temp_re_tmp = i + nd2;
-      temp_re = fy_data[b_temp_re_tmp].re;
-      temp_im = fy_data[b_temp_re_tmp].im;
-      fy_data[b_temp_re_tmp].re = fy_data[i].re - temp_re;
-      fy_data[b_temp_re_tmp].im = fy_data[i].im - temp_im;
+      temp_re_tmp = i + nd2;
+      temp_re = fy_data[temp_re_tmp].re;
+      temp_im = fy_data[temp_re_tmp].im;
+      fy_data[temp_re_tmp].re = fy_data[i].re - temp_re;
+      fy_data[temp_re_tmp].im = fy_data[i].im - temp_im;
       fy_data[i].re += temp_re;
       fy_data[i].im += temp_im;
     }
@@ -469,13 +469,13 @@ static void d_FFTImplementationCallback_doH(
       i = istart;
       ihi = istart + ju;
       while (i < ihi) {
-        b_temp_re_tmp = i + nd2;
-        temp_re_tmp = fy_data[b_temp_re_tmp].im;
-        e = fy_data[b_temp_re_tmp].re;
-        temp_re = twid_re * e - twid_im * temp_re_tmp;
-        temp_im = twid_re * temp_re_tmp + twid_im * e;
-        fy_data[b_temp_re_tmp].re = fy_data[i].re - temp_re;
-        fy_data[b_temp_re_tmp].im = fy_data[i].im - temp_im;
+        temp_re_tmp = i + nd2;
+        b_temp_re_tmp = fy_data[temp_re_tmp].im;
+        temp_im = fy_data[temp_re_tmp].re;
+        temp_re = twid_re * temp_im - twid_im * b_temp_re_tmp;
+        temp_im = twid_re * b_temp_re_tmp + twid_im * temp_im;
+        fy_data[temp_re_tmp].re = fy_data[i].re - temp_re;
+        fy_data[temp_re_tmp].im = fy_data[i].im - temp_im;
         fy_data[i].re += temp_re;
         fy_data[i].im += temp_im;
         i += hszCostab;
@@ -487,110 +487,117 @@ static void d_FFTImplementationCallback_doH(
     hszCostab += hszCostab;
     ju -= nd2;
   }
-  emxInit_creal_T(&fv, 1);
-  c_FFTImplementationCallback_r2b(wwc, (int)((double)nfft / 2.0), costab1q,
-                                  hsintab, fv);
+  emxInit_creal32_T(&fv, 1);
+  c_FFTImplementationCallback_r2b(wwc, (int)z_tmp, costab1q, hsintab, fv);
   fv_data = fv->data;
-  emxFree_real_T(&costab1q);
-  emxFree_real_T(&hsintab);
   nd2 = fy->size[0];
+  emxFree_real32_T(&costab1q);
+  emxFree_real32_T(&hsintab);
   for (istart = 0; istart < nd2; istart++) {
     twid_im = fy_data[istart].re;
-    e = fv_data[istart].im;
+    temp_im = fv_data[istart].im;
     temp_re = fy_data[istart].im;
     twid_re = fv_data[istart].re;
-    fy_data[istart].re = twid_im * twid_re - temp_re * e;
-    fy_data[istart].im = twid_im * e + temp_re * twid_re;
+    fy_data[istart].re = twid_im * twid_re - temp_re * temp_im;
+    fy_data[istart].im = twid_im * temp_im + temp_re * twid_re;
   }
-  c_FFTImplementationCallback_r2b(fy, (int)z, hcostabinv, hsintabinv, fv);
+  c_FFTImplementationCallback_r2b(fy, (int)z_tmp, hcostabinv, hsintabinv, fv);
   fv_data = fv->data;
-  emxFree_creal_T(&fy);
-  emxFree_real_T(&hsintabinv);
-  emxFree_real_T(&hcostabinv);
+  emxFree_creal32_T(&fy);
+  emxFree_real32_T(&hsintabinv);
+  emxFree_real32_T(&hcostabinv);
   if (fv->size[0] > 1) {
-    e = 1.0 / (double)fv->size[0];
+    temp_im = 1.0F / (float)fv->size[0];
     nd2 = fv->size[0];
     for (istart = 0; istart < nd2; istart++) {
-      fv_data[istart].re *= e;
-      fv_data[istart].im *= e;
+      fv_data[istart].re *= temp_im;
+      fv_data[istart].im *= temp_im;
     }
   }
-  istart = wwc->size[0];
-  for (k = hnRows; k <= istart; k++) {
-    e = wwc_data[k - 1].re;
-    temp_im = fv_data[k - 1].im;
-    temp_re = wwc_data[k - 1].im;
-    twid_re = fv_data[k - 1].re;
-    ytmp_data[k - hnRows].re = e * twid_re + temp_re * temp_im;
-    ytmp_data[k - hnRows].im = e * temp_im - temp_re * twid_re;
+  istart = (int)(float)hnRows;
+  hszCostab = wwc->size[0];
+  for (k = istart; k <= hszCostab; k++) {
+    temp_im = wwc_data[k - 1].re;
+    temp_re = fv_data[k - 1].im;
+    twid_re = wwc_data[k - 1].im;
+    twid_im = fv_data[k - 1].re;
+    nd2 = k - istart;
+    ytmp_data[nd2].re = temp_im * twid_im + twid_re * temp_re;
+    ytmp_data[nd2].im = temp_im * temp_re - twid_re * twid_im;
   }
-  emxFree_creal_T(&fv);
+  emxFree_creal32_T(&fv);
   for (i = 0; i < hnRows; i++) {
-    double ytmp_re_tmp;
+    float b_ytmp_re_tmp;
+    float ytmp_im_tmp;
+    float ytmp_re_tmp;
     istart = wrapIndex_data[i];
-    e = ytmp_data[i].re;
-    temp_im = reconVar1_data[i].im;
-    temp_re = ytmp_data[i].im;
-    twid_re = reconVar1_data[i].re;
-    twid_im = ytmp_data[istart - 1].re;
-    temp_re_tmp = -ytmp_data[istart - 1].im;
-    z = reconVar2_data[i].im;
-    ytmp_re_tmp = reconVar2_data[i].re;
-    y_data[i].re = 0.5 * ((e * twid_re - temp_re * temp_im) +
-                          (twid_im * ytmp_re_tmp - temp_re_tmp * z));
-    y_data[i].im = 0.5 * ((e * temp_im + temp_re * twid_re) +
-                          (twid_im * z + temp_re_tmp * ytmp_re_tmp));
-    y_data[hnRows + i].re = 0.5 * ((e * ytmp_re_tmp - temp_re * z) +
-                                   (twid_im * twid_re - temp_re_tmp * temp_im));
-    y_data[hnRows + i].im = 0.5 * ((e * z + temp_re * ytmp_re_tmp) +
-                                   (twid_im * temp_im + temp_re_tmp * twid_re));
+    temp_im = ytmp_data[i].re;
+    temp_re = reconVar1_data[i].im;
+    twid_re = ytmp_data[i].im;
+    twid_im = reconVar1_data[i].re;
+    b_temp_re_tmp = ytmp_data[istart - 1].re;
+    ytmp_im_tmp = -ytmp_data[istart - 1].im;
+    ytmp_re_tmp = reconVar2_data[i].im;
+    b_ytmp_re_tmp = reconVar2_data[i].re;
+    y_data[i].re =
+        0.5F * ((temp_im * twid_im - twid_re * temp_re) +
+                (b_temp_re_tmp * b_ytmp_re_tmp - ytmp_im_tmp * ytmp_re_tmp));
+    y_data[i].im =
+        0.5F * ((temp_im * temp_re + twid_re * twid_im) +
+                (b_temp_re_tmp * ytmp_re_tmp + ytmp_im_tmp * b_ytmp_re_tmp));
+    istart = hnRows + i;
+    y_data[istart].re =
+        0.5F * ((temp_im * b_ytmp_re_tmp - twid_re * ytmp_re_tmp) +
+                (b_temp_re_tmp * twid_im - ytmp_im_tmp * temp_re));
+    y_data[istart].im =
+        0.5F * ((temp_im * ytmp_re_tmp + twid_re * b_ytmp_re_tmp) +
+                (b_temp_re_tmp * temp_re + ytmp_im_tmp * twid_im));
   }
-  emxFree_creal_T(&reconVar2);
-  emxFree_creal_T(&reconVar1);
+  emxFree_creal32_T(&reconVar2);
+  emxFree_creal32_T(&reconVar1);
   emxFree_int32_T(&wrapIndex);
-  emxFree_creal_T(&ytmp);
+  emxFree_creal32_T(&ytmp);
 }
 
 /*
- * Arguments    : const emxArray_real_T *x
- *                int xoffInit
- *                emxArray_creal_T *y
+ * Arguments    : const emxArray_real32_T *x
+ *                emxArray_creal32_T *y
  *                int unsigned_nRows
- *                const emxArray_real_T *costab
- *                const emxArray_real_T *sintab
+ *                const emxArray_real32_T *costab
+ *                const emxArray_real32_T *sintab
  * Return Type  : void
  */
-void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
-                                     emxArray_creal_T *y, int unsigned_nRows,
-                                     const emxArray_real_T *costab,
-                                     const emxArray_real_T *sintab)
+void c_FFTImplementationCallback_doH(const emxArray_real32_T *x,
+                                     emxArray_creal32_T *y, int unsigned_nRows,
+                                     const emxArray_real32_T *costab,
+                                     const emxArray_real32_T *sintab)
 {
-  emxArray_creal_T *reconVar1;
-  emxArray_creal_T *reconVar2;
+  emxArray_creal32_T *reconVar1;
+  emxArray_creal32_T *reconVar2;
   emxArray_int32_T *bitrevIndex;
   emxArray_int32_T *wrapIndex;
-  emxArray_real_T *hcostab;
-  emxArray_real_T *hsintab;
-  creal_T *reconVar1_data;
-  creal_T *reconVar2_data;
-  creal_T *y_data;
-  const double *costab_data;
-  const double *sintab_data;
-  const double *x_data;
-  double b_y_re_tmp;
-  double c_y_re_tmp;
-  double im;
-  double re;
-  double temp2_im;
-  double temp2_re;
-  double temp_im;
-  double temp_im_tmp;
-  double temp_re;
-  double temp_re_tmp;
-  double y_re_tmp;
-  double z;
-  double *hcostab_data;
-  double *hsintab_data;
+  emxArray_real32_T *hcostab;
+  emxArray_real32_T *hsintab;
+  creal32_T *reconVar1_data;
+  creal32_T *reconVar2_data;
+  creal32_T *y_data;
+  double d;
+  double z_tmp;
+  const float *costab_data;
+  const float *sintab_data;
+  const float *x_data;
+  float b_y_re_tmp;
+  float c_y_re_tmp;
+  float d_y_re_tmp;
+  float temp2_im;
+  float temp2_re;
+  float temp_im;
+  float temp_im_tmp;
+  float temp_re;
+  float temp_re_tmp;
+  float y_re_tmp;
+  float *hcostab_data;
+  float *hsintab_data;
   int b_j1;
   int hszCostab;
   int i;
@@ -608,7 +615,9 @@ void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
   costab_data = costab->data;
   y_data = y->data;
   x_data = x->data;
-  nRows = (int)((unsigned int)unsigned_nRows >> 1);
+  emxInit_real32_T(&hcostab, 2);
+  emxInit_real32_T(&hsintab, 2);
+  nRows = unsigned_nRows / 2;
   istart = y->size[0];
   if (istart > nRows) {
     istart = nRows;
@@ -616,46 +625,44 @@ void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
   ihi = nRows - 2;
   nRowsD2 = nRows / 2;
   k = nRowsD2 / 2;
-  hszCostab = (int)((unsigned int)costab->size[1] >> 1);
-  emxInit_real_T(&hcostab, 2);
+  hszCostab = costab->size[1] / 2;
   b_j1 = hcostab->size[0] * hcostab->size[1];
   hcostab->size[0] = 1;
   hcostab->size[1] = hszCostab;
-  emxEnsureCapacity_real_T(hcostab, b_j1);
+  emxEnsureCapacity_real32_T(hcostab, b_j1);
   hcostab_data = hcostab->data;
-  emxInit_real_T(&hsintab, 2);
   b_j1 = hsintab->size[0] * hsintab->size[1];
   hsintab->size[0] = 1;
   hsintab->size[1] = hszCostab;
-  emxEnsureCapacity_real_T(hsintab, b_j1);
+  emxEnsureCapacity_real32_T(hsintab, b_j1);
   hsintab_data = hsintab->data;
   for (i = 0; i < hszCostab; i++) {
     iDelta = ((i + 1) << 1) - 2;
     hcostab_data[i] = costab_data[iDelta];
     hsintab_data[i] = sintab_data[iDelta];
   }
-  emxInit_creal_T(&reconVar1, 1);
+  emxInit_int32_T(&wrapIndex, 2);
+  emxInit_creal32_T(&reconVar1, 1);
+  emxInit_creal32_T(&reconVar2, 1);
   b_j1 = reconVar1->size[0];
   reconVar1->size[0] = nRows;
-  emxEnsureCapacity_creal_T(reconVar1, b_j1);
+  emxEnsureCapacity_creal32_T(reconVar1, b_j1);
   reconVar1_data = reconVar1->data;
-  emxInit_creal_T(&reconVar2, 1);
   b_j1 = reconVar2->size[0];
   reconVar2->size[0] = nRows;
-  emxEnsureCapacity_creal_T(reconVar2, b_j1);
+  emxEnsureCapacity_creal32_T(reconVar2, b_j1);
   reconVar2_data = reconVar2->data;
-  emxInit_int32_T(&wrapIndex, 2);
   b_j1 = wrapIndex->size[0] * wrapIndex->size[1];
   wrapIndex->size[0] = 1;
   wrapIndex->size[1] = nRows;
   emxEnsureCapacity_int32_T(wrapIndex, b_j1);
   wrapIndex_data = wrapIndex->data;
   for (i = 0; i < nRows; i++) {
-    im = sintab_data[i];
+    temp_re = sintab_data[i];
     temp2_re = costab_data[i];
-    reconVar1_data[i].re = im + 1.0;
+    reconVar1_data[i].re = temp_re + 1.0F;
     reconVar1_data[i].im = -temp2_re;
-    reconVar2_data[i].re = 1.0 - im;
+    reconVar2_data[i].re = 1.0F - temp_re;
     reconVar2_data[i].im = temp2_re;
     if (i + 1 != 1) {
       wrapIndex_data[i] = (nRows - i) + 1;
@@ -663,13 +670,13 @@ void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
       wrapIndex_data[0] = 1;
     }
   }
-  z = (double)unsigned_nRows / 2.0;
+  emxInit_int32_T(&bitrevIndex, 1);
+  z_tmp = (double)unsigned_nRows / 2.0;
   ju = 0;
   hszCostab = 1;
-  emxInit_int32_T(&bitrevIndex, 1);
-  iDelta = (int)z;
+  iDelta = (int)z_tmp;
   b_j1 = bitrevIndex->size[0];
-  bitrevIndex->size[0] = (int)z;
+  bitrevIndex->size[0] = (int)z_tmp;
   emxEnsureCapacity_int32_T(bitrevIndex, b_j1);
   bitrevIndex_data = bitrevIndex->data;
   for (b_j1 = 0; b_j1 < iDelta; b_j1++) {
@@ -677,7 +684,7 @@ void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
   }
   for (b_j1 = 0; b_j1 <= istart - 2; b_j1++) {
     bitrevIndex_data[b_j1] = hszCostab;
-    iDelta = (int)z;
+    iDelta = (int)z_tmp;
     tst = true;
     while (tst) {
       iDelta >>= 1;
@@ -702,38 +709,30 @@ void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
   } else {
     iDelta = unsigned_nRows;
   }
-  im = (double)iDelta / 2.0;
+  d = (double)iDelta / 2.0;
   if (istart > unsigned_nRows) {
     istart = unsigned_nRows;
   }
   b_j1 = (int)((double)istart / 2.0);
   for (i = 0; i < b_j1; i++) {
-    hszCostab = xoffInit + (i << 1);
+    hszCostab = i << 1;
     y_data[bitrevIndex_data[i] - 1].re = x_data[hszCostab];
     y_data[bitrevIndex_data[i] - 1].im = x_data[hszCostab + 1];
   }
   if (!tst) {
-    b_j1 = bitrevIndex_data[(int)im] - 1;
-    y_data[b_j1].re = x_data[xoffInit + ((int)im << 1)];
-    y_data[b_j1].im = 0.0;
+    b_j1 = bitrevIndex_data[(int)d] - 1;
+    y_data[b_j1].re = x_data[(int)d << 1];
+    y_data[b_j1].im = 0.0F;
   }
   emxFree_int32_T(&bitrevIndex);
   if (nRows > 1) {
     for (i = 0; i <= ihi; i += 2) {
-      temp2_re = y_data[i + 1].re;
-      temp2_im = y_data[i + 1].im;
-      temp_re = temp2_re;
-      temp_im = temp2_im;
-      re = y_data[i].re;
-      im = y_data[i].im;
-      temp2_re = re - temp2_re;
-      temp2_im = im - temp2_im;
-      y_data[i + 1].re = temp2_re;
-      y_data[i + 1].im = temp2_im;
-      re += temp_re;
-      im += temp_im;
-      y_data[i].re = re;
-      y_data[i].im = im;
+      temp_re_tmp = y_data[i + 1].re;
+      temp_im_tmp = y_data[i + 1].im;
+      y_data[i + 1].re = y_data[i].re - temp_re_tmp;
+      y_data[i + 1].im = y_data[i].im - y_data[i + 1].im;
+      y_data[i].re += temp_re_tmp;
+      y_data[i].im += temp_im_tmp;
     }
   }
   iDelta = 2;
@@ -758,9 +757,9 @@ void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
       while (i < ihi) {
         b_j1 = i + iDelta;
         temp_re_tmp = y_data[b_j1].im;
-        temp_im = y_data[b_j1].re;
-        temp_re = temp2_re * temp_im - temp2_im * temp_re_tmp;
-        temp_im = temp2_re * temp_re_tmp + temp2_im * temp_im;
+        y_re_tmp = y_data[b_j1].re;
+        temp_re = temp2_re * y_re_tmp - temp2_im * temp_re_tmp;
+        temp_im = temp2_re * temp_re_tmp + temp2_im * y_re_tmp;
         y_data[b_j1].re = y_data[i].re - temp_re;
         y_data[b_j1].im = y_data[i].im - temp_im;
         y_data[i].re += temp_re;
@@ -774,194 +773,191 @@ void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
     hszCostab += hszCostab;
     ju -= iDelta;
   }
-  emxFree_real_T(&hsintab);
-  emxFree_real_T(&hcostab);
-  iDelta = (int)((unsigned int)(int)z >> 1);
+  emxFree_real32_T(&hsintab);
+  emxFree_real32_T(&hcostab);
+  iDelta = (int)z_tmp / 2;
   temp_re_tmp = y_data[0].re;
   temp_im_tmp = y_data[0].im;
-  y_data[0].re = 0.5 * ((temp_re_tmp * reconVar1_data[0].re -
-                         temp_im_tmp * reconVar1_data[0].im) +
-                        (temp_re_tmp * reconVar2_data[0].re -
-                         -temp_im_tmp * reconVar2_data[0].im));
-  y_data[0].im = 0.5 * ((temp_re_tmp * reconVar1_data[0].im +
-                         temp_im_tmp * reconVar1_data[0].re) +
-                        (temp_re_tmp * reconVar2_data[0].im +
-                         -temp_im_tmp * reconVar2_data[0].re));
-  y_data[(int)z].re = 0.5 * ((temp_re_tmp * reconVar2_data[0].re -
-                              temp_im_tmp * reconVar2_data[0].im) +
-                             (temp_re_tmp * reconVar1_data[0].re -
-                              -temp_im_tmp * reconVar1_data[0].im));
-  y_data[(int)z].im = 0.5 * ((temp_re_tmp * reconVar2_data[0].im +
-                              temp_im_tmp * reconVar2_data[0].re) +
-                             (temp_re_tmp * reconVar1_data[0].im +
-                              -temp_im_tmp * reconVar1_data[0].re));
+  y_data[0].re = 0.5F * ((temp_re_tmp * reconVar1_data[0].re -
+                          temp_im_tmp * reconVar1_data[0].im) +
+                         (temp_re_tmp * reconVar2_data[0].re -
+                          -temp_im_tmp * reconVar2_data[0].im));
+  y_data[0].im = 0.5F * ((temp_re_tmp * reconVar1_data[0].im +
+                          temp_im_tmp * reconVar1_data[0].re) +
+                         (temp_re_tmp * reconVar2_data[0].im +
+                          -temp_im_tmp * reconVar2_data[0].re));
+  y_data[(int)z_tmp].re = 0.5F * ((temp_re_tmp * reconVar2_data[0].re -
+                                   temp_im_tmp * reconVar2_data[0].im) +
+                                  (temp_re_tmp * reconVar1_data[0].re -
+                                   -temp_im_tmp * reconVar1_data[0].im));
+  y_data[(int)z_tmp].im = 0.5F * ((temp_re_tmp * reconVar2_data[0].im +
+                                   temp_im_tmp * reconVar2_data[0].re) +
+                                  (temp_re_tmp * reconVar1_data[0].im +
+                                   -temp_im_tmp * reconVar1_data[0].re));
   for (i = 2; i <= iDelta; i++) {
+    float temp2_im_tmp;
     temp_re_tmp = y_data[i - 1].re;
     temp_im_tmp = y_data[i - 1].im;
     b_j1 = wrapIndex_data[i - 1];
     temp2_im = y_data[b_j1 - 1].re;
-    temp_re = y_data[b_j1 - 1].im;
-    temp_im = reconVar1_data[i - 1].im;
-    y_re_tmp = reconVar1_data[i - 1].re;
-    b_y_re_tmp = reconVar2_data[i - 1].im;
-    c_y_re_tmp = reconVar2_data[i - 1].re;
-    y_data[i - 1].re = 0.5 * ((temp_re_tmp * y_re_tmp - temp_im_tmp * temp_im) +
-                              (temp2_im * c_y_re_tmp - -temp_re * b_y_re_tmp));
-    y_data[i - 1].im = 0.5 * ((temp_re_tmp * temp_im + temp_im_tmp * y_re_tmp) +
-                              (temp2_im * b_y_re_tmp + -temp_re * c_y_re_tmp));
-    hszCostab = ((int)z + i) - 1;
+    temp2_im_tmp = y_data[b_j1 - 1].im;
+    y_re_tmp = reconVar1_data[i - 1].im;
+    b_y_re_tmp = reconVar1_data[i - 1].re;
+    c_y_re_tmp = reconVar2_data[i - 1].im;
+    d_y_re_tmp = reconVar2_data[i - 1].re;
+    y_data[i - 1].re =
+        0.5F * ((temp_re_tmp * b_y_re_tmp - temp_im_tmp * y_re_tmp) +
+                (temp2_im * d_y_re_tmp - -temp2_im_tmp * c_y_re_tmp));
+    y_data[i - 1].im =
+        0.5F * ((temp_re_tmp * y_re_tmp + temp_im_tmp * b_y_re_tmp) +
+                (temp2_im * c_y_re_tmp + -temp2_im_tmp * d_y_re_tmp));
+    hszCostab = ((int)z_tmp + i) - 1;
     y_data[hszCostab].re =
-        0.5 * ((temp_re_tmp * c_y_re_tmp - temp_im_tmp * b_y_re_tmp) +
-               (temp2_im * y_re_tmp - -temp_re * temp_im));
+        0.5F * ((temp_re_tmp * d_y_re_tmp - temp_im_tmp * c_y_re_tmp) +
+                (temp2_im * b_y_re_tmp - -temp2_im_tmp * y_re_tmp));
     y_data[hszCostab].im =
-        0.5 * ((temp_re_tmp * b_y_re_tmp + temp_im_tmp * c_y_re_tmp) +
-               (temp2_im * temp_im + -temp_re * y_re_tmp));
-    re = reconVar1_data[b_j1 - 1].im;
-    im = reconVar1_data[b_j1 - 1].re;
-    temp_im = reconVar2_data[b_j1 - 1].im;
+        0.5F * ((temp_re_tmp * c_y_re_tmp + temp_im_tmp * d_y_re_tmp) +
+                (temp2_im * y_re_tmp + -temp2_im_tmp * b_y_re_tmp));
+    temp_im = reconVar1_data[b_j1 - 1].im;
+    temp_re = reconVar1_data[b_j1 - 1].re;
+    y_re_tmp = reconVar2_data[b_j1 - 1].im;
     temp2_re = reconVar2_data[b_j1 - 1].re;
     y_data[b_j1 - 1].re =
-        0.5 * ((temp2_im * im - temp_re * re) +
-               (temp_re_tmp * temp2_re - -temp_im_tmp * temp_im));
+        0.5F * ((temp2_im * temp_re - temp2_im_tmp * temp_im) +
+                (temp_re_tmp * temp2_re - -temp_im_tmp * y_re_tmp));
     y_data[b_j1 - 1].im =
-        0.5 * ((temp2_im * re + temp_re * im) +
-               (temp_re_tmp * temp_im + -temp_im_tmp * temp2_re));
-    b_j1 = (b_j1 + (int)z) - 1;
-    y_data[b_j1].re = 0.5 * ((temp2_im * temp2_re - temp_re * temp_im) +
-                             (temp_re_tmp * im - -temp_im_tmp * re));
-    y_data[b_j1].im = 0.5 * ((temp2_im * temp_im + temp_re * temp2_re) +
-                             (temp_re_tmp * re + -temp_im_tmp * im));
+        0.5F * ((temp2_im * temp_im + temp2_im_tmp * temp_re) +
+                (temp_re_tmp * y_re_tmp + -temp_im_tmp * temp2_re));
+    b_j1 = (b_j1 + (int)z_tmp) - 1;
+    y_data[b_j1].re = 0.5F * ((temp2_im * temp2_re - temp2_im_tmp * y_re_tmp) +
+                              (temp_re_tmp * temp_re - -temp_im_tmp * temp_im));
+    y_data[b_j1].im = 0.5F * ((temp2_im * y_re_tmp + temp2_im_tmp * temp2_re) +
+                              (temp_re_tmp * temp_im + -temp_im_tmp * temp_re));
   }
   emxFree_int32_T(&wrapIndex);
   if (iDelta != 0) {
     temp_re_tmp = y_data[iDelta].re;
     temp_im_tmp = y_data[iDelta].im;
-    temp_im = reconVar1_data[iDelta].im;
-    y_re_tmp = reconVar1_data[iDelta].re;
-    b_y_re_tmp = reconVar2_data[iDelta].im;
-    c_y_re_tmp = reconVar2_data[iDelta].re;
-    im = temp_re_tmp * c_y_re_tmp;
-    temp2_re = temp_re_tmp * y_re_tmp;
-    y_data[iDelta].re = 0.5 * ((temp2_re - temp_im_tmp * temp_im) +
-                               (im - -temp_im_tmp * b_y_re_tmp));
-    temp2_im = temp_re_tmp * b_y_re_tmp;
-    re = temp_re_tmp * temp_im;
-    y_data[iDelta].im = 0.5 * ((re + temp_im_tmp * y_re_tmp) +
-                               (temp2_im + -temp_im_tmp * c_y_re_tmp));
-    b_j1 = (int)z + iDelta;
-    y_data[b_j1].re = 0.5 * ((im - temp_im_tmp * b_y_re_tmp) +
-                             (temp2_re - -temp_im_tmp * temp_im));
-    y_data[b_j1].im = 0.5 * ((temp2_im + temp_im_tmp * c_y_re_tmp) +
-                             (re + -temp_im_tmp * y_re_tmp));
+    y_re_tmp = reconVar1_data[iDelta].im;
+    b_y_re_tmp = reconVar1_data[iDelta].re;
+    c_y_re_tmp = reconVar2_data[iDelta].im;
+    d_y_re_tmp = reconVar2_data[iDelta].re;
+    temp_re = temp_re_tmp * d_y_re_tmp;
+    temp2_re = temp_re_tmp * b_y_re_tmp;
+    y_data[iDelta].re = 0.5F * ((temp2_re - temp_im_tmp * y_re_tmp) +
+                                (temp_re - -temp_im_tmp * c_y_re_tmp));
+    temp2_im = temp_re_tmp * c_y_re_tmp;
+    temp_im = temp_re_tmp * y_re_tmp;
+    y_data[iDelta].im = 0.5F * ((temp_im + temp_im_tmp * b_y_re_tmp) +
+                                (temp2_im + -temp_im_tmp * d_y_re_tmp));
+    b_j1 = (int)z_tmp + iDelta;
+    y_data[b_j1].re = 0.5F * ((temp_re - temp_im_tmp * c_y_re_tmp) +
+                              (temp2_re - -temp_im_tmp * y_re_tmp));
+    y_data[b_j1].im = 0.5F * ((temp2_im + temp_im_tmp * d_y_re_tmp) +
+                              (temp_im + -temp_im_tmp * b_y_re_tmp));
   }
-  emxFree_creal_T(&reconVar2);
-  emxFree_creal_T(&reconVar1);
+  emxFree_creal32_T(&reconVar2);
+  emxFree_creal32_T(&reconVar1);
 }
 
 /*
- * Arguments    : const emxArray_real_T *x
+ * Arguments    : const emxArray_real32_T *x
  *                int n2blue
  *                int nfft
- *                const emxArray_real_T *costab
- *                const emxArray_real_T *sintab
- *                const emxArray_real_T *sintabinv
- *                emxArray_creal_T *y
+ *                const emxArray_real32_T *costab
+ *                const emxArray_real32_T *sintab
+ *                const emxArray_real32_T *sintabinv
+ *                emxArray_creal32_T *y
  * Return Type  : void
  */
-void c_FFTImplementationCallback_dob(const emxArray_real_T *x, int n2blue,
-                                     int nfft, const emxArray_real_T *costab,
-                                     const emxArray_real_T *sintab,
-                                     const emxArray_real_T *sintabinv,
-                                     emxArray_creal_T *y)
+void c_FFTImplementationCallback_dob(const emxArray_real32_T *x, int n2blue,
+                                     int nfft, const emxArray_real32_T *costab,
+                                     const emxArray_real32_T *sintab,
+                                     const emxArray_real32_T *sintabinv,
+                                     emxArray_creal32_T *y)
 {
-  emxArray_creal_T *fv;
-  emxArray_creal_T *fy;
-  emxArray_creal_T *r;
-  emxArray_creal_T *wwc;
-  creal_T *fv_data;
-  creal_T *fy_data;
-  creal_T *r1;
-  creal_T *wwc_data;
-  creal_T *y_data;
-  const double *costab_data;
-  const double *sintab_data;
-  const double *x_data;
-  double nt_im;
-  double nt_re;
-  int chan;
+  emxArray_creal32_T *fv;
+  emxArray_creal32_T *fy;
+  emxArray_creal32_T *wwc;
+  creal32_T *fv_data;
+  creal32_T *fy_data;
+  creal32_T *wwc_data;
+  creal32_T *y_data;
+  const float *costab_data;
+  const float *sintab_data;
+  const float *x_data;
+  float nt_im;
+  float nt_re;
   int i;
   int ihi;
-  int istart;
-  int iy;
+  int j;
   int k;
-  int nChan;
+  int minNrowsNx;
   int nInt2;
   int nInt2m1;
   int rt;
-  bool ishalflength;
   sintab_data = sintab->data;
   costab_data = costab->data;
   x_data = x->data;
-  nChan = x->size[1];
-  emxInit_creal_T(&wwc, 1);
+  emxInit_creal32_T(&wwc, 1);
   if ((nfft != 1) && ((nfft & 1) == 0)) {
-    istart = (int)((unsigned int)nfft >> 1);
-    nInt2m1 = (istart + istart) - 1;
+    j = nfft / 2;
+    nInt2m1 = (j + j) - 1;
     ihi = wwc->size[0];
     wwc->size[0] = nInt2m1;
-    emxEnsureCapacity_creal_T(wwc, ihi);
+    emxEnsureCapacity_creal32_T(wwc, ihi);
     wwc_data = wwc->data;
     rt = 0;
-    wwc_data[istart - 1].re = 1.0;
-    wwc_data[istart - 1].im = 0.0;
-    nInt2 = istart << 1;
-    for (k = 0; k <= istart - 2; k++) {
-      iy = ((k + 1) << 1) - 1;
-      if (nInt2 - rt <= iy) {
-        rt += iy - nInt2;
+    wwc_data[j - 1].re = 1.0F;
+    wwc_data[j - 1].im = 0.0F;
+    nInt2 = j << 1;
+    for (k = 0; k <= j - 2; k++) {
+      minNrowsNx = ((k + 1) << 1) - 1;
+      if (nInt2 - rt <= minNrowsNx) {
+        rt += minNrowsNx - nInt2;
       } else {
-        rt += iy;
+        rt += minNrowsNx;
       }
-      nt_im = -3.1415926535897931 * (double)rt / (double)istart;
-      if (nt_im == 0.0) {
-        nt_re = 1.0;
-        nt_im = 0.0;
+      nt_im = -3.14159274F * (float)rt / (float)j;
+      if (nt_im == 0.0F) {
+        nt_re = 1.0F;
+        nt_im = 0.0F;
       } else {
-        nt_re = cos(nt_im);
-        nt_im = sin(nt_im);
+        nt_re = cosf(nt_im);
+        nt_im = sinf(nt_im);
       }
-      ihi = (istart - k) - 2;
+      ihi = (j - k) - 2;
       wwc_data[ihi].re = nt_re;
       wwc_data[ihi].im = -nt_im;
     }
     ihi = nInt2m1 - 1;
-    for (k = ihi; k >= istart; k--) {
+    for (k = ihi; k >= j; k--) {
       wwc_data[k] = wwc_data[(nInt2m1 - k) - 1];
     }
   } else {
     nInt2m1 = (nfft + nfft) - 1;
     ihi = wwc->size[0];
     wwc->size[0] = nInt2m1;
-    emxEnsureCapacity_creal_T(wwc, ihi);
+    emxEnsureCapacity_creal32_T(wwc, ihi);
     wwc_data = wwc->data;
     rt = 0;
-    wwc_data[nfft - 1].re = 1.0;
-    wwc_data[nfft - 1].im = 0.0;
+    wwc_data[nfft - 1].re = 1.0F;
+    wwc_data[nfft - 1].im = 0.0F;
     nInt2 = nfft << 1;
     for (k = 0; k <= nfft - 2; k++) {
-      iy = ((k + 1) << 1) - 1;
-      if (nInt2 - rt <= iy) {
-        rt += iy - nInt2;
+      minNrowsNx = ((k + 1) << 1) - 1;
+      if (nInt2 - rt <= minNrowsNx) {
+        rt += minNrowsNx - nInt2;
       } else {
-        rt += iy;
+        rt += minNrowsNx;
       }
-      nt_im = -3.1415926535897931 * (double)rt / (double)nfft;
-      if (nt_im == 0.0) {
-        nt_re = 1.0;
-        nt_im = 0.0;
+      nt_im = -3.14159274F * (float)rt / (float)nfft;
+      if (nt_im == 0.0F) {
+        nt_re = 1.0F;
+        nt_im = 0.0F;
       } else {
-        nt_re = cos(nt_im);
-        nt_im = sin(nt_im);
+        nt_re = cosf(nt_im);
+        nt_im = sinf(nt_im);
       }
       ihi = (nfft - k) - 2;
       wwc_data[ihi].re = nt_re;
@@ -972,201 +968,167 @@ void c_FFTImplementationCallback_dob(const emxArray_real_T *x, int n2blue,
       wwc_data[k] = wwc_data[(nInt2m1 - k) - 1];
     }
   }
-  ihi = y->size[0] * y->size[1];
+  ihi = y->size[0];
   y->size[0] = nfft;
-  y->size[1] = x->size[1];
-  emxEnsureCapacity_creal_T(y, ihi);
+  emxEnsureCapacity_creal32_T(y, ihi);
   y_data = y->data;
   if (nfft > x->size[0]) {
-    ihi = y->size[0] * y->size[1];
+    ihi = y->size[0];
     y->size[0] = nfft;
-    y->size[1] = x->size[1];
-    emxEnsureCapacity_creal_T(y, ihi);
+    emxEnsureCapacity_creal32_T(y, ihi);
     y_data = y->data;
-    iy = nfft * x->size[1];
-    for (ihi = 0; ihi < iy; ihi++) {
-      y_data[ihi].re = 0.0;
-      y_data[ihi].im = 0.0;
+    for (ihi = 0; ihi < nfft; ihi++) {
+      y_data[ihi].re = 0.0F;
+      y_data[ihi].im = 0.0F;
     }
   }
-  if (x->size[1] - 1 >= 0) {
-    if ((n2blue != 1) && ((nfft & 1) == 0)) {
-      ishalflength = true;
-    } else {
-      ishalflength = false;
+  emxInit_creal32_T(&fy, 1);
+  emxInit_creal32_T(&fv, 1);
+  if ((n2blue != 1) && ((nfft & 1) == 0)) {
+    d_FFTImplementationCallback_doH(x, y, x->size[0], nfft, n2blue, wwc, costab,
+                                    sintab, costab, sintabinv);
+  } else {
+    float b_nt_re_tmp;
+    float twid_im;
+    float twid_re;
+    int nRowsD2;
+    int nt_re_tmp;
+    minNrowsNx = x->size[0];
+    if (nfft <= minNrowsNx) {
+      minNrowsNx = nfft;
     }
-  }
-  emxInit_creal_T(&r, 1);
-  emxInit_creal_T(&fy, 1);
-  emxInit_creal_T(&fv, 1);
-  for (chan = 0; chan < nChan; chan++) {
-    iy = chan * x->size[0];
-    ihi = r->size[0];
-    r->size[0] = nfft;
-    emxEnsureCapacity_creal_T(r, ihi);
-    r1 = r->data;
-    if (nfft > x->size[0]) {
-      ihi = r->size[0];
-      r->size[0] = nfft;
-      emxEnsureCapacity_creal_T(r, ihi);
-      r1 = r->data;
-      for (ihi = 0; ihi < nfft; ihi++) {
-        r1[ihi].re = 0.0;
-        r1[ihi].im = 0.0;
-      }
+    for (k = 0; k < minNrowsNx; k++) {
+      nt_re_tmp = (nfft + k) - 1;
+      y_data[k].re = wwc_data[nt_re_tmp].re * x_data[k];
+      y_data[k].im = wwc_data[nt_re_tmp].im * -x_data[k];
     }
-    if (ishalflength) {
-      d_FFTImplementationCallback_doH(x, iy, r, x->size[0], nfft, n2blue, wwc,
-                                      costab, sintab, costab, sintabinv);
-      r1 = r->data;
-    } else {
-      double b_nt_re_tmp;
-      double twid_im;
-      double twid_re;
-      int nRowsD2;
-      int nt_re_tmp;
-      nInt2m1 = x->size[0];
-      if (nfft <= nInt2m1) {
-        nInt2m1 = nfft;
-      }
-      for (k = 0; k < nInt2m1; k++) {
-        nt_re_tmp = (nfft + k) - 1;
-        ihi = iy + k;
-        r1[k].re = wwc_data[nt_re_tmp].re * x_data[ihi];
-        r1[k].im = wwc_data[nt_re_tmp].im * -x_data[ihi];
-      }
-      ihi = nInt2m1 + 1;
-      for (k = ihi; k <= nfft; k++) {
-        r1[k - 1].re = 0.0;
-        r1[k - 1].im = 0.0;
-      }
+    ihi = minNrowsNx + 1;
+    for (k = ihi; k <= nfft; k++) {
+      y_data[k - 1].re = 0.0F;
+      y_data[k - 1].im = 0.0F;
+    }
+    ihi = fy->size[0];
+    fy->size[0] = n2blue;
+    emxEnsureCapacity_creal32_T(fy, ihi);
+    fy_data = fy->data;
+    if (n2blue > y->size[0]) {
       ihi = fy->size[0];
       fy->size[0] = n2blue;
-      emxEnsureCapacity_creal_T(fy, ihi);
+      emxEnsureCapacity_creal32_T(fy, ihi);
       fy_data = fy->data;
-      if (n2blue > r->size[0]) {
-        ihi = fy->size[0];
-        fy->size[0] = n2blue;
-        emxEnsureCapacity_creal_T(fy, ihi);
-        fy_data = fy->data;
-        for (ihi = 0; ihi < n2blue; ihi++) {
-          fy_data[ihi].re = 0.0;
-          fy_data[ihi].im = 0.0;
-        }
+      for (ihi = 0; ihi < n2blue; ihi++) {
+        fy_data[ihi].re = 0.0F;
+        fy_data[ihi].im = 0.0F;
       }
-      istart = r->size[0];
-      if (istart > n2blue) {
-        istart = n2blue;
+    }
+    nInt2m1 = y->size[0];
+    if (nInt2m1 > n2blue) {
+      nInt2m1 = n2blue;
+    }
+    rt = n2blue - 2;
+    nRowsD2 = n2blue / 2;
+    k = nRowsD2 / 2;
+    minNrowsNx = 0;
+    nInt2 = 0;
+    for (i = 0; i <= nInt2m1 - 2; i++) {
+      bool tst;
+      fy_data[minNrowsNx] = y_data[i];
+      minNrowsNx = n2blue;
+      tst = true;
+      while (tst) {
+        minNrowsNx >>= 1;
+        nInt2 ^= minNrowsNx;
+        tst = ((nInt2 & minNrowsNx) == 0);
       }
-      rt = n2blue - 2;
-      nRowsD2 = (int)((unsigned int)n2blue >> 1);
-      k = nRowsD2 / 2;
-      iy = 0;
-      nInt2 = 0;
-      for (i = 0; i <= istart - 2; i++) {
-        bool tst;
-        fy_data[iy] = r1[i];
-        nInt2m1 = n2blue;
-        tst = true;
-        while (tst) {
-          nInt2m1 >>= 1;
-          nInt2 ^= nInt2m1;
-          tst = ((nInt2 & nInt2m1) == 0);
-        }
-        iy = nInt2;
+      minNrowsNx = nInt2;
+    }
+    fy_data[minNrowsNx] = y_data[nInt2m1 - 1];
+    if (n2blue > 1) {
+      for (i = 0; i <= rt; i += 2) {
+        b_nt_re_tmp = fy_data[i + 1].re;
+        nt_im = fy_data[i + 1].im;
+        twid_im = fy_data[i].re;
+        nt_re = fy_data[i].im;
+        fy_data[i + 1].re = twid_im - b_nt_re_tmp;
+        fy_data[i + 1].im = nt_re - nt_im;
+        fy_data[i].re = twid_im + b_nt_re_tmp;
+        fy_data[i].im = nt_re + nt_im;
       }
-      fy_data[iy] = r1[istart - 1];
-      if (n2blue > 1) {
-        for (i = 0; i <= rt; i += 2) {
-          b_nt_re_tmp = fy_data[i + 1].re;
-          nt_im = fy_data[i + 1].im;
-          twid_im = fy_data[i].re;
-          nt_re = fy_data[i].im;
-          fy_data[i + 1].re = twid_im - b_nt_re_tmp;
-          fy_data[i + 1].im = nt_re - nt_im;
-          fy_data[i].re = twid_im + b_nt_re_tmp;
-          fy_data[i].im = nt_re + nt_im;
-        }
+    }
+    minNrowsNx = 2;
+    nInt2m1 = 4;
+    rt = ((k - 1) << 2) + 1;
+    while (k > 0) {
+      for (i = 0; i < rt; i += nInt2m1) {
+        nt_re_tmp = i + minNrowsNx;
+        nt_re = fy_data[nt_re_tmp].re;
+        nt_im = fy_data[nt_re_tmp].im;
+        fy_data[nt_re_tmp].re = fy_data[i].re - nt_re;
+        fy_data[nt_re_tmp].im = fy_data[i].im - nt_im;
+        fy_data[i].re += nt_re;
+        fy_data[i].im += nt_im;
       }
-      nInt2m1 = 2;
-      rt = 4;
-      nInt2 = ((k - 1) << 2) + 1;
-      while (k > 0) {
-        for (i = 0; i < nInt2; i += rt) {
-          nt_re_tmp = i + nInt2m1;
-          nt_re = fy_data[nt_re_tmp].re;
-          nt_im = fy_data[nt_re_tmp].im;
+      nInt2 = 1;
+      for (j = k; j < nRowsD2; j += k) {
+        twid_re = costab_data[j];
+        twid_im = sintab_data[j];
+        i = nInt2;
+        ihi = nInt2 + rt;
+        while (i < ihi) {
+          nt_re_tmp = i + minNrowsNx;
+          b_nt_re_tmp = fy_data[nt_re_tmp].im;
+          nt_im = fy_data[nt_re_tmp].re;
+          nt_re = twid_re * nt_im - twid_im * b_nt_re_tmp;
+          nt_im = twid_re * b_nt_re_tmp + twid_im * nt_im;
           fy_data[nt_re_tmp].re = fy_data[i].re - nt_re;
           fy_data[nt_re_tmp].im = fy_data[i].im - nt_im;
           fy_data[i].re += nt_re;
           fy_data[i].im += nt_im;
+          i += nInt2m1;
         }
-        istart = 1;
-        for (iy = k; iy < nRowsD2; iy += k) {
-          twid_re = costab_data[iy];
-          twid_im = sintab_data[iy];
-          i = istart;
-          ihi = istart + nInt2;
-          while (i < ihi) {
-            nt_re_tmp = i + nInt2m1;
-            b_nt_re_tmp = fy_data[nt_re_tmp].im;
-            nt_im = fy_data[nt_re_tmp].re;
-            nt_re = twid_re * nt_im - twid_im * b_nt_re_tmp;
-            nt_im = twid_re * b_nt_re_tmp + twid_im * nt_im;
-            fy_data[nt_re_tmp].re = fy_data[i].re - nt_re;
-            fy_data[nt_re_tmp].im = fy_data[i].im - nt_im;
-            fy_data[i].re += nt_re;
-            fy_data[i].im += nt_im;
-            i += rt;
-          }
-          istart++;
-        }
-        k /= 2;
-        nInt2m1 = rt;
-        rt += rt;
-        nInt2 -= nInt2m1;
+        nInt2++;
       }
-      c_FFTImplementationCallback_r2b(wwc, n2blue, costab, sintab, fv);
-      fv_data = fv->data;
-      iy = fy->size[0];
-      for (ihi = 0; ihi < iy; ihi++) {
-        twid_im = fy_data[ihi].re;
-        nt_im = fv_data[ihi].im;
-        nt_re = fy_data[ihi].im;
-        twid_re = fv_data[ihi].re;
-        fy_data[ihi].re = twid_im * twid_re - nt_re * nt_im;
-        fy_data[ihi].im = twid_im * nt_im + nt_re * twid_re;
-      }
-      c_FFTImplementationCallback_r2b(fy, n2blue, costab, sintabinv, fv);
-      fv_data = fv->data;
-      if (fv->size[0] > 1) {
-        nt_im = 1.0 / (double)fv->size[0];
-        iy = fv->size[0];
-        for (ihi = 0; ihi < iy; ihi++) {
-          fv_data[ihi].re *= nt_im;
-          fv_data[ihi].im *= nt_im;
-        }
-      }
-      ihi = wwc->size[0];
-      for (k = nfft; k <= ihi; k++) {
-        nt_im = wwc_data[k - 1].re;
-        nt_re = fv_data[k - 1].im;
-        twid_re = wwc_data[k - 1].im;
-        twid_im = fv_data[k - 1].re;
-        iy = k - nfft;
-        r1[iy].re = nt_im * twid_im + twid_re * nt_re;
-        r1[iy].im = nt_im * nt_re - twid_re * twid_im;
+      k /= 2;
+      minNrowsNx = nInt2m1;
+      nInt2m1 += nInt2m1;
+      rt -= minNrowsNx;
+    }
+    c_FFTImplementationCallback_r2b(wwc, n2blue, costab, sintab, fv);
+    fv_data = fv->data;
+    minNrowsNx = fy->size[0];
+    for (ihi = 0; ihi < minNrowsNx; ihi++) {
+      twid_im = fy_data[ihi].re;
+      nt_im = fv_data[ihi].im;
+      nt_re = fy_data[ihi].im;
+      twid_re = fv_data[ihi].re;
+      fy_data[ihi].re = twid_im * twid_re - nt_re * nt_im;
+      fy_data[ihi].im = twid_im * nt_im + nt_re * twid_re;
+    }
+    c_FFTImplementationCallback_r2b(fy, n2blue, costab, sintabinv, fv);
+    fv_data = fv->data;
+    if (fv->size[0] > 1) {
+      nt_im = 1.0F / (float)fv->size[0];
+      minNrowsNx = fv->size[0];
+      for (ihi = 0; ihi < minNrowsNx; ihi++) {
+        fv_data[ihi].re *= nt_im;
+        fv_data[ihi].im *= nt_im;
       }
     }
-    iy = r->size[0];
-    for (ihi = 0; ihi < iy; ihi++) {
-      y_data[ihi + y->size[0] * chan] = r1[ihi];
+    ihi = (int)(float)nfft;
+    minNrowsNx = wwc->size[0];
+    for (k = ihi; k <= minNrowsNx; k++) {
+      nt_im = wwc_data[k - 1].re;
+      nt_re = fv_data[k - 1].im;
+      twid_re = wwc_data[k - 1].im;
+      twid_im = fv_data[k - 1].re;
+      nInt2m1 = k - (int)(float)nfft;
+      y_data[nInt2m1].re = nt_im * twid_im + twid_re * nt_re;
+      y_data[nInt2m1].im = nt_im * nt_re - twid_re * twid_im;
     }
   }
-  emxFree_creal_T(&fv);
-  emxFree_creal_T(&fy);
-  emxFree_creal_T(&r);
-  emxFree_creal_T(&wwc);
+  emxFree_creal32_T(&fv);
+  emxFree_creal32_T(&fy);
+  emxFree_creal32_T(&wwc);
 }
 
 /*

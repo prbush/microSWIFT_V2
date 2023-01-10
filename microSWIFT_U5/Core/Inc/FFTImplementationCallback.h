@@ -4,15 +4,15 @@
  * government, commercial, or other organizational use.
  * File: FFTImplementationCallback.h
  *
- * MATLAB Coder version            : 5.5
- * C/C++ source code generated on  : 29-Dec-2022 10:05:59
+ * MATLAB Coder version            : 5.4
+ * C/C++ source code generated on  : 06-Jan-2023 10:46:55
  */
 
 #ifndef FFTIMPLEMENTATIONCALLBACK_H
 #define FFTIMPLEMENTATIONCALLBACK_H
 
 /* Include Files */
-#include "NEDwaves_types.h"
+#include "NEDwaves_memlight_types.h"
 #include "rtwtypes.h"
 #include <stddef.h>
 #include <stdlib.h>
@@ -22,16 +22,16 @@ extern "C" {
 #endif
 
 /* Function Declarations */
-void c_FFTImplementationCallback_doH(const emxArray_real_T *x, int xoffInit,
-                                     emxArray_creal_T *y, int unsigned_nRows,
-                                     const emxArray_real_T *costab,
-                                     const emxArray_real_T *sintab);
+void c_FFTImplementationCallback_doH(const emxArray_real32_T *x,
+                                     emxArray_creal32_T *y, int unsigned_nRows,
+                                     const emxArray_real32_T *costab,
+                                     const emxArray_real32_T *sintab);
 
-void c_FFTImplementationCallback_dob(const emxArray_real_T *x, int n2blue,
-                                     int nfft, const emxArray_real_T *costab,
-                                     const emxArray_real_T *sintab,
-                                     const emxArray_real_T *sintabinv,
-                                     emxArray_creal_T *y);
+void c_FFTImplementationCallback_dob(const emxArray_real32_T *x, int n2blue,
+                                     int nfft, const emxArray_real32_T *costab,
+                                     const emxArray_real32_T *sintab,
+                                     const emxArray_real32_T *sintabinv,
+                                     emxArray_creal32_T *y);
 
 #ifdef __cplusplus
 }

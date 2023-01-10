@@ -40,10 +40,11 @@ Core/Src/app_threadx.o: ../Core/Src/app_threadx.c \
  ../Core/Inc/gnss_error_codes.h ../Core/Inc/u_ubx_protocol.h \
  ../Core/Inc/u_error_common.h ../Core/Inc/battery.h \
  ../Core/Inc/ct_sensor.h ../Core/Inc/imu.h ../Core/Inc/iridium.h \
- ../Core/Inc/log.h ../Core/Inc/mem_replacements.h ../Core/Inc/NEDwaves.h \
- ../Core/Inc/NEDwaves_types.h ../Core/Inc/rtwhalf.h \
- ../Core/Inc/rtwtypes.h ../Core/Inc/NEDwaves_emxAPI.h \
- ../Core/Inc/NEDwaves_terminate.h ../Core/Inc/rt_nonfinite.h \
+ ../Core/Inc/log.h ../Core/Inc/mem_replacements.h \
+ ../Core/Inc/NEDwaves_memlight.h ../Core/Inc/NEDwaves_memlight_types.h \
+ ../Core/Inc/rtwtypes.h ../Core/Inc/rtwhalf.h \
+ ../Core/Inc/NEDwaves_memlight_emxAPI.h \
+ ../Core/Inc/NEDwaves_memlight_terminate.h ../Core/Inc/rt_nonfinite.h \
  ../Core/Inc/main.h
 ../Core/Inc/app_threadx.h:
 ../Middlewares/ST/threadx/common/inc/tx_api.h:
@@ -95,11 +96,11 @@ Core/Src/app_threadx.o: ../Core/Src/app_threadx.c \
 ../Core/Inc/iridium.h:
 ../Core/Inc/log.h:
 ../Core/Inc/mem_replacements.h:
-../Core/Inc/NEDwaves.h:
-../Core/Inc/NEDwaves_types.h:
-../Core/Inc/rtwhalf.h:
+../Core/Inc/NEDwaves_memlight.h:
+../Core/Inc/NEDwaves_memlight_types.h:
 ../Core/Inc/rtwtypes.h:
-../Core/Inc/NEDwaves_emxAPI.h:
-../Core/Inc/NEDwaves_terminate.h:
+../Core/Inc/rtwhalf.h:
+../Core/Inc/NEDwaves_memlight_emxAPI.h:
+../Core/Inc/NEDwaves_memlight_terminate.h:
 ../Core/Inc/rt_nonfinite.h:
 ../Core/Inc/main.h:

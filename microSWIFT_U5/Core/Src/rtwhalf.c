@@ -4,8 +4,8 @@
  * government, commercial, or other organizational use.
  * File: rtwhalf.c
  *
- * MATLAB Coder version            : 5.5
- * C/C++ source code generated on  : 29-Dec-2022 10:05:59
+ * MATLAB Coder version            : 5.4
+ * C/C++ source code generated on  : 06-Jan-2023 10:46:55
  */
 
 /* Include Files */
