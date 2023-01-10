@@ -36,7 +36,7 @@
 #include "stm32u5xx_ll_dma.h"
 #include "stdint.h"
 #include "stdbool.h"
-#include "gps.h"
+#include "gnss.h"
 #include "battery.h"
 #include "ct_sensor.h"
 #include "imu.h"

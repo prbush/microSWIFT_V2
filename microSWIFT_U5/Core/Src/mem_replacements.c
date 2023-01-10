@@ -50,3 +50,64 @@ void free_replacement(VOID* ptr)
 }
 
 
+emxArray_real32_T *argInit_1xUnbounded_real32_T_down(void)
+{
+	emxArray_real32_T *result;
+	float *result_data;
+	int idx0;
+	int idx1;
+	/* Set the size of the array.
+	Change this size to the value that the application requires. */
+	result = emxCreate_real32_T(1, NUM_SAMPLES);
+	result_data = result->data;
+	/* Loop over the array to initialize each element. */
+	for (idx0 = 0; idx0 < 1; idx0++) {
+		for (idx1 = 0; idx1 < result->size[0U]; idx1++) {
+		/* Set the value of the array element.
+		Change this value to the value that the application requires. */
+		result_data[idx1] = -2.51327 * sin(-0.12566*idx1);
+		}
+	}
+	return result;
+}
+
+
+emxArray_real32_T *argInit_1xUnbounded_real32_T_north_east(void)
+{
+	emxArray_real32_T *result;
+	float *result_data;
+	int idx0;
+	int idx1;
+	/* Set the size of the array.
+	Change this size to the value that the application requires. */
+	result = emxCreate_real32_T(1, NUM_SAMPLES);
+	result_data = result->data;
+	/* Loop over the array to initialize each element. */
+	for (idx0 = 0; idx0 < 1; idx0++) {
+		for (idx1 = 0; idx1 < result->size[0U]; idx1++) {
+		/* Set the value of the array element.
+		Change this value to the value that the application requires. */
+		result_data[idx1] = 0.707 * 2.51327 * cos(-0.12566*idx1);
+		}
+	}
+	return result;
+}
+
+
+emxArray_real32_T *argInit_1xUnbounded_real32_T(float* data)
+{
+	emxArray_real32_T *result;
+	int idx0;
+	int idx1;
+	/* Set the size of the array.
+	Change this size to the value that the application requires. */
+	result = emxCreate_real32_T(1, NUM_SAMPLES);
+	result->data = data;
+	return result;
+}
+
+double argInit_real_T(void)
+{
+  return 0.0;
+}
+

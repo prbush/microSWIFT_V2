@@ -1,9 +1,0 @@
-../Drivers/UBXLIB/u_ubx_protocol.c:62:6:uUbxProtocolIsLittleEndian	16	static
-../Drivers/UBXLIB/u_ubx_protocol.c:70:10:uUbxProtocolUint16Decode	24	static
-../Drivers/UBXLIB/u_ubx_protocol.c:84:10:uUbxProtocolUint32Decode	24	static
-../Drivers/UBXLIB/u_ubx_protocol.c:100:10:uUbxProtocolUint64Decode	160	static
-../Drivers/UBXLIB/u_ubx_protocol.c:120:10:uUbxProtocolUint16Encode	24	static
-../Drivers/UBXLIB/u_ubx_protocol.c:133:10:uUbxProtocolUint32Encode	24	static
-../Drivers/UBXLIB/u_ubx_protocol.c:148:10:uUbxProtocolUint64Encode	128	static
-../Drivers/UBXLIB/u_ubx_protocol.c:167:9:uUbxProtocolEncode	48	static
-../Drivers/UBXLIB/u_ubx_protocol.c:214:9:uUbxProtocolDecode	64	static

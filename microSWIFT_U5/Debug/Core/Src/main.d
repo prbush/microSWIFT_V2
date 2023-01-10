@@ -36,13 +36,13 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/app_threadx.h ../Middlewares/ST/threadx/common/inc/tx_api.h \
  ../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc/tx_port.h \
  ../Core/Inc/tx_user.h ../Core/Inc/main.h \
- ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h ../Core/Inc/gps.h \
- ../Core/Inc/gnss_error_codes.h ../Core/Inc/u_ubx_protocol.h \
- ../Core/Inc/u_error_common.h ../Core/Inc/battery.h \
- ../Core/Inc/ct_sensor.h ../Core/Inc/imu.h ../Core/Inc/iridium.h \
- ../Core/Inc/log.h ../Core/Inc/mem_replacements.h \
- ../Core/Inc/NEDwaves_memlight.h ../Core/Inc/NEDwaves_memlight_types.h \
- ../Core/Inc/rtwtypes.h ../Core/Inc/rtwhalf.h \
+ ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h \
+ ../Core/Inc/gnss.h ../Core/Inc/gnss_error_codes.h \
+ ../Core/Inc/u_ubx_protocol.h ../Core/Inc/u_error_common.h \
+ ../Core/Inc/battery.h ../Core/Inc/ct_sensor.h ../Core/Inc/imu.h \
+ ../Core/Inc/iridium.h ../Core/Inc/log.h ../Core/Inc/mem_replacements.h \
+ ../Core/Inc/NEDwaves_memlight_types.h ../Core/Inc/rtwtypes.h \
+ ../Core/Inc/NEDwaves_memlight.h ../Core/Inc/rtwhalf.h \
  ../Core/Inc/NEDwaves_memlight_emxAPI.h \
  ../Core/Inc/NEDwaves_memlight_terminate.h ../Core/Inc/rt_nonfinite.h
 ../Core/Inc/main.h:
@@ -86,7 +86,7 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/tx_user.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h:
-../Core/Inc/gps.h:
+../Core/Inc/gnss.h:
 ../Core/Inc/gnss_error_codes.h:
 ../Core/Inc/u_ubx_protocol.h:
 ../Core/Inc/u_error_common.h:
@@ -96,9 +96,9 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/iridium.h:
 ../Core/Inc/log.h:
 ../Core/Inc/mem_replacements.h:
-../Core/Inc/NEDwaves_memlight.h:
 ../Core/Inc/NEDwaves_memlight_types.h:
 ../Core/Inc/rtwtypes.h:
+../Core/Inc/NEDwaves_memlight.h:
 ../Core/Inc/rtwhalf.h:
 ../Core/Inc/NEDwaves_memlight_emxAPI.h:
 ../Core/Inc/NEDwaves_memlight_terminate.h:

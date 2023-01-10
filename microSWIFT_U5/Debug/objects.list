@@ -11,7 +11,7 @@
 "./Core/Src/bsearch.o"
 "./Core/Src/ct_sensor.o"
 "./Core/Src/fft.o"
-"./Core/Src/gps.o"
+"./Core/Src/gnss.o"
 "./Core/Src/imu.o"
 "./Core/Src/interp1.o"
 "./Core/Src/iridium.o"

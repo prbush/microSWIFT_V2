@@ -23,7 +23,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "main.h"
 
 /* USER CODE END Includes */
 
@@ -45,29 +44,30 @@
  	GNSS_MSG_BUF_B_READY = 1 << 2,
  	IMU_READY = 1 << 3,
  	CT_READY = 1 << 4,
- 	MODEM_READY = 1 << 5,
+ 	IRIDIUM_READY = 1 << 5,
  	WAVES_READY = 1 << 6,
  	// Done states
  	GNSS_DONE = 1 << 7,
  	IMU_DONE = 1 << 8,
  	CT_DONE = 1 << 9,
- 	MODEM_DONE = 1 << 10,
+ 	IRIDIUM_DONE = 1 << 10,
+	WAVES_DONE = 1 << 11,
  	// Sleep states
- 	SET_STOP_2 = 1 << 11,
- 	RESET_STOP_2 = 1 << 12,
- 	SET_SHUTDOWN = 1 << 13,
- 	RESET_SHUTDOWN = 1 << 14,
+ 	SET_STOP_2 = 1 << 12,
+ 	RESET_STOP_2 = 1 << 13,
+ 	SET_SHUTDOWN = 1 << 14,
+ 	RESET_SHUTDOWN = 1 << 15,
  	// Error states
- 	GNSS_ERROR = 1 << 15,
- 	IMU_ERROR = 1 << 16,
- 	CT_ERROR = 1 << 17,
- 	MODEM_ERROR = 1 << 18,
- 	MEMORY_ALLOC_ERROR = 1 << 19,
- 	DMA_ERROR = 1 << 20,
- 	UART_ERROR = 1 << 21,
+ 	GNSS_ERROR = 1 << 16,
+ 	IMU_ERROR = 1 << 17,
+ 	CT_ERROR = 1 << 18,
+ 	MODEM_ERROR = 1 << 19,
+ 	MEMORY_ALLOC_ERROR = 1 << 20,
+ 	DMA_ERROR = 1 << 21,
+ 	UART_ERROR = 1 << 22,
  	// Misc
- 	GNSS_CONFIG_RECVD = 1 << 22,
-	GNSS_CONFIG_STARTED = 1 << 23
+ 	GNSS_CONFIG_RECVD = 1 << 23,
+	GNSS_CONFIG_STARTED = 1 << 24
  }status_flags_t;
 /* USER CODE END PTD */
 
@@ -96,63 +96,6 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
- /* Function Declarations */
-
-// NEDWaves test support
-static emxArray_real32_T *argInit_1xUnbounded_real32_T_down(void);
-static emxArray_real32_T *argInit_1xUnbounded_real32_T_north_east(void);
-
-static double argInit_real_T(void);
-
-static int num_samples = 16384;
-
-/* Function Definitions */
-static emxArray_real32_T *argInit_1xUnbounded_real32_T_down(void)
-{
-	emxArray_real32_T *result;
-	float *result_data;
-	int idx0;
-	int idx1;
-	/* Set the size of the array.
-	Change this size to the value that the application requires. */
-	result = emxCreate_real32_T(1, num_samples);
-	result_data = result->data;
-	/* Loop over the array to initialize each element. */
-	for (idx0 = 0; idx0 < 1; idx0++) {
-		for (idx1 = 0; idx1 < result->size[0U]; idx1++) {
-		/* Set the value of the array element.
-		Change this value to the value that the application requires. */
-		result_data[idx1] = -2.51327 * sin(-0.12566*idx1);
-		}
-	}
-	return result;
-}
-
-static emxArray_real32_T *argInit_1xUnbounded_real32_T_north_east(void)
-{
-	emxArray_real32_T *result;
-	float *result_data;
-	int idx0;
-	int idx1;
-	/* Set the size of the array.
-	Change this size to the value that the application requires. */
-	result = emxCreate_real32_T(1, num_samples);
-	result_data = result->data;
-	/* Loop over the array to initialize each element. */
-	for (idx0 = 0; idx0 < 1; idx0++) {
-		for (idx1 = 0; idx1 < result->size[0U]; idx1++) {
-		/* Set the value of the array element.
-		Change this value to the value that the application requires. */
-		result_data[idx1] = 0.707 * 2.51327 * cos(-0.12566*idx1);
-		}
-	}
-	return result;
-}
-
-static double argInit_real_T(void)
-{
-  return 0.0;
-}
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -493,36 +436,34 @@ void startup_thread_entry(ULONG thread_input){
 	// TODO: figure out self-check
 	// TODO: set event flags to "ready" for all threads except waves
 	// TODO: start DMA transfer in here
-//	HAL_StatusTypeDef HAL_return;
-//	UINT threadx_return;
-//	ULONG actual_flags;
-//	// Initialize GNSS struct
-//	gnss_init(gnss, gnss_uart, dma_handle, &thread_flags, GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
-//	tx_event_flags_set(&thread_flags, GNSS_CONFIG_STARTED, TX_OR);
-//	// Must send the configuration commands to the GNSS unit.
-//	if (gnss->config(gnss) == GNSS_SUCCESS) {
-//		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
-//		HAL_UART_Receive_DMA(gnss->gnss_uart_handle, (uint8_t*)&(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
-//		//  No need for the half-transfer complete interrupt, so disable it
-//		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
-//		//	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
-//
-//		// Wait until the ubx_process_buf_a buffer is full and ready to process
-//		tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-//		// We got the GNSS_MSG_BUF_A_READY flag, now set the GNSS_READY flag
-//		tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
-//		if (threadx_return != TX_SUCCESS) {
-//			// TODO: create a "handle_tx_error" function and call it in here
-//			HAL_Delay(10);
-//			tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
-//		}
-//	} else {
-//		// TODO: figure out this error condition
-//		// Probably cycle power and restart
-//	}
-	// This thread will suspend on exit and will not be restarted
+	HAL_StatusTypeDef HAL_return;
+	UINT threadx_return;
 	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	// Initialize GNSS struct
+	gnss_init(gnss, gnss_uart, dma_handle, &thread_flags, GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
+	tx_event_flags_set(&thread_flags, GNSS_CONFIG_STARTED, TX_OR);
+	// Must send the configuration commands to the GNSS unit.
+	if (gnss->config(gnss) == GNSS_SUCCESS) {
+		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
+		HAL_UART_Receive_DMA(gnss->gnss_uart_handle, (uint8_t*)&(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
+		//  No need for the half-transfer complete interrupt, so disable it
+		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+		//	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
+
+		// Wait until the ubx_process_buf_a buffer is full and ready to process
+		tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+		// We got the GNSS_MSG_BUF_A_READY flag, now set the GNSS_READY flag
+		tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+		if (threadx_return != TX_SUCCESS) {
+			// TODO: create a "handle_tx_error" function and call it in here
+			HAL_Delay(10);
+			tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+		}
+	} else {
+		// TODO: figure out this error condition
+		// Probably cycle power and restart
+	}
+	// This thread will suspend on exit and will not be restarted
 }
 
 /**
@@ -533,27 +474,25 @@ void startup_thread_entry(ULONG thread_input){
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
-//	UINT threadx_retern;
-//	ULONG actual_flags;
-//	// Make sure we have the ready flag
-//	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-//
-//	while(1){
-//		tx_event_flags_get(&thread_flags, (GNSS_MSG_BUF_A_READY | GNSS_MSG_BUF_B_READY),
-//				TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
-//		// TODO: check if the error flags have been set
-//		if (actual_flags & GNSS_MSG_BUF_A_READY) {
-//			gnss->gnss_process_message(gnss, &ubx_process_buf_a[0]);
-//		} else if (actual_flags & GNSS_MSG_BUF_B_READY) {
-//			gnss->gnss_process_message(gnss, &ubx_process_buf_b[0]);
-//		} else {
-//			// Something went wrong
-//			// TODO: figure out this error condition
-//			// Probably something like cycle power and try again
-//		}
-//	}
+	UINT threadx_retern;
 	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	// Make sure we have the ready flag
+	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+
+	while(1){
+		tx_event_flags_get(&thread_flags, (GNSS_MSG_BUF_A_READY | GNSS_MSG_BUF_B_READY),
+				TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+		// TODO: check if the error flags have been set
+		if (actual_flags & GNSS_MSG_BUF_A_READY) {
+			gnss->gnss_process_message(gnss, &ubx_process_buf_a[0]);
+		} else if (actual_flags & GNSS_MSG_BUF_B_READY) {
+			gnss->gnss_process_message(gnss, &ubx_process_buf_b[0]);
+		} else {
+			// Something went wrong
+			// TODO: figure out this error condition
+			// Probably something like cycle power and try again
+		}
+	}
 }
 
 /**
@@ -564,8 +503,13 @@ void gnss_thread_entry(ULONG thread_input){
   * @retval void
   */
 void imu_thread_entry(ULONG thread_input){
-	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	/*
+	 * Currently disabled.
+	 * TODO: enable this function
+	 */
+//	ULONG actual_flags;
+//	tx_event_flags_get(&thread_flags, IMU_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_set(&thread_flags, IMU_DONE, TX_OR);
 }
 
 /**
@@ -577,47 +521,55 @@ void imu_thread_entry(ULONG thread_input){
   */
 void ct_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_flags, CT_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 }
 
 /**
   * @brief  waves_thread_entry
-  *         This thread will run the GPSWaves algorithm. The arrays uWavesArray,
-  *         vWavesArray, zWavesArray, and wavesTempCopyArray are allocated for
-  *         this thread to use.
+  *         This thread will run the GPSWaves algorithm.
+  *         // TODO: update comments here
   * @param  ULONG thread_input - unused
   * @retval void
   */
 void waves_thread_entry(ULONG thread_input){
 
-	// Write waves test in here
-	  emxArray_real32_T *down;
-	  emxArray_real32_T *east;
-	  emxArray_real32_T *north;
-	  real16_T E[42];
-	  real16_T Dp;
-	  real16_T Hs;
-	  real16_T Tp;
-	  real16_T b_fmax;
-	  real16_T b_fmin;
-	  signed char a1[42];
-	  signed char a2[42];
-	  signed char b1[42];
-	  signed char b2[42];
-	  unsigned char check[42];
-	  /* Initialize function 'NEDwaves_memlight' input arguments. */
-	  /* Initialize function input argument 'north'. */
-	  north = argInit_1xUnbounded_real32_T_down();
-	  /* Initialize function input argument 'east'. */
-	  east = argInit_1xUnbounded_real32_T_north_east();
-	  /* Initialize function input argument 'down'. */
-	  down = argInit_1xUnbounded_real32_T_north_east();
-	  /* Call the entry-point 'NEDwaves_memlight'. */
-	  NEDwaves_memlight(north, east, down, argInit_real_T(), &Hs, &Tp, &Dp, E,
-	                    &b_fmin, &b_fmax, a1, b1, a2, b2, check);
-	  emxDestroyArray_real32_T(down);
-	  emxDestroyArray_real32_T(east);
-	  emxDestroyArray_real32_T(north);
+	ULONG actual_flags;
+	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+
+	emxArray_real32_T *down;
+	emxArray_real32_T *east;
+	emxArray_real32_T *north;
+	real16_T E[42];
+	real16_T Dp;
+	real16_T Hs;
+	real16_T Tp;
+	real16_T b_fmax;
+	real16_T b_fmin;
+	signed char a1[42];
+	signed char a2[42];
+	signed char b1[42];
+	signed char b2[42];
+	unsigned char check[42];
+	/* Initialize function 'NEDwaves_memlight' input arguments. */
+
+	/* TODO: remove the testing functions below and replace with the
+	 * init functions with real data -- example below
+	 *
+	 * north = argInit_1xUnbounded_real32_t(GNSS_N_Array);
+	 * */
+
+	/* Initialize function input argument 'north'. */
+	north = argInit_1xUnbounded_real32_T_down();
+	/* Initialize function input argument 'east'. */
+	east = argInit_1xUnbounded_real32_T_north_east();
+	/* Initialize function input argument 'down'. */
+	down = argInit_1xUnbounded_real32_T_north_east();
+	/* Call the entry-point 'NEDwaves_memlight'. */
+	NEDwaves_memlight(north, east, down, argInit_real_T(), &Hs, &Tp, &Dp, E,
+					&b_fmin, &b_fmax, a1, b1, a2, b2, check);
+	emxDestroyArray_real32_T(down);
+	emxDestroyArray_real32_T(east);
+	emxDestroyArray_real32_T(north);
 }
 
 /**
@@ -629,7 +581,7 @@ void waves_thread_entry(ULONG thread_input){
   */
 void iridium_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_flags, IRIDIUM_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 }
 
 /**
@@ -650,7 +602,8 @@ void teardown_thread_entry(ULONG thread_input){
 	ULONG done_flags_to_check = GNSS_DONE &
 								IMU_DONE &
 								CT_DONE &
-								MODEM_DONE;
+								IRIDIUM_DONE &
+								WAVES_DONE;
 	ULONG error_flags_to_check = GNSS_ERROR &
 								 IMU_ERROR &
 								 CT_ERROR &
@@ -685,14 +638,14 @@ void teardown_thread_entry(ULONG thread_input){
 	// If we made it here, we received all the done bits and we're good to
 	// dealloc memory and shutdown. We're not going to check the return value
 	// because we're going to standby mode regardless, and all RAM will be lost.
-	tx_byte_release(&startup_thread);
-	tx_byte_release(&gnss_thread);
-	tx_byte_release(&imu_thread);
-	tx_byte_release(&ct_thread);
-	tx_byte_release(&waves_thread);
-	tx_byte_release(&iridium_thread);
-	tx_byte_release(&teardown_thread);
-	tx_byte_release(&thread_flags);
+//	tx_byte_release(&startup_thread);
+//	tx_byte_release(&gnss_thread);
+//	tx_byte_release(&imu_thread);
+//	tx_byte_release(&ct_thread);
+//	tx_byte_release(&waves_thread);
+//	tx_byte_release(&iridium_thread);
+//	tx_byte_release(&teardown_thread);
+//	tx_byte_release(&thread_flags);
 //	tx_byte_release(&uGNSSArray);
 //	tx_byte_release(&vGNSSArray);
 //	tx_byte_release(&zGNSSArray);
@@ -702,10 +655,10 @@ void teardown_thread_entry(ULONG thread_input){
 //	tx_byte_release(&uWavesArray);
 //	tx_byte_release(&vWavesArray);
 //	tx_byte_release(&zWavesArray);
-	tx_byte_release(&wavesTempCopyArray);
-	tx_byte_release(&ubx_DMA_message_buf);
-	tx_byte_release(&ct_data);
-	tx_byte_release(&iridium_message);
+//	tx_byte_release(&wavesTempCopyArray);
+//	tx_byte_release(&ubx_DMA_message_buf);
+//	tx_byte_release(&ct_data);
+//	tx_byte_release(&iridium_message);
 
 	// TODO: figure out how to go into standby mode
 	// This is just a placeholder for development/debugging purposes

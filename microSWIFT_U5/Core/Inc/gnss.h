@@ -1,5 +1,5 @@
 /*
- * GPS.h
+ * gnss.h
  *
  *  Created on: Oct 28, 2022
  *      Author: Phil

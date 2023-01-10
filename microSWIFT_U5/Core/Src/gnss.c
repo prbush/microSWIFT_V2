@@ -1,5 +1,5 @@
 /*
- * GPS.cpp
+ * gnss.c
  *
  *  Created on: Oct 28, 2022
  *      Author: Phil
@@ -14,7 +14,7 @@
 
 
 
-#include "gps.h"
+#include "gnss.h"
 
 static gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate);
 static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array);
@@ -320,6 +320,7 @@ gnss_error_code_t gnss_get_running_average_velocities(GNSS* self,
  */
 gnss_error_code_t gnss_sleep(GNSS* self)
 {
+	int* a = (int*)calloc(5,sizeof(int));
 }
 
 /**
