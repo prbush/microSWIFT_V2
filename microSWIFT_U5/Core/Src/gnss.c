@@ -49,6 +49,7 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 	self->totalSamples = 0;
 	self->totalSamplesAveraged = 0;
 	self->numberCyclesWithoutData = 0;
+	self->isConfigured = false;
 	self->latLongIsValid = false;
 	self->velocityIsValid = false;
 	self->clockHasBeenSet = false;

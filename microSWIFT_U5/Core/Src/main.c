@@ -15,6 +15,9 @@
   *
   ******************************************************************************
   */
+
+// TODO: create a struct with all the required handles, variables, etc that
+//       can be passed to app_threadx.c via MX_ThreadX_Init()
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -41,8 +44,11 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+OSPI_HandleTypeDef hospi1;
+
 RTC_HandleTypeDef hrtc;
 
+UART_HandleTypeDef huart5;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
@@ -65,6 +71,8 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ICACHE_Init(void);
+static void MX_OCTOSPI1_Init(void);
+static void MX_UART5_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -112,6 +120,8 @@ int main(void)
   MX_USART3_UART_Init();
   MX_USART2_UART_Init();
   MX_ICACHE_Init();
+  MX_OCTOSPI1_Init();
+  MX_UART5_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -141,7 +151,7 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -154,17 +164,17 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_4;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_0;
   RCC_OscInitStruct.LSIDiv = RCC_LSI_DIV1;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLMBOOST = RCC_PLLMBOOST_DIV1;
-  RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 80;
+  RCC_OscInitStruct.PLL.PLLMBOOST = RCC_PLLMBOOST_DIV4;
+  RCC_OscInitStruct.PLL.PLLM = 3;
+  RCC_OscInitStruct.PLL.PLLN = 9;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
-  RCC_OscInitStruct.PLL.PLLR = 2;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLLVCIRANGE_0;
+  RCC_OscInitStruct.PLL.PLLR = 6;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLLVCIRANGE_1;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -177,12 +187,12 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
                               |RCC_CLOCKTYPE_PCLK3;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV4;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -275,6 +285,64 @@ static void MX_ICACHE_Init(void)
 }
 
 /**
+  * @brief OCTOSPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_OCTOSPI1_Init(void)
+{
+
+  /* USER CODE BEGIN OCTOSPI1_Init 0 */
+
+  /* USER CODE END OCTOSPI1_Init 0 */
+
+  OSPIM_CfgTypeDef sOspiManagerCfg = {0};
+  HAL_OSPI_DLYB_CfgTypeDef HAL_OSPI_DLYB_Cfg_Struct = {0};
+
+  /* USER CODE BEGIN OCTOSPI1_Init 1 */
+
+  /* USER CODE END OCTOSPI1_Init 1 */
+  /* OCTOSPI1 parameter configuration*/
+  hospi1.Instance = OCTOSPI1;
+  hospi1.Init.FifoThreshold = 1;
+  hospi1.Init.DualQuad = HAL_OSPI_DUALQUAD_DISABLE;
+  hospi1.Init.MemoryType = HAL_OSPI_MEMTYPE_MICRON;
+  hospi1.Init.DeviceSize = 32;
+  hospi1.Init.ChipSelectHighTime = 1;
+  hospi1.Init.FreeRunningClock = HAL_OSPI_FREERUNCLK_DISABLE;
+  hospi1.Init.ClockMode = HAL_OSPI_CLOCK_MODE_0;
+  hospi1.Init.WrapSize = HAL_OSPI_WRAP_NOT_SUPPORTED;
+  hospi1.Init.ClockPrescaler = 1;
+  hospi1.Init.SampleShifting = HAL_OSPI_SAMPLE_SHIFTING_NONE;
+  hospi1.Init.DelayHoldQuarterCycle = HAL_OSPI_DHQC_DISABLE;
+  hospi1.Init.ChipSelectBoundary = 0;
+  hospi1.Init.DelayBlockBypass = HAL_OSPI_DELAY_BLOCK_BYPASSED;
+  hospi1.Init.MaxTran = 0;
+  hospi1.Init.Refresh = 0;
+  if (HAL_OSPI_Init(&hospi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sOspiManagerCfg.ClkPort = 1;
+  sOspiManagerCfg.IOLowPort = HAL_OSPIM_IOPORT_1_LOW;
+  sOspiManagerCfg.IOHighPort = HAL_OSPIM_IOPORT_1_HIGH;
+  if (HAL_OSPIM_Config(&hospi1, &sOspiManagerCfg, HAL_OSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  HAL_OSPI_DLYB_Cfg_Struct.Units = 0;
+  HAL_OSPI_DLYB_Cfg_Struct.PhaseSel = 0;
+  if (HAL_OSPI_DLYB_SetConfig(&hospi1, &HAL_OSPI_DLYB_Cfg_Struct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN OCTOSPI1_Init 2 */
+
+  /* USER CODE END OCTOSPI1_Init 2 */
+
+}
+
+/**
   * @brief RTC Initialization Function
   * @param None
   * @retval None
@@ -319,6 +387,54 @@ static void MX_RTC_Init(void)
   /* USER CODE BEGIN RTC_Init 2 */
 
   /* USER CODE END RTC_Init 2 */
+
+}
+
+/**
+  * @brief UART5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART5_Init(void)
+{
+
+  /* USER CODE BEGIN UART5_Init 0 */
+
+  /* USER CODE END UART5_Init 0 */
+
+  /* USER CODE BEGIN UART5_Init 1 */
+
+  /* USER CODE END UART5_Init 1 */
+  huart5.Instance = UART5;
+  huart5.Init.BaudRate = 115200;
+  huart5.Init.WordLength = UART_WORDLENGTH_8B;
+  huart5.Init.StopBits = UART_STOPBITS_1;
+  huart5.Init.Parity = UART_PARITY_NONE;
+  huart5.Init.Mode = UART_MODE_TX_RX;
+  huart5.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart5.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart5.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart5.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart5.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart5, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart5, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART5_Init 2 */
+
+  /* USER CODE END UART5_Init 2 */
 
 }
 
@@ -514,9 +630,11 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);

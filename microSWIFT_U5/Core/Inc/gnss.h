@@ -53,32 +53,27 @@ typedef struct GNSS {
 	int16_t* GNSS_N_Array;
 	int16_t* GNSS_E_Array;
 	int16_t* GNSS_D_Array;
-
 	// Keep a running track of sum -- to be used in getRunningAverage
 	int64_t vNorthSum;
 	int64_t vEastSum;
 	int64_t vDownSum;
-
 	// Hold the current lat/long for whatever we might need it for (modem)
 	int32_t currentLatitude;
 	int32_t currentLongitude;
-
 	// Increment with each sample or running average
 	uint16_t totalSamples;
 	// We'll keep track of how many times we had to sub in a running average
 	uint16_t totalSamplesAveraged; // Just do a %10 in the end
 	// How many times we've had to skip a sample - gets reset with valid data
 	uint16_t numberCyclesWithoutData;
-
 	// Flags
+	bool isConfigured;
 	bool latLongIsValid;
 	bool velocityIsValid;
 	bool clockHasBeenSet;
 	bool validMessageProcessed;
-
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
-
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,

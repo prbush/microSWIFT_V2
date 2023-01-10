@@ -154,8 +154,7 @@ void teardown_thread_entry(ULONG thread_input);
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
-//  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
-  	byte_pool = (TX_BYTE_POOL*)memory_ptr;
+  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
 
    /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
@@ -533,8 +532,8 @@ void ct_thread_entry(ULONG thread_input){
   */
 void waves_thread_entry(ULONG thread_input){
 
-	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+//	ULONG actual_flags;
+//	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	emxArray_real32_T *down;
 	emxArray_real32_T *east;
