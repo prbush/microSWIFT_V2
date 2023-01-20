@@ -93,7 +93,10 @@
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
+// UBX_NAV_PVT is 100 bytes
+#define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
+// The buffer size we'll use for UBX messages
+#define UBX_BUFFER_SIZE (10 * UBX_MESSAGE_SIZE)
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

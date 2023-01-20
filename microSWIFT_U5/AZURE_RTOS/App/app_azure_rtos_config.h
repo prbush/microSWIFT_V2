@@ -43,7 +43,7 @@ extern "C" {
 
 #define USE_STATIC_ALLOCATION                1
 
-#define TX_APP_MEM_POOL_SIZE                     720896
+#define TX_APP_MEM_POOL_SIZE                     753248
 
 /* USER CODE BEGIN EC */
 

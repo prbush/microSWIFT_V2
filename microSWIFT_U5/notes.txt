@@ -2,7 +2,7 @@ main.c
   MX_ThreadX_Init(&huart3, &handle_GPDMA1_Channel0);
   
 app_azure_rtos_config.h
-#define TX_APP_MEM_POOL_SIZE                     720896
+#define TX_APP_MEM_POOL_SIZE                     753248
 
 app_threadx.c
 void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0)

@@ -40,7 +40,8 @@ typedef enum {
 	GNSS_BUSY_ERROR = -6,
 	GNSS_NO_MESSAGE_RECEIVED = -7,
 	GNSS_UART_ERROR = -8,
-	GNSS_CONFIG_ERROR = -9
+	GNSS_CONFIG_ERROR = -9,
+	GNSS_SELF_TEST_FAILED = -10
 } gnss_error_code_t;
 
 // Macros
@@ -94,10 +95,10 @@ typedef struct GNSS {
 	TX_QUEUE* message_queue;
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
+	gnss_error_code_t (*self_test)(struct GNSS* self);
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
-	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self,
-			int16_t* returnNorth, int16_t* returnEast, int16_t* returnDown);
+	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
 	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
@@ -110,10 +111,11 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 
 gnss_error_code_t gnss_config(GNSS* self);
 
+gnss_error_code_t gnss_self_test(GNSS* self);
+
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
 
-gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, int16_t* returnNorth,
-		int16_t* returnEast, int16_t* returnDown);
+gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
 
 gnss_error_code_t gnss_process_message(GNSS* self);
 

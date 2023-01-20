@@ -14,6 +14,7 @@
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
+  *TODO: create a struct to pass to threadx with all required pointers
   */
 
 // TODO: create a struct with all the required handles, variables, etc that

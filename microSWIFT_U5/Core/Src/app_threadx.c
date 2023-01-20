@@ -15,6 +15,11 @@
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
+  ******************************************************************************
+  *
+  *TODO: update macros to be adjustable by some config.h file
+  *TODO: update array size macros once known
+  *TODO:
   */
 /* USER CODE END Header */
 
@@ -45,20 +50,16 @@
 #define THREAD_EXTRA_LARGE_STACK_SIZE 4096
 #define THREAD_LARGE_STACK_SIZE 2048
 #define THREAD_SMALL_STACK_SIZE 512
-// Sensor data arrays -> 2bytes * 5Hz * 2500 seconds = 25,000 bytes
-// To get these 32 bit aligned, we'll do 25024 bytes
-#define SENSOR_DATA_ARRAY_SIZE 25024
-// GPSWaves arrays -> 8 bytes * 5Hz * 2500 seconds = 100,000 bytes.
-// There will be a little bit of overhead, so we'll add another 256 bytes
-#define WAVES_ARRAY_SIZE 100256
+// Sensor data arrays -> 2bytes * 8192 samples = 16384 bytes, which is 32 byte aligned.
+#define SENSOR_DATA_ARRAY_SIZE 16384
+// Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
+#define WAVES_ARRAY_SIZE 32768
 // Size of the CT data array TODO: figure out exact size needed
 #define CT_DATA_ARRAY_SIZE 512
 // Size of an Iridium message TODO: figure this out
 #define IRIDIUM_MESSAGE_SIZE 340
-// UBX_NAV_PVT is 100 bytes
-#define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
 // The size of our queue
-#define UBX_QUEUE_SIZE 5
+#define UBX_QUEUE_SIZE 3
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -84,22 +85,17 @@ TX_EVENT_FLAGS_GROUP thread_flags;
 int16_t* GNSS_N_Array;
 int16_t* GNSS_E_Array;
 int16_t* GNSS_D_Array;
-volatile int16_t* IMU_N_Array;
-volatile int16_t* IMU_E_Array;
-volatile int16_t* IMU_D_Array;
-volatile double* waves_N_Array;
-volatile double* waves_E_Array;
-volatile double* waves_D_Array;
-//double* wavesTempCopyArray;
-volatile CHAR ubx_DMA_message_buf[UBX_MESSAGE_SIZE * 5];
-//volatile CHAR ubx_process_buf_a[(UBX_MESSAGE_SIZE * 10)];
-//volatile CHAR ubx_process_buf_b[(UBX_MESSAGE_SIZE * 10)];
+//int16_t* IMU_N_Array;
+//int16_t* IMU_E_Array;
+//int16_t* IMU_D_Array;
+volatile float* waves_N_Array;
+volatile float* waves_E_Array;
+volatile float* waves_D_Array;
+CHAR ubx_DMA_message_buf[UBX_BUFFER_SIZE];
 
-char queue_message_1[UBX_MESSAGE_SIZE];
-char queue_message_2[UBX_MESSAGE_SIZE];
-char queue_message_3[UBX_MESSAGE_SIZE];
-char queue_message_4[UBX_MESSAGE_SIZE];
-char queue_message_5[UBX_MESSAGE_SIZE];
+char queue_message_1[UBX_BUFFER_SIZE];
+char queue_message_2[UBX_BUFFER_SIZE];
+char queue_message_3[UBX_BUFFER_SIZE];
 
 volatile CHAR ct_data;
 volatile CHAR iridium_message;
@@ -239,7 +235,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 		return ret;
 	}
 
-	ret = memory_pool_init(pointer, 600000);
+	ret = memory_pool_init(pointer, 0x927C0); // 600,000 bytes (32 byte aligned)
 	if (ret == -1) {
 		return ret;
 	}
@@ -258,18 +254,18 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_N_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_E_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_D_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_N_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_E_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &IMU_D_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
 	// Allocate bytes for the GPSWaves processing arrays
 	ret = tx_byte_allocate(byte_pool, (VOID**) &waves_N_Array, WAVES_ARRAY_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
@@ -283,47 +279,23 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-//	ret = tx_byte_allocate(byte_pool, (VOID**) &wavesTempCopyArray, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-//	if (ret != TX_SUCCESS){
-//	  return ret;
-//	}
 
 	// The UBX message array
-	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, UBX_MESSAGE_SIZE * 5, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, UBX_BUFFER_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-
-//	// ubx process buffer a
-//	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_process_buf_a, (UBX_MESSAGE_SIZE * 10), TX_NO_WAIT);
-//	if (ret != TX_SUCCESS){
-//	  return ret;
-//	}
-//
-//	// ubx process buffer b
-//	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_process_buf_b, (UBX_MESSAGE_SIZE * 10), TX_NO_WAIT);
-//	if (ret != TX_SUCCESS){
-//	  return ret;
-//	}
 
 	// The message queue buffers
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_1, UBX_MESSAGE_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_1, UBX_BUFFER_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_2, UBX_MESSAGE_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_2, UBX_BUFFER_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_3, UBX_MESSAGE_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_4, UBX_MESSAGE_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_5, UBX_MESSAGE_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &queue_message_3, UBX_BUFFER_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -428,27 +400,32 @@ ULONG App_ThreadX_LowPower_Timer_Adjust(void)
   * @retval void
   */
 void startup_thread_entry(ULONG thread_input){
-	// TODO: memset all arrays and such to 0 initialized
 	// TODO: figure out self-check
-	// TODO: set event flags to "ready" for all threads except waves
-	// TODO: start DMA transfer in here
+	// TODO: set event flags to "ready" for all threads except waves, Iridium
 	HAL_StatusTypeDef HAL_return;
 	UINT threadx_return;
 	ULONG actual_flags;
+
+	/* WAVES TEST */
+//	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+//
+//	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	/* END WAVES TEST */
+
+
 	// Initialize GNSS struct
 	gnss_init(gnss, gnss_uart, dma_handle, &thread_flags, &ubx_queue,
 			GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
-	// Must send the configuration commands to the GNSS unit.
+	// Send the configuration commands to the GNSS unit.
 	if (gnss->config(gnss) == GNSS_SUCCESS) {
-//		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
-		HAL_UART_Receive_DMA(gnss->gnss_uart_handle, (uint8_t*)&(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE * 5);
+		HAL_UART_Receive_DMA(gnss->gnss_uart_handle, (uint8_t*)&(ubx_DMA_message_buf[0]), UBX_BUFFER_SIZE);
 		//  No need for the half-transfer complete interrupt, so disable it
 		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
 		//	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
 
-		// Wait until the ubx_process_buf_a buffer is full and ready to process
-//		tx_event_flags_get(&thread_flags, GNSS_MSG_BUF_A_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-		// We got the GNSS_MSG_BUF_A_READY flag, now set the GNSS_READY flag
+		// Wait until we get 30 UBX messages in before we move on
+		// TODO: GNSS self-test
+		// We received a bunch of good quaility messages, GNSS is good
 		threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
 		if (threadx_return != TX_SUCCESS) {
 			// TODO: create a "handle_tx_error" function and call it in here
@@ -683,25 +660,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			// Find the right queue message pointer to assign to
 			switch(num_msgs_enqueued){
 			case 0:
-				current_msg = queue_message_1;
+				current_msg = &(queue_message_1[0]);
 				break;
 			case 1:
-				current_msg = queue_message_2;
+				current_msg = &(queue_message_2[0]);
 				break;
 			case 2:
-				current_msg = queue_message_3;
-				break;
-			case 3:
-				current_msg = queue_message_4;
-				break;
-			case 4:
-				current_msg = queue_message_5;
+				current_msg = &(queue_message_3[0]);
 				break;
 			default:
-				return;
-				// TODO: change this
-//				current_msg = queue_message_1;
-//				break;
+				current_msg = &(queue_message_1[0]);
+				break;
 			}
 
 			memcpy(current_msg, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
@@ -759,12 +728,12 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 			case 2:
 				current_msg = &(queue_message_3[0]);
 				break;
-			case 3:
-				current_msg = &(queue_message_4[0]);
-				break;
-			case 4:
-				current_msg = &(queue_message_5[0]);
-				break;
+//			case 3:
+//				current_msg = &(queue_message_4[0]);
+//				break;
+//			case 4:
+//				current_msg = &(queue_message_5[0]);
+//				break;
 			default:
 				current_msg = &(queue_message_1[0]);
 				break;

@@ -38,7 +38,7 @@ void* calloc_replacement(size_t num, size_t size)
 		  return NULL;
 		}
 
-		memset(pointer, 0, size);
+		memset(pointer, 0, (num * size));
 	}
 	return (void*)pointer;
 }

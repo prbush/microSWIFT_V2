@@ -16,10 +16,12 @@
 
 #include "gnss.h"
 
+// Some helper functions
 static gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate);
 static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		size_t message_size);
 static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop);
+static gnss_error_code_t process_messages(GNSS* self, uint8_t* process_buf);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes);
 
@@ -60,6 +62,7 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 	self->event_flags = event_flags;
 	self->message_queue = message_queue;
 	self->config = gnss_config;
+	self->self_test = gnss_self_test;
 	self->get_location = gnss_get_location;
 	self->get_running_average_velocities = gnss_get_running_average_velocities;
 	self->gnss_process_message = gnss_process_message;
@@ -73,8 +76,8 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
  */
 gnss_error_code_t gnss_config(GNSS* self){
 	// The configuration message, type UBX_CFG_VALSET
-	uint8_t config[129] =
-	{0xB5,0x62,0x06,0x8A,0x79,0x00,0x01,0x01,0x00,0x00,0xBA,0x00,0x91,0x20,0x00,
+	uint8_t config[144] =
+	{0xB5,0x62,0x06,0x8A,0x88,0x00,0x01,0x01,0x00,0x00,0xBA,0x00,0x91,0x20,0x00,
 	 0xBE,0x00,0x91,0x20,0x00,0xBB,0x00,0x91,0x20,0x00,0xC9,0x00,0x91,0x20,0x00,
 	 0xCD,0x00,0x91,0x20,0x00,0xCA,0x00,0x91,0x20,0x00,0xBF,0x00,0x91,0x20,0x00,
 	 0xC3,0x00,0x91,0x20,0x00,0xC0,0x00,0x91,0x20,0x00,0xC4,0x00,0x91,0x20,0x00,
@@ -82,7 +85,8 @@ gnss_error_code_t gnss_config(GNSS* self){
 	 0xAF,0x00,0x91,0x20,0x00,0xAC,0x00,0x91,0x20,0x00,0xB0,0x00,0x91,0x20,0x00,
 	 0xB4,0x00,0x91,0x20,0x00,0xB1,0x00,0x91,0x20,0x00,0x07,0x00,0x91,0x20,0x01,
 	 0x21,0x00,0x11,0x20,0x08,0x04,0x00,0x93,0x10,0x00,0x01,0x00,0x21,0x30,0xC8,
-	 0x00,0x02,0x00,0x21,0x30,0x01,0x00,0xE6,0x4D};
+	 0x00,0x02,0x00,0x21,0x30,0x01,0x00,0x07,0x00,0x92,0x20,0x00,0x06,0x00,0x92,
+	 0x20,0x00,0x0A,0x00,0x92,0x20,0x00,0x22,0x04};
 
 	// Send over the configuration settings for RAM
 	if (send_config(self, &(config[0]), sizeof(config)) == GNSS_CONFIG_ERROR) {
@@ -92,8 +96,8 @@ gnss_error_code_t gnss_config(GNSS* self){
 	// Only one value (configuration layer) and the checksum change between RAM
 	// and Battery-backed-RAM, so we'll adjust that now
 	config[7] = 0x02;
-	config[127] = 0xE7;
-	config[128] = 0xC5;
+	config[142] = 0x23;
+	config[143] = 0x8B;
 	// Send over the BBR config settings
 	if (send_config(self, &(config[0]), sizeof(config)) == GNSS_CONFIG_ERROR) {
 		return GNSS_CONFIG_ERROR;
@@ -118,6 +122,32 @@ gnss_error_code_t gnss_config(GNSS* self){
 }
 
 /**
+ * Called by app_threadx::startup_thread to ensure that good
+ * messages are coming across.
+ *
+ * @return GPS error code (marcos defined in gps_error_codes.h)
+ */
+gnss_error_code_t gnss_self_test(GNSS* self)
+{
+	bool self_test_passed = false;
+	int fail_counter = 0;
+	while (!self_test_passed) {
+		gnss_error_code_t ret = gnss_process_message(self);
+		// We can accept 1 bad message out of 10, but nothing more
+		if (ret == GNSS_SUCCESS && (self->numberCyclesWithoutData < 2)) {
+			self_test_passed = true;
+			continue;
+		}
+		// If it fails 60 times (2 mins worth of messages), fail out
+		if (++fail_counter == 60) {
+			return GNSS_SELF_TEST_FAILED;
+		}
+	}
+	// TODO: Reset some things in the struct...
+	return GNSS_SUCCESS;
+}
+
+/**
  * Process the messages in the buffer.
  *
  * @return GPS error code (marcos defined in gps_error_codes.h)
@@ -126,16 +156,15 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 {
 	ULONG num_msgs_enqueued, available_space;
 	UINT ret;
-//	const char message[UBX_NAV_PVT_MESSAGE_LENGTH];
-	uint8_t *message;
-	uint8_t **msg_ptr = &message;
+	uint8_t message[UBX_NAV_PVT_MESSAGE_LENGTH];
+	uint8_t **msg_ptr = (uint8_t**)&message;
 	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
     int32_t message_class = 0;
     int32_t message_id = 0;
     int32_t num_payload_bytes = 0;
     // start with 0'd out buffers;
     memset(message, 0, UBX_NAV_PVT_MESSAGE_LENGTH);
-//    memset(payload, 0, sizeof(payload));
+    memset(payload, 0, sizeof(payload));
     // Reset the valid message processed flag
     self->validMessageProcessed = false;
 
@@ -467,25 +496,26 @@ gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude,
  * @param returnDown - return parameter for the running average Down value
  * @return GPS error code (marcos defined in gps_error_codes.h)
  */
-gnss_error_code_t gnss_get_running_average_velocities(GNSS* self,
-		int16_t* returnNorth, int16_t* returnEast, int16_t* returnDown)
+gnss_error_code_t gnss_get_running_average_velocities(GNSS* self)
 {
+	// A bit of an obnoxious amount of casting...
 	if (self->totalSamples > 0) {
-		float substituteNorth = self->vNorthSum /
+		float substituteNorth = ((float)self->vNorthSum) /
 				((float)self->totalSamples);
-		*returnNorth = (int16_t)substituteNorth;
-		self->vNorthSum += substituteNorth;
+		self->vNorthSum += (int64_t)substituteNorth;
+		self->GNSS_N_Array[self->totalSamples] = (int16_t)substituteNorth;
 
-		float substituteEast = self->vEastSum /
+		float substituteEast = ((float)self->vEastSum) /
 				((float)self->totalSamples);
-		*returnEast = (int16_t)substituteEast;
-		self->vEastSum += substituteEast;
+		self->vEastSum += (int64_t)substituteEast;
+		self->GNSS_E_Array[self->totalSamples] = (int16_t)substituteEast;
 
-		float substituteDown = self->vDownSum /
+		float substituteDown = ((float)self->vDownSum) /
 				((float)self->totalSamples);
-		*returnDown = (int16_t)substituteDown;
-		self->vDownSum += substituteDown;
+		self->vDownSum += (int64_t)substituteDown;
+		self->GNSS_D_Array[self->totalSamples] = (int16_t)substituteDown;
 
+		self->totalSamples++;
 		self->totalSamplesAveraged++;
 		return GNSS_SUCCESS;
 	} else {
@@ -645,6 +675,143 @@ static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
 	// Reinitialize the UART port and restart DMA receive
 //	reset_gnss_uart(self, 9600);
 	return GNSS_SUCCESS;
+}
+
+/**
+ * Helper function that processes UBX_NAV_PVT messages from a buffer.
+ *
+ * @param self- GNSS struct
+ * @param
+ */
+static gnss_error_code_t process_messages(GNSS* self, uint8_t* process_buf)
+{
+	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
+	const char* buf_start = (const char*)&(process_buf[0]);
+	const char** buf_end = &buf_start;
+	// Our input buffer is a message off the queue, 10 UBX_NAV_PVT msgs
+	size_t buf_length = UBX_BUFFER_SIZE;
+	int32_t message_class = 0;
+	int32_t message_id = 0;
+	int32_t num_payload_bytes = 0;
+	gnss_error_code_t return_code = GNSS_SUCCESS;
+
+	// Really gross for loop that processes msgs in each iteration
+	for (int32_t i = uUbxProtocolDecode(buf_start, buf_length,
+				 &message_class, &message_id, payload, sizeof(payload), buf_end);
+				 i > 0;
+				 i = uUbxProtocolDecode(buf_start, buf_length,
+				 &message_class, &message_id, payload, sizeof(payload), buf_end))
+	{
+		// UBX_NAV_PVT payload is 92 bytes, if we don't have that many, its
+		// a bad message
+		if (num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH) {
+
+		}
+
+		// Grab a bunch of things from the message
+		int32_t tAcc = payload[12] + (payload[13]<<8) + (payload[14]<<16) + (payload[15]<<24);
+		uint16_t year = payload[4] + (payload[5]<<8);
+		uint8_t month = payload[6];
+		uint8_t day = payload[7];
+		uint8_t hour = payload[8];
+		uint8_t min = payload[9];
+		uint8_t sec = payload[10];
+		int32_t lon = payload[24] + (payload[25]<<8) + (payload[26]<<16) + (payload[27]<<24);
+		int32_t lat = payload[28] + (payload[29]<<8) + (payload[30]<<16) + (payload[31]<<24);
+		int16_t pDOP =  payload[76] + (payload[77]<<8);
+		int32_t sAcc = payload[68] + (payload[69] << 8) + (payload[70] << 16) + (payload[71] << 24);
+		int32_t vnorth = payload[48] + (payload[49] << 8) + (payload[50] << 16) + (payload[51] << 24);
+		int32_t veast = payload[52] + (payload[53] << 8) + (payload[54] << 16) + (payload[55] << 24);
+		int32_t vdown = payload[56] + (payload[57] << 8) + (payload[58] << 16) + (payload[59] << 24);
+
+		// Start by setting the clock if needed
+		if (!self->clockHasBeenSet) {
+			// Grab time accuracy estimate
+			// TODO: check valid time flag first
+
+
+			if (tAcc < MAX_ACCEPTABLE_TACC) {
+				// TODO: Figure this out and then make it a function
+				// set clock
+
+				bool isAM = true;
+				if (hour > 12) { hour %= 12; isAM = false;}
+
+				RTC_TimeTypeDef time = {hour, min, sec,
+						(isAM) ?
+						RTC_HOURFORMAT12_AM : RTC_HOURFORMAT12_PM, 0, 0};
+				// Set RTC time
+
+				self->clockHasBeenSet = true;
+			}
+		}
+
+		// Check Lat/Long accuracy, assign to class fields if good
+		if (pDOP < MAX_ACCEPTABLE_PDOP) {
+			self->currentLatitude = lat;
+			self->currentLongitude = lon;
+		}
+
+		// Grab velocities, start by checking speed accuracy estimate (sAcc)
+		if (sAcc > MAX_ACCEPTABLE_SACC) {
+			// This message was not within acceptable parameters,
+			--num_msgs_enqueued;
+			continue;
+		}
+
+		// vAcc was within acceptable range, still need to check
+		// individual velocities are less than MAX_POSSIBLE_VELOCITY
+		if ((vnorth > MAX_POSSIBLE_VELOCITY) ||
+			(veast > MAX_POSSIBLE_VELOCITY) ||
+			(vdown > MAX_POSSIBLE_VELOCITY)) {
+			// One or more velocity component was greater than the
+			// max possible velocity. Loop around and try again
+			--num_msgs_enqueued;
+			continue;
+		}
+
+		// All velocity values are good to go, convert them to
+		// shorts and store them in the arrays
+		self->GNSS_N_Array[self->totalSamples] = (int16_t)vnorth;
+		self->GNSS_E_Array[self->totalSamples] = (int16_t)veast;
+		self->GNSS_D_Array[self->totalSamples] = (int16_t)vdown;
+
+		self->numberCyclesWithoutData = 0;
+		self->totalSamples++;
+		self->validMessageProcessed = true;
+
+		if (!self->validMessageProcessed) {
+			// We weren't able to get a valid message from the buffer, so we'll sub
+			// a running average iff there are more than 0 valid samples so far
+			if (++self->numberCyclesWithoutData > MAX_EMPTY_CYCLES) {
+				// Some sort of bail out condition
+				// We might send a message with a specific payload to indicate
+				// things went wrong.
+
+				//TODO: figure out what we'll do in this situation. Likely revert
+				//      to taking measurements from the IMU
+			} else {
+				// We'll replace the values with running average
+				int16_t north = 0, east = 0, down = 0;
+				// make sure there are samples to average
+				gnss_error_code_t ret = self->get_running_average_velocities(
+						self, &north, &east, &down);
+				if (ret == GNSS_SUCCESS) {
+					// got the averaged values
+					self->GNSS_N_Array[self->totalSamples] = north;
+					self->GNSS_E_Array[self->totalSamples] = east;
+					self->GNSS_D_Array[self->totalSamples] = down;
+				} else {
+					// Wasn't able to get a running average -- this will return
+					// GNSS_NO_SAMPLES_ERROR
+					return ret;
+				}
+			}
+		}
+
+	}
+
+	return return_code;
 }
 
 /**
