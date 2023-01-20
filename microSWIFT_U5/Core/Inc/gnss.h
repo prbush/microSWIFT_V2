@@ -15,7 +15,8 @@
 
 #ifndef SRC_GPS_H_
 #define SRC_GPS_H_
-#include "gnss_error_codes.h"
+//#include "gnss_error_codes.h"
+#include "app_threadx.h"
 #include "tx_api.h"
 #include "main.h"
 #include "stdint.h"
@@ -26,6 +27,21 @@
 #include "stdbool.h"
 #include "u_ubx_protocol.h"
 #include "u_error_common.h"
+
+// Return codes
+typedef enum {
+	// Error/ success codes
+	GNSS_SUCCESS = 0,
+	GNSS_UNKNOWN_ERROR = -1,
+	GNSS_LOCATION_INVALID = -2,
+	GNSS_VELOCITY_INVALID = -3,
+	GNSS_NO_SAMPLES_ERROR = -4,
+	GNSS_TIMEOUT_ERROR = -5,
+	GNSS_BUSY_ERROR = -6,
+	GNSS_NO_MESSAGE_RECEIVED = -7,
+	GNSS_UART_ERROR = -8,
+	GNSS_CONFIG_ERROR = -9
+} gnss_error_code_t;
 
 // Macros
 #define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
@@ -74,20 +90,23 @@ typedef struct GNSS {
 	bool validMessageProcessed;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
+	// UBX message queue filled from DMA ISR
+	TX_QUEUE* message_queue;
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self,
 			int16_t* returnNorth, int16_t* returnEast, int16_t* returnDown);
-	gnss_error_code_t (*gnss_process_message)(struct GNSS* self, char* process_buf);
+	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
 
 /* Function declarations */
 void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 		DMA_HandleTypeDef* gnss_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags,
-		int16_t* GNSS_N_Array, int16_t* GNSS_E_Array, int16_t* GNSS_D_Array);
+		TX_QUEUE* message_queue, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
+		int16_t* GNSS_D_Array);
 
 gnss_error_code_t gnss_config(GNSS* self);
 
@@ -96,7 +115,7 @@ gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* long
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self, int16_t* returnNorth,
 		int16_t* returnEast, int16_t* returnDown);
 
-gnss_error_code_t gnss_process_message(GNSS* self, char* process_buf);
+gnss_error_code_t gnss_process_message(GNSS* self);
 
 gnss_error_code_t gnss_sleep(GNSS* self);
 

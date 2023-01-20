@@ -55,7 +55,35 @@
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+ typedef enum status_flags{
+ 	// Ready states
+ 	GNSS_READY = 1 << 0,
+ 	IMU_READY = 1 << 1,
+ 	CT_READY = 1 << 2,
+ 	IRIDIUM_READY = 1 << 3,
+ 	WAVES_READY = 1 << 4,
+ 	// Done states
+ 	GNSS_DONE = 1 << 5,
+ 	IMU_DONE = 1 << 6,
+ 	CT_DONE = 1 << 7,
+ 	IRIDIUM_DONE = 1 << 8,
+	WAVES_DONE = 1 << 9,
+ 	// Sleep states
+ 	SET_STOP_2 = 1 << 10,
+ 	RESET_STOP_2 = 1 << 11,
+ 	SET_SHUTDOWN = 1 << 12,
+ 	RESET_SHUTDOWN = 1 << 13,
+ 	// Error states
+ 	GNSS_ERROR = 1 << 14,
+ 	IMU_ERROR = 1 << 15,
+ 	CT_ERROR = 1 << 16,
+ 	MODEM_ERROR = 1 << 17,
+ 	MEMORY_ALLOC_ERROR = 1 << 18,
+ 	DMA_ERROR = 1 << 19,
+ 	UART_ERROR = 1 << 20,
+	// Misc
+	GNSS_CONFIG_RECVD = 1 << 21
+ }status_flags_t;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
