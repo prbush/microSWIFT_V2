@@ -51,7 +51,7 @@
 #define THREAD_LARGE_STACK_SIZE 2048
 #define THREAD_SMALL_STACK_SIZE 512
 // Sensor data arrays -> 2bytes * 8192 samples = 16384 bytes, which is 32 byte aligned.
-#define SENSOR_DATA_ARRAY_SIZE 16384
+#define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
 // Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
 #define WAVES_ARRAY_SIZE 32768
 // Size of the CT data array TODO: figure out exact size needed
@@ -114,6 +114,9 @@ void ct_thread_entry(ULONG thread_input);
 void waves_thread_entry(ULONG thread_input);
 void iridium_thread_entry(ULONG thread_input);
 void teardown_thread_entry(ULONG thread_input);
+
+// Static helper functions
+static void reset_GNSS_uart();
 /* USER CODE END PFP */
 
 /**
@@ -404,8 +407,7 @@ void startup_thread_entry(ULONG thread_input){
 	// TODO: set event flags to "ready" for all threads except waves, Iridium
 	HAL_StatusTypeDef HAL_return;
 	UINT threadx_return;
-	ULONG actual_flags;
-
+	int fail_counter = 0;
 	/* WAVES TEST */
 //	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
 //
@@ -417,25 +419,41 @@ void startup_thread_entry(ULONG thread_input){
 	gnss_init(gnss, gnss_uart, dma_handle, &thread_flags, &ubx_queue,
 			GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
 	// Send the configuration commands to the GNSS unit.
-	if (gnss->config(gnss) == GNSS_SUCCESS) {
-		HAL_UART_Receive_DMA(gnss->gnss_uart_handle, (uint8_t*)&(ubx_DMA_message_buf[0]), UBX_BUFFER_SIZE);
-		//  No need for the half-transfer complete interrupt, so disable it
-		__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
-		//	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
-
-		// Wait until we get 30 UBX messages in before we move on
-		// TODO: GNSS self-test
-		// We received a bunch of good quaility messages, GNSS is good
-		threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
-		if (threadx_return != TX_SUCCESS) {
-			// TODO: create a "handle_tx_error" function and call it in here
-			HAL_Delay(10);
-			tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+	while (gnss->config(gnss) != GNSS_SUCCESS) {
+		if (++fail_counter == 10) {
+			// TODO: cycle power to the board, do some stuff
 		}
-	} else {
-		// TODO: figure out this error condition
-		// Probably cycle power and restart
-		while(1);
+	}
+	// Start GNSS DMA reception
+	fail_counter = 0;
+	while (HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
+			(uint8_t*)&(ubx_DMA_message_buf[0]), UBX_BUFFER_SIZE) != HAL_OK) {
+
+		reset_GNSS_uart();
+		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
+
+		if (++fail_counter == 10) {
+			// TODO: cycle power to the board, do some stuff
+		}
+	}
+	//  No need for the half-transfer complete interrupt, so disable it
+	__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
+	//	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
+
+	// Wait until we get valid UBX messages in before we move on
+	fail_counter = 0;
+	while (gnss->self_test(gnss) != GNSS_SUCCESS) {
+		if (++fail_counter == 10) {
+			// TODO: cycle power to the board, do some stuff
+		}
+	}
+
+	// We received a bunch of good quality messages, GNSS is good
+	threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+	if (threadx_return != TX_SUCCESS) {
+		// TODO: create a "handle_tx_error" function and call it in here
+		HAL_Delay(10);
+		tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
 	}
 	// This thread will suspend on exit and will not be restarted
 }
@@ -641,7 +659,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	_tx_thread_context_save();
 	// Need to make sure this is being called by USART3 (the GNSS UART port)
 	if (huart->Instance == USART3) {
-		if (!gnss->isConfigured) {
+		if (!gnss->is_configured) {
 			// Set the CONFIG_RECEIVED flag
 			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
 			// GNSS has not yet been configured, the last DMA receive was for
@@ -668,12 +686,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			case 2:
 				current_msg = &(queue_message_3[0]);
 				break;
+			case 3:
+				return;
 			default:
 				current_msg = &(queue_message_1[0]);
 				break;
 			}
 
-			memcpy(current_msg, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+			memcpy(current_msg, ubx_DMA_message_buf, UBX_BUFFER_SIZE);
 			tx_queue_send(&ubx_queue, &current_msg, TX_NO_WAIT);
 
 			// Reinitialize the UART port and restart DMA receive
@@ -684,7 +704,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			}
 			LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
 			HAL_return = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-					(uint8_t*)&(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE * 5);
+					(uint8_t*)&(ubx_DMA_message_buf[0]), UBX_BUFFER_SIZE);
 			if (HAL_return != HAL_OK) {
 				// Something went wrong with restarting DMA
 				tx_event_flags_set(&thread_flags, DMA_ERROR, TX_OR);
@@ -695,71 +715,41 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	_tx_thread_context_restore();
 }
 
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+
+static void reset_GNSS_uart()
 {
-	// Save the thread context
-	_tx_thread_context_save();
-	// Need to make sure this is being called by USART3 (the GNSS UART port)
-	if (huart->Instance == USART3) {
-		if (!gnss->isConfigured) {
-			// Set the CONFIG_RECEIVED flag
-			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
-			// GNSS has not yet been configured, the last DMA receive was for
-			// the acknowledgment message, no need to restart DMA transfer
-			_tx_thread_context_restore();
-			return;
-		} else {
-			HAL_StatusTypeDef HAL_return;
-			ULONG num_msgs_enqueued, available_space;
-			UINT ret;
-			// get info on the number of enqueued messages and available space
-			tx_queue_info_get(&ubx_queue, TX_NULL, &num_msgs_enqueued,
-					&available_space, TX_NULL, TX_NULL, TX_NULL);
-
-			CHAR* current_msg;
-			// Find the right queue message pointer to assign to
-			switch(num_msgs_enqueued){
-			case 0:
-				current_msg = &(queue_message_1[0]);
-				break;
-			case 1:
-				current_msg = &(queue_message_2[0]);
-				break;
-			case 2:
-				current_msg = &(queue_message_3[0]);
-				break;
-//			case 3:
-//				current_msg = &(queue_message_4[0]);
-//				break;
-//			case 4:
-//				current_msg = &(queue_message_5[0]);
-//				break;
-			default:
-				current_msg = &(queue_message_1[0]);
-				break;
-			}
-
-			memcpy(current_msg, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-			tx_queue_send(&ubx_queue, &current_msg, TX_NO_WAIT);
-
-			// Reinitialize the UART port and restart DMA receive
-			LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
-			HAL_return = HAL_UART_Init(gnss->gnss_uart_handle);
-			if (HAL_return != HAL_OK) {
-				// Something went wrong with reinitializing UART
-				tx_event_flags_set(&thread_flags, UART_ERROR, TX_OR);
-			}
-
-			HAL_return = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
-					(uint8_t*)&(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
-			if (HAL_return != HAL_OK) {
-				// Something went wrong with restarting DMA
-				tx_event_flags_set(&thread_flags, DMA_ERROR, TX_OR);
-			}
-		}
+	if (HAL_UART_DeInit(gnss->gnss_uart_handle) != HAL_OK) {
+		Error_Handler();
 	}
-	// Restore the thread context
-	_tx_thread_context_restore();
+	gnss->gnss_uart_handle->Instance = USART3;
+	gnss->gnss_uart_handle->Init.BaudRate = 9600;
+	gnss->gnss_uart_handle->Init.WordLength = UART_WORDLENGTH_8B;
+	gnss->gnss_uart_handle->Init.StopBits = UART_STOPBITS_1;
+	gnss->gnss_uart_handle->Init.Parity = UART_PARITY_NONE;
+	gnss->gnss_uart_handle->Init.Mode = UART_MODE_TX_RX;
+	gnss->gnss_uart_handle->Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	gnss->gnss_uart_handle->Init.OverSampling = UART_OVERSAMPLING_16;
+	gnss->gnss_uart_handle->Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+	gnss->gnss_uart_handle->Init.ClockPrescaler = UART_PRESCALER_DIV1;
+	gnss->gnss_uart_handle->AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+	if (HAL_UART_Init(gnss->gnss_uart_handle) != HAL_OK)
+	{
+	Error_Handler();
+	}
+	if (HAL_UARTEx_SetTxFifoThreshold(gnss->gnss_uart_handle,
+			UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+	{
+	Error_Handler();
+	}
+	if (HAL_UARTEx_SetRxFifoThreshold(gnss->gnss_uart_handle,
+			UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+	{
+	Error_Handler();
+	}
+	if (HAL_UARTEx_DisableFifoMode(gnss->gnss_uart_handle) != HAL_OK)
+	{
+	Error_Handler();
+	}
 }
 
 /* USER CODE END 1 */

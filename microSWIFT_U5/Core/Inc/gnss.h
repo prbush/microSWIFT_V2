@@ -41,7 +41,8 @@ typedef enum {
 	GNSS_NO_MESSAGE_RECEIVED = -7,
 	GNSS_UART_ERROR = -8,
 	GNSS_CONFIG_ERROR = -9,
-	GNSS_SELF_TEST_FAILED = -10
+	GNSS_SELF_TEST_FAILED = -10,
+	GNSS_MESSAGE_PROCESS_ERROR = -11
 } gnss_error_code_t;
 
 // Macros
@@ -70,25 +71,26 @@ typedef struct GNSS {
 	int16_t* GNSS_N_Array;
 	int16_t* GNSS_E_Array;
 	int16_t* GNSS_D_Array;
+	// Number of messages processed in a given buffer
+	int16_t messages_processed;
 	// Keep a running track of sum -- to be used in getRunningAverage
-	int64_t vNorthSum;
-	int64_t vEastSum;
-	int64_t vDownSum;
+	int64_t v_north_sum;
+	int64_t v_east_sum;
+	int64_t v_down_sum;
 	// Hold the current lat/long for whatever we might need it for (modem)
-	int32_t currentLatitude;
-	int32_t currentLongitude;
+	int32_t current_latitude;
+	int32_t current_longitude;
 	// Increment with each sample or running average
-	uint16_t totalSamples;
+	uint16_t total_samples;
 	// We'll keep track of how many times we had to sub in a running average
-	uint16_t totalSamplesAveraged; // Just do a %10 in the end
+	uint16_t total_samples_averaged; // Just do a %10 in the end
 	// How many times we've had to skip a sample - gets reset with valid data
-	uint16_t numberCyclesWithoutData;
+	uint16_t number_cycles_without_data;
 	// Flags
-	bool isConfigured;
-	bool latLongIsValid;
-	bool velocityIsValid;
-	bool clockHasBeenSet;
-	bool validMessageProcessed;
+	bool is_configured;
+	bool is_location_valid;
+	bool is_velocity_valid;
+	bool is_clock_set;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
 	// UBX message queue filled from DMA ISR
