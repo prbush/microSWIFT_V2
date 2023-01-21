@@ -687,7 +687,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 				current_msg = &(queue_message_3[0]);
 				break;
 			case 3:
-				return;
+				// TODO: figure out this error condition
+				current_msg = &(queue_message_3[0]);
+//				return;
 			default:
 				current_msg = &(queue_message_1[0]);
 				break;
