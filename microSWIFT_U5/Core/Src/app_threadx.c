@@ -445,6 +445,7 @@ void startup_thread_entry(ULONG thread_input){
 	while (gnss->self_test(gnss) != GNSS_SUCCESS) {
 		if (++fail_counter == 10) {
 			// TODO: cycle power to the board, do some stuff
+			fail_counter = fail_counter;
 		}
 	}
 
@@ -691,7 +692,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 				current_msg = &(queue_message_3[0]);
 //				return;
 			default:
-				current_msg = &(queue_message_1[0]);
+				// TODO: figure out this error condition
+				current_msg = &(queue_message_3[0]);
 				break;
 			}
 

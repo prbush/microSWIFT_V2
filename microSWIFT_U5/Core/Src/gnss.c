@@ -128,21 +128,18 @@ gnss_error_code_t gnss_config(GNSS* self){
  */
 gnss_error_code_t gnss_self_test(GNSS* self)
 {
+	//!!!!!!!!!!!!!!!!!!!!!!!
+	// TODO: velocities during self_test will likely exceed max wave velocities
+
+
 	int fail_counter = 0;
-	while (true) {
-		if (gnss_process_message(self) != GNSS_SUCCESS) {
-			fail_counter++;
-			continue;
-		}
-		// We can accept 1 bad message out of 10, but nothing more
-		if (self->number_cycles_without_data < 2 && self->total_samples >= 9) {
-			break;
-		}
+	while (gnss_process_message(self) != GNSS_SUCCESS) {
 		// If it fails 60 times (2 mins worth of messages), fail out
 		if (++fail_counter == 60) {
 			return GNSS_SELF_TEST_FAILED;
 		}
 	}
+
 
 	// Reset a bunch of stuff, we don't want this data
 	self->messages_processed = 0;
@@ -179,6 +176,7 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 	uint8_t *message;
 	uint8_t **msg_ptr = &message;
 	gnss_error_code_t return_code = GNSS_SUCCESS;
+	int total_samples = self->total_samples;
 
 	do {
 	    // Grab a message -- this will block until a message is on the queue
@@ -188,7 +186,8 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 		process_messages(self, message);
 		// Make sure we didn't have too many errors processing the messages
 		if (self->messages_processed < 8 ||
-				self->number_cycles_without_data > 1) {
+				self->number_cycles_without_data > 1 ||
+				self->total_samples  <= total_samples + 9) {
 
 			return_code = GNSS_MESSAGE_PROCESS_ERROR;
 		}
