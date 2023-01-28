@@ -36,7 +36,16 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+typedef struct {
+	OSPI_HandleTypeDef* hospi1;
+	RTC_HandleTypeDef* hrtc;
+	UART_HandleTypeDef* CT_uart;
+	UART_HandleTypeDef* huart1;
+	UART_HandleTypeDef* huart2;
+	UART_HandleTypeDef* GNSS_uart;
+	DMA_HandleTypeDef* CT_dma_handle;
+	DMA_HandleTypeDef* GNSS_dma_handle;
+} device_handles_t;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

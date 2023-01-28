@@ -54,8 +54,8 @@
 #define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
 // Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
 #define WAVES_ARRAY_SIZE 32768
-// Size of the CT data array TODO: figure out exact size needed
-#define CT_DATA_ARRAY_SIZE 512
+// Size of the CT data array
+#define CT_DATA_ARRAY_SIZE 290 * 2
 // Size of an Iridium message TODO: figure this out
 #define IRIDIUM_MESSAGE_SIZE 340
 // The size of our queue
@@ -79,6 +79,8 @@ TX_THREAD iridium_thread;
 TX_THREAD teardown_thread;
 // The UBX message queue, fed by UART via DMA, processed by gnss
 TX_QUEUE ubx_queue;
+// The queue for CT sensor measurements
+TX_QUEUE ct_queue;
 // We'll use flags to signal other threads to run/shutdown
 TX_EVENT_FLAGS_GROUP thread_flags;
 // All our data to store/ process
@@ -97,12 +99,12 @@ char queue_message_1[UBX_BUFFER_SIZE];
 char queue_message_2[UBX_BUFFER_SIZE];
 char queue_message_3[UBX_BUFFER_SIZE];
 
-volatile CHAR ct_data;
-volatile CHAR iridium_message;
+CHAR* ct_data;
+CHAR* iridium_message;
 GNSS* gnss;
+CT* ct;
 
-UART_HandleTypeDef* gnss_uart;
-DMA_HandleTypeDef* dma_handle;
+device_handles_t *device_handles;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,7 +118,7 @@ void iridium_thread_entry(ULONG thread_input);
 void teardown_thread_entry(ULONG thread_input);
 
 // Static helper functions
-static void reset_GNSS_uart();
+static void reset_uart(UART_HandleTypeDef *huart);
 /* USER CODE END PFP */
 
 /**
@@ -238,6 +240,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 		return ret;
 	}
 
+	//
+	// Create our CT message queue
+//	ret = tx_queue_create(&ubx_queue, "CT queue", TX_1_ULONG, pointer, (UBX_QUEUE_SIZE * sizeof(void*)));
+//	if (ret != TX_SUCCESS) {
+//		return ret;
+//	}
+
 	ret = memory_pool_init(pointer, 0x927C0); // 600,000 bytes (32 byte aligned)
 	if (ret == -1) {
 		return ret;
@@ -319,6 +328,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
+	// The ct struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ct, sizeof(CT), TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
   /* USER CODE END App_ThreadX_MEM_POOL */
 
   /* USER CODE BEGIN App_ThreadX_Init */
@@ -332,11 +346,10 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   * @param  None
   * @retval None
   */
-void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0)
+void MX_ThreadX_Init(device_handles_t *handles)
 {
   /* USER CODE BEGIN  Before_Kernel_Start */
-  gnss_uart = gnss_uart_handle;
-  dma_handle = handle_GPDMA1_Channel0;
+  device_handles = handles;
   /* USER CODE END  Before_Kernel_Start */
 
   tx_kernel_enter();
@@ -407,7 +420,7 @@ void startup_thread_entry(ULONG thread_input){
 	// TODO: set event flags to "ready" for all threads except waves, Iridium
 	HAL_StatusTypeDef HAL_return;
 	UINT threadx_return;
-	int fail_counter = 0;
+	int fail_counter;
 	/* WAVES TEST */
 //	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
 //
@@ -416,29 +429,33 @@ void startup_thread_entry(ULONG thread_input){
 
 
 	// Initialize GNSS struct
-	gnss_init(gnss, gnss_uart, dma_handle, &thread_flags, &ubx_queue,
+	gnss_init(gnss, device_handles->GNSS_uart, device_handles->GNSS_dma_handle, &thread_flags, &ubx_queue,
 			GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
+
 	// Send the configuration commands to the GNSS unit.
+	fail_counter = 0;
 	while (gnss->config(gnss) != GNSS_SUCCESS) {
 		if (++fail_counter == 10) {
 			// TODO: cycle power to the board, do some stuff
+			fail_counter = fail_counter;
 		}
 	}
+
 	// Start GNSS DMA reception
 	fail_counter = 0;
 	while (HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
 			(uint8_t*)&(ubx_DMA_message_buf[0]), UBX_BUFFER_SIZE) != HAL_OK) {
 
-		reset_GNSS_uart();
+		reset_uart(gnss->gnss_uart_handle);
 		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
 
 		if (++fail_counter == 10) {
 			// TODO: cycle power to the board, do some stuff
+			fail_counter = fail_counter;
 		}
 	}
 	//  No need for the half-transfer complete interrupt, so disable it
-	__HAL_DMA_DISABLE_IT(dma_handle, DMA_IT_HT);
-	//	__HAL_UART_ENABLE_IT(gnss->gnss_uart_handle, UART_IT_IDLE);
+	__HAL_DMA_DISABLE_IT(gnss->gnss_dma_handle, DMA_IT_HT);
 
 	// Wait until we get valid UBX messages in before we move on
 	fail_counter = 0;
@@ -456,6 +473,41 @@ void startup_thread_entry(ULONG thread_input){
 		HAL_Delay(10);
 		tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
 	}
+
+	// Now initialize and start the CT sensor
+	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, ct_data);
+
+	fail_counter = 0;
+	while (HAL_UART_Receive_DMA(ct->ct_uart_handle,
+			(uint8_t*)&(ct->data_buf[0]), CT_DATA_ARRAY_SIZE) != HAL_OK) {
+
+		reset_uart(ct->ct_uart_handle);
+		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_1);
+
+		if (++fail_counter == 10) {
+			// TODO: cycle power to the board, do some stuff
+			fail_counter = fail_counter;
+		}
+	}
+	//  No need for the half-transfer complete interrupt, so disable it
+	__HAL_DMA_DISABLE_IT(ct->ct_dma_handle, DMA_IT_HT);
+
+	// Wait until we get valid data across from CT sensor
+	fail_counter = 0;
+	while (ct->self_test(ct) != CT_SUCCESS) {
+		if (++fail_counter == 10) {
+			// TODO: cycle power to the board, do some stuff
+			fail_counter = fail_counter;
+		}
+	}
+
+
+	/* CT test */
+	HAL_return = HAL_UART_Receive_DMA(device_handles->CT_uart,(uint8_t*)&(ct_data[0]), CT_DATA_ARRAY_SIZE);
+	__HAL_DMA_DISABLE_IT(device_handles->CT_dma_handle, DMA_IT_HT);
+	ULONG actual_flags;
+	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	/* END CT TEST */
 	// This thread will suspend on exit and will not be restarted
 }
 
@@ -467,7 +519,7 @@ void startup_thread_entry(ULONG thread_input){
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
-	UINT threadx_retern;
+	UINT threadx_return;
 	ULONG actual_flags;
 	// Make sure we have the ready flag
 	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
@@ -504,6 +556,14 @@ void imu_thread_entry(ULONG thread_input){
 void ct_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	tx_event_flags_get(&thread_flags, CT_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+
+	char* index = strstr(ct_data, "mS/cm");
+	index += 7;
+	double num = atof(index);
+//	int multiplier = (*index == '-') ? -1 : 1;
+//	double num = atof(++index);
+
+
 }
 
 /**
@@ -715,44 +775,82 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			}
 		}
 	}
+
+	// CT sensor
+	else if (huart->Instance == UART4) {
+		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
+	}
 	// Restore the thread context
 	_tx_thread_context_restore();
 }
 
 
-static void reset_GNSS_uart()
+static void reset_uart(UART_HandleTypeDef *huart)
 {
-	if (HAL_UART_DeInit(gnss->gnss_uart_handle) != HAL_OK) {
+	if (huart->Instance == USART3) {
+		if (HAL_UART_DeInit(gnss->gnss_uart_handle) != HAL_OK) {
+			Error_Handler();
+		}
+		gnss->gnss_uart_handle->Instance = USART3;
+		gnss->gnss_uart_handle->Init.BaudRate = 9600;
+		gnss->gnss_uart_handle->Init.WordLength = UART_WORDLENGTH_8B;
+		gnss->gnss_uart_handle->Init.StopBits = UART_STOPBITS_1;
+		gnss->gnss_uart_handle->Init.Parity = UART_PARITY_NONE;
+		gnss->gnss_uart_handle->Init.Mode = UART_MODE_TX_RX;
+		gnss->gnss_uart_handle->Init.HwFlowCtl = UART_HWCONTROL_NONE;
+		gnss->gnss_uart_handle->Init.OverSampling = UART_OVERSAMPLING_16;
+		gnss->gnss_uart_handle->Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+		gnss->gnss_uart_handle->Init.ClockPrescaler = UART_PRESCALER_DIV1;
+		gnss->gnss_uart_handle->AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+		if (HAL_UART_Init(gnss->gnss_uart_handle) != HAL_OK)
+		{
+			Error_Handler();
+		}
+		if (HAL_UARTEx_SetTxFifoThreshold(gnss->gnss_uart_handle,
+				UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+		{
+			Error_Handler();
+		}
+		if (HAL_UARTEx_SetRxFifoThreshold(gnss->gnss_uart_handle,
+				UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+		{
+			Error_Handler();
+		}
+		if (HAL_UARTEx_DisableFifoMode(gnss->gnss_uart_handle) != HAL_OK)
+		{
+			Error_Handler();
+		}
+	} else if  (huart->Instance == UART4) {
+		if (HAL_UART_DeInit(ct->ct_uart_handle) != HAL_OK) {
+			Error_Handler();
+		}
+		ct->ct_uart_handle->Instance = UART4;
+		ct->ct_uart_handle->Init.BaudRate = 9600;
+		ct->ct_uart_handle->Init.WordLength = UART_WORDLENGTH_8B;
+		ct->ct_uart_handle->Init.StopBits = UART_STOPBITS_1;
+		ct->ct_uart_handle->Init.Parity = UART_PARITY_NONE;
+		ct->ct_uart_handle->Init.Mode = UART_MODE_TX_RX;
+		ct->ct_uart_handle->Init.HwFlowCtl = UART_HWCONTROL_NONE;
+		ct->ct_uart_handle->Init.OverSampling = UART_OVERSAMPLING_16;
+		ct->ct_uart_handle->Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+		ct->ct_uart_handle->Init.ClockPrescaler = UART_PRESCALER_DIV1;
+		ct->ct_uart_handle->AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+		if (HAL_UART_Init(ct->ct_uart_handle) != HAL_OK)
+		{
 		Error_Handler();
-	}
-	gnss->gnss_uart_handle->Instance = USART3;
-	gnss->gnss_uart_handle->Init.BaudRate = 9600;
-	gnss->gnss_uart_handle->Init.WordLength = UART_WORDLENGTH_8B;
-	gnss->gnss_uart_handle->Init.StopBits = UART_STOPBITS_1;
-	gnss->gnss_uart_handle->Init.Parity = UART_PARITY_NONE;
-	gnss->gnss_uart_handle->Init.Mode = UART_MODE_TX_RX;
-	gnss->gnss_uart_handle->Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	gnss->gnss_uart_handle->Init.OverSampling = UART_OVERSAMPLING_16;
-	gnss->gnss_uart_handle->Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-	gnss->gnss_uart_handle->Init.ClockPrescaler = UART_PRESCALER_DIV1;
-	gnss->gnss_uart_handle->AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-	if (HAL_UART_Init(gnss->gnss_uart_handle) != HAL_OK)
-	{
-	Error_Handler();
-	}
-	if (HAL_UARTEx_SetTxFifoThreshold(gnss->gnss_uart_handle,
-			UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
-	{
-	Error_Handler();
-	}
-	if (HAL_UARTEx_SetRxFifoThreshold(gnss->gnss_uart_handle,
-			UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
-	{
-	Error_Handler();
-	}
-	if (HAL_UARTEx_DisableFifoMode(gnss->gnss_uart_handle) != HAL_OK)
-	{
-	Error_Handler();
+		}
+		if (HAL_UARTEx_SetTxFifoThreshold(ct->ct_uart_handle, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+		{
+		Error_Handler();
+		}
+		if (HAL_UARTEx_SetRxFifoThreshold(ct->ct_uart_handle, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+		{
+		Error_Handler();
+		}
+		if (HAL_UARTEx_DisableFifoMode(ct->ct_uart_handle) != HAL_OK)
+		{
+		Error_Handler();
+		}
 	}
 }
 

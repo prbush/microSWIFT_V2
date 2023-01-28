@@ -70,7 +70,7 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 /**
  * Configure the MAX-M10S chip by sending a series of UBX_CFG_VALSET messages
  *
- * @return GPS error code (marcos defined in gps_error_codes.h)
+ * @return gnss_error_code_t
  */
 gnss_error_code_t gnss_config(GNSS* self){
 	// The configuration message, type UBX_CFG_VALSET
@@ -124,7 +124,7 @@ gnss_error_code_t gnss_config(GNSS* self){
  * Called by app_threadx::startup_thread to ensure that good
  * messages are coming across.
  *
- * @return GPS error code (marcos defined in gps_error_codes.h)
+ * @return gnss_error_code_t
  */
 gnss_error_code_t gnss_self_test(GNSS* self)
 {
@@ -167,7 +167,7 @@ gnss_error_code_t gnss_self_test(GNSS* self)
 /**
  * Process the messages in the buffer.
  *
- * @return GPS error code (marcos defined in gps_error_codes.h)
+ * @return gnss_error_code_t
  */
 gnss_error_code_t gnss_process_message(GNSS* self)
 {
@@ -206,7 +206,7 @@ gnss_error_code_t gnss_process_message(GNSS* self)
  *
  * @param latitude - return parameter for latitude
  * @param longitude - return parameter for longitude
- * @return GPS error code (marcos defined in gps.h)
+ * @return gnss_error_code_t
  */
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude,
 		int32_t* longitude)

@@ -5,10 +5,10 @@ app_azure_rtos_config.h
 #define TX_APP_MEM_POOL_SIZE                     753248
 
 app_threadx.c
-void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0)
+void MX_ThreadX_Init(device_handles_t *handles)
 
 app_threadx.h
-void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0)
+void MX_ThreadX_Init(device_handles_t *handles)
 
 tx_user.h
 #define TX_TIMER_TICKS_PER_SECOND                5 <or whatever>

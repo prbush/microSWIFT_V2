@@ -36,12 +36,14 @@
 #include "stm32u5xx_ll_dma.h"
 #include "stdint.h"
 #include "stdbool.h"
+#include "string.h"
 #include "gnss.h"
 #include "battery.h"
 #include "ct_sensor.h"
 #include "imu.h"
 #include "iridium.h"
 #include "log.h"
+#include "math.h"
 #include "mem_replacements.h"
 
  // NEDWaves test
@@ -103,7 +105,7 @@
 
 /* Exported functions prototypes ---------------------------------------------*/
 UINT App_ThreadX_Init(VOID *memory_ptr);
-void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0);
+void MX_ThreadX_Init(device_handles_t *handles);
 
 /* USER CODE BEGIN EFP */
 

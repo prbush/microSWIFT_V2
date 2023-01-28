@@ -53,6 +53,7 @@ UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
+DMA_HandleTypeDef handle_GPDMA1_Channel1;
 DMA_HandleTypeDef handle_GPDMA1_Channel0;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
@@ -124,10 +125,11 @@ int main(void)
   MX_OCTOSPI1_Init();
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
-
+  device_handles_t handles = {&hospi1, &hrtc, &huart4, &huart1, &huart2,
+	&huart3, &handle_GPDMA1_Channel1, &handle_GPDMA1_Channel0};
   /* USER CODE END 2 */
 
-  MX_ThreadX_Init(&huart3, &handle_GPDMA1_Channel0);
+  MX_ThreadX_Init(&handles);
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -230,6 +232,8 @@ static void MX_GPDMA1_Init(void)
   /* GPDMA1 interrupt Init */
     HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+    HAL_NVIC_SetPriority(GPDMA1_Channel1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
 
   /* USER CODE BEGIN GPDMA1_Init 1 */
 
@@ -398,7 +402,7 @@ static void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
-  huart4.Init.BaudRate = 115200;
+  huart4.Init.BaudRate = 9600;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
   huart4.Init.Parity = UART_PARITY_NONE;
