@@ -364,48 +364,48 @@ void MX_ThreadX_Init(device_handles_t *handles)
   * @param  count : TX timer count
   * @retval None
   */
-void App_ThreadX_LowPower_Timer_Setup(ULONG count)
-{
-  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Setup */
-
-  /* USER CODE END  App_ThreadX_LowPower_Timer_Setup */
-}
-
-/**
-  * @brief  App_ThreadX_LowPower_Enter
-  * @param  None
-  * @retval None
-  */
-void App_ThreadX_LowPower_Enter(void)
-{
-  /* USER CODE BEGIN  App_ThreadX_LowPower_Enter */
-
-  /* USER CODE END  App_ThreadX_LowPower_Enter */
-}
-
-/**
-  * @brief  App_ThreadX_LowPower_Exit
-  * @param  None
-  * @retval None
-  */
-void App_ThreadX_LowPower_Exit(void)
-{
-  /* USER CODE BEGIN  App_ThreadX_LowPower_Exit */
-
-  /* USER CODE END  App_ThreadX_LowPower_Exit */
-}
-
-/**
-  * @brief  App_ThreadX_LowPower_Timer_Adjust
-  * @param  None
-  * @retval Amount of time (in ticks)
-  */
-ULONG App_ThreadX_LowPower_Timer_Adjust(void)
-{
-  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Adjust */
-  return 0;
-  /* USER CODE END  App_ThreadX_LowPower_Timer_Adjust */
-}
+//void App_ThreadX_LowPower_Timer_Setup(ULONG count)
+//{
+//  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Setup */
+//
+//  /* USER CODE END  App_ThreadX_LowPower_Timer_Setup */
+//}
+//
+///**
+//  * @brief  App_ThreadX_LowPower_Enter
+//  * @param  None
+//  * @retval None
+//  */
+//void App_ThreadX_LowPower_Enter(void)
+//{
+//  /* USER CODE BEGIN  App_ThreadX_LowPower_Enter */
+//
+//  /* USER CODE END  App_ThreadX_LowPower_Enter */
+//}
+//
+///**
+//  * @brief  App_ThreadX_LowPower_Exit
+//  * @param  None
+//  * @retval None
+//  */
+//void App_ThreadX_LowPower_Exit(void)
+//{
+//  /* USER CODE BEGIN  App_ThreadX_LowPower_Exit */
+//
+//  /* USER CODE END  App_ThreadX_LowPower_Exit */
+//}
+//
+///**
+//  * @brief  App_ThreadX_LowPower_Timer_Adjust
+//  * @param  None
+//  * @retval Amount of time (in ticks)
+//  */
+//ULONG App_ThreadX_LowPower_Timer_Adjust(void)
+//{
+//  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Adjust */
+//  return 0;
+//  /* USER CODE END  App_ThreadX_LowPower_Timer_Adjust */
+//}
 
 /* USER CODE BEGIN 1 */
 /**
@@ -475,7 +475,8 @@ void startup_thread_entry(ULONG thread_input){
 	}
 
 	// Now initialize and start the CT sensor
-	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, ct_data);
+	// TODO: insert a 20 second delay somewhere to warm up the sensor
+	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, &thread_flags, ct_data);
 
 	fail_counter = 0;
 	while (HAL_UART_Receive_DMA(ct->ct_uart_handle,
@@ -525,7 +526,7 @@ void gnss_thread_entry(ULONG thread_input){
 	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	while(1){
-			gnss->gnss_process_message(gnss);
+			gnss->gnss_process_message(gnss, false);
 	}
 }
 
@@ -718,6 +719,7 @@ void teardown_thread_entry(ULONG thread_input){
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	// Save the thread context
 	_tx_thread_context_save();
+	static uint32_t message_counter = 0;
 	// Need to make sure this is being called by USART3 (the GNSS UART port)
 	if (huart->Instance == USART3) {
 		if (!gnss->is_configured) {
@@ -736,8 +738,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 					&available_space, TX_NULL, TX_NULL, TX_NULL);
 
 			CHAR* current_msg;
+			message_counter = message_counter % 3;
 			// Find the right queue message pointer to assign to
-			switch(num_msgs_enqueued){
+			switch(message_counter){
 			case 0:
 				current_msg = &(queue_message_1[0]);
 				break;
@@ -747,15 +750,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			case 2:
 				current_msg = &(queue_message_3[0]);
 				break;
-			case 3:
-				// TODO: figure out this error condition
-				current_msg = &(queue_message_3[0]);
-//				return;
 			default:
 				// TODO: figure out this error condition
 				current_msg = &(queue_message_3[0]);
 				break;
 			}
+			++message_counter;
 
 			memcpy(current_msg, ubx_DMA_message_buf, UBX_BUFFER_SIZE);
 			tx_queue_send(&ubx_queue, &current_msg, TX_NO_WAIT);

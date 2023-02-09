@@ -22,6 +22,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		size_t message_size);
 static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop);
 static void process_messages(GNSS* self, uint8_t* process_buf);
+static void process_self_test_messages(GNSS* self, uint8_t* process_buf);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes);
 static void set_clock(GNSS* self, uint8_t* msg_payload);
@@ -133,7 +134,11 @@ gnss_error_code_t gnss_self_test(GNSS* self)
 
 
 	int fail_counter = 0;
-	while (gnss_process_message(self) != GNSS_SUCCESS) {
+
+
+
+
+	while (gnss_process_message(self, true) != GNSS_SUCCESS) {
 		// If it fails 60 times (2 mins worth of messages), fail out
 		if (++fail_counter == 60) {
 			return GNSS_SELF_TEST_FAILED;
@@ -169,10 +174,9 @@ gnss_error_code_t gnss_self_test(GNSS* self)
  *
  * @return gnss_error_code_t
  */
-gnss_error_code_t gnss_process_message(GNSS* self)
+gnss_error_code_t gnss_process_message(GNSS* self, bool is_self_test)
 {
 	ULONG num_msgs_enqueued, available_space;
-	UINT ret;
 	uint8_t *message;
 	uint8_t **msg_ptr = &message;
 	gnss_error_code_t return_code = GNSS_SUCCESS;
@@ -181,6 +185,18 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 	do {
 	    // Grab a message -- this will block until a message is on the queue
 	    tx_queue_receive(self->message_queue, (VOID*)msg_ptr, TX_WAIT_FOREVER);
+
+	    if (is_self_test) {
+	    	process_self_test_messages(self, message);
+			// Make sure we didn't have too many errors processing the messages
+			if (self->messages_processed < 8 ||
+					self->number_cycles_without_data > 1 ||
+					self->total_samples  <= total_samples + 9) {
+
+				return_code = GNSS_MESSAGE_PROCESS_ERROR;
+			}
+			break;
+	    }
 
 	    // Process the contents
 		process_messages(self, message);
@@ -330,7 +346,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 	memset(&(msg_buf[0]),0,sizeof(msg_buf));
 	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
 	const char* buf_start = (const char*)&(msg_buf[0]);
-	const char** buf_end = &buf_start;
+	const char* buf_end = buf_start;
 	size_t buf_length = sizeof(msg_buf);
     int32_t message_class = 0;
     int32_t message_id = 0;
@@ -353,10 +369,10 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		 * we may receive a few navigation messages before the ack is received,
 		 * so we have to sift through at least one second worth of messages */
 		for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-				&message_class, &message_id, payload, sizeof(payload), buf_end);
+				&message_class, &message_id, payload, sizeof(payload), &buf_end);
 				num_payload_bytes > 0;
 				num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-				&message_class, &message_id, payload, sizeof(payload), buf_end))
+				&message_class, &message_id, payload, sizeof(payload), &buf_end))
 		{
 			if (message_class == 0x05) {
 				// Msg class 0x05 is either an ACK or NAK
@@ -372,6 +388,9 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 					return GNSS_SUCCESS;
 				}
 			}
+			// Adjust pointers to continue searching the buffer
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
 		}
 
 		// Reinitialize the UART port and restart DMA receive
@@ -379,7 +398,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		// Zero out the buffer to prevent reading old values
 		memset(&(msg_buf[0]),0,sizeof(msg_buf));
 		buf_start = (const char*)&(msg_buf[0]);
-		buf_end = &buf_start;
+		buf_end = buf_start;
 	}
 	// If we made it here, config failed 10 attempts
 	reset_gnss_uart(self, 9600);
@@ -434,7 +453,7 @@ static void process_messages(GNSS* self, uint8_t* process_buf)
 	int32_t message_class = 0;
 	int32_t message_id = 0;
 	int32_t num_payload_bytes = 0;
-	// Reset the valid message processed flag
+	// Reset the valid message processed counter
 	self->messages_processed = 0;
 
 	// Really gross for loop that processes msgs in each iteration
@@ -444,11 +463,16 @@ static void process_messages(GNSS* self, uint8_t* process_buf)
 			num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
 				 &message_class, &message_id, payload, sizeof(payload), &buf_end))
 	{
-		// UBX_NAV_PVT payload is 92 bytes, if we don't have that many, its
-		// a bad message
-		if (num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH) {
+		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01,
+		// message ID is 0x07
+		if (num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH ||
+				message_class != UBX_NAV_PVT_MESSAGE_CLASS  ||
+				message_id    != UBX_NAV_PVT_MESSAGE_ID)
+		{
 			self->get_running_average_velocities(self);
 			self->number_cycles_without_data++;
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
 			continue;
 		}
 
@@ -490,6 +514,8 @@ static void process_messages(GNSS* self, uint8_t* process_buf)
 		if (sAcc > MAX_ACCEPTABLE_SACC) {
 			// This message was not within acceptable parameters,
 			self->get_running_average_velocities(self);
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
 			continue;
 		}
 
@@ -501,6 +527,8 @@ static void process_messages(GNSS* self, uint8_t* process_buf)
 			// One or more velocity component was greater than the
 			// max possible velocity. Loop around and try again
 			self->get_running_average_velocities(self);
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
 			continue;
 		}
 
@@ -513,7 +541,64 @@ static void process_messages(GNSS* self, uint8_t* process_buf)
 
 		self->number_cycles_without_data = 0;
 		self->total_samples++;
+
+		buf_length -= buf_end - buf_start;
+		buf_start = buf_end;
 	}
+}
+
+static void process_self_test_messages(GNSS* self, uint8_t* process_buf)
+{
+	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
+	const char* buf_start = (const char*)&(process_buf[0]);
+	const char* buf_end = buf_start;
+	// Our input buffer is a message off the queue, 10 UBX_NAV_PVT msgs
+	size_t buf_length = UBX_BUFFER_SIZE;
+	int32_t message_class = 0;
+	int32_t message_id = 0;
+	int32_t num_payload_bytes = 0;
+	// Reset the valid message processed counter
+	self->messages_processed = 0;
+
+	// Really gross for loop that processes msgs in each iteration
+	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
+				 &message_class, &message_id, payload, sizeof(payload), &buf_end);
+			num_payload_bytes > 0;
+			num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
+				 &message_class, &message_id, payload, sizeof(payload), &buf_end))
+	{
+		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01,
+		// message ID is 0x07
+		if (num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH ||
+				message_class != UBX_NAV_PVT_MESSAGE_CLASS  ||
+				message_id    != UBX_NAV_PVT_MESSAGE_ID)
+		{
+			self->number_cycles_without_data++;
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
+			continue;
+		}
+
+		// Even if we don't end up using the values, we did get a valid message
+		self->messages_processed++;
+
+		// Only thing we're checking is that we have more than 4 sattelites in view
+		uint8_t num_satellites_tracked = payload[23];
+
+		if (num_satellites_tracked < 4) {
+			self->number_cycles_without_data++;
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
+			continue;
+		}
+
+		self->number_cycles_without_data = 0;
+		self->total_samples++;
+
+		buf_length -= buf_end - buf_start;
+		buf_start = buf_end;
+	}
+	message_class = 0;
 }
 
 /**
