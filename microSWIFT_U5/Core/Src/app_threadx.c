@@ -52,6 +52,7 @@
 // and teardown_thread will get small stacks.
 #define THREAD_EXTRA_LARGE_STACK_SIZE 4096
 #define THREAD_LARGE_STACK_SIZE 2048
+#define THREAD_MEDIUM_STACK_SIZE 1024
 #define THREAD_SMALL_STACK_SIZE 512
 // Sensor data arrays -> 2bytes * 8192 samples = 16384 bytes, which is 32 byte aligned.
 #define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
@@ -177,13 +178,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Allocate stack for the CT thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_MEDIUM_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Create the CT thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&ct_thread, "ct thread", ct_thread_entry, 0, pointer,
-		  THREAD_SMALL_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+		  THREAD_MEDIUM_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -424,7 +425,8 @@ void startup_thread_entry(ULONG thread_input){
 /////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
 
 	// TODO: insert a 20 second delay somewhere to warm up the sensor
-	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, &thread_flags, ct_data);
+	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle,
+			device_handles->millis_timer, &thread_flags, ct_data);
 
 	// Wait until we get valid data across from CT sensor
 	fail_counter = 0;
@@ -499,16 +501,22 @@ void imu_thread_entry(ULONG thread_input){
   */
 void ct_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
+	ct_error_code_t result;
 	tx_event_flags_get(&thread_flags, CT_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	while (ct->total_samples < 10) {
-		ct_error_code_t result = ct_parse_sample(ct);
-		if (result != CT_SUCCESS) {
+	while (ct->total_samples < REQUIRED_CT_SAMPLES) {
+		result = ct_parse_sample(ct);
+		if (result == CT_PARSING_ERROR) {
 			// TODO: do something
 		}
 	}
 
-	// got 10 samples, now average them
+	// got our samples, now average them
+	result = ct->get_averages(ct);
+	if (result == CT_NOT_ENOUGH_SAMPLES) {
+		// TODO: do something
+	}
+
 
 
 }

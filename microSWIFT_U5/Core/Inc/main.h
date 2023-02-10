@@ -45,6 +45,7 @@ typedef struct {
 	UART_HandleTypeDef* GNSS_uart;
 	DMA_HandleTypeDef* CT_dma_handle;
 	DMA_HandleTypeDef* GNSS_dma_handle;
+	TIM_HandleTypeDef* millis_timer;
 } device_handles_t;
 /* USER CODE END ET */
 

@@ -14,9 +14,9 @@
  * @return void
  */
 void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct_dma_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf)
+		TIM_HandleTypeDef* millis_timer, TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf)
 {
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < REQUIRED_CT_SAMPLES; i++) {
 		self->samples_buf[i].conductivity = 0.0;
 		self->samples_buf[i].temp = 0.0;
 	}
@@ -25,6 +25,7 @@ void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct
 	self->total_samples = 0;
 	self->ct_uart_handle = ct_uart_handle;
 	self->ct_dma_handle = ct_dma_handle;
+	self->millis_timer = millis_timer;
 	self->event_flags = event_flags;
 	self->data_buf = data_buf;
 	self->parse_sample = ct_parse_sample;
@@ -48,18 +49,19 @@ ct_error_code_t ct_parse_sample(CT* self)
 	// The first round is a guaranteed fail since the message hasn't
 	// been requested yet, so start at -1 to account for that
 	int fail_counter = -1;
+	reset_ct_uart(self, 9600);
+	HAL_UART_Receive_DMA(self->ct_uart_handle,
+		(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
 
 	while(++fail_counter < 10) {
 		// See if we got the message, otherwise retry
 		if (tx_event_flags_get(self->event_flags, CT_READY, TX_OR_CLEAR,
-				&actual_flags, TX_NO_WAIT) != TX_SUCCESS) {
-
+				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS) {
+			HAL_UART_DMAStop(self->ct_uart_handle);
 			reset_ct_uart(self, 9600);
 			HAL_UART_Receive_DMA(self->ct_uart_handle,
 				(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
 			__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
-			// Messages are sent at 0.5Hz from the sensor, we want to grab 2
-			HAL_Delay(2125);
 			continue;
 		}
 
@@ -86,11 +88,9 @@ ct_error_code_t ct_parse_sample(CT* self)
 			continue;
 		}
 
-		return_code = CT_SUCCESS;
-		break;
-
 		self->samples_buf[self->total_samples].conductivity = conductivity;
 		self->samples_buf[self->total_samples].temp = temperature;
+		self->total_samples++;
 		return_code = CT_SUCCESS;
 		break;
 
@@ -105,9 +105,22 @@ ct_error_code_t ct_parse_sample(CT* self)
  * @return ct_samples struct containing the averages conductivity
  *         and temperature values
  */
-ct_samples ct_get_averages(CT* self)
+ct_error_code_t ct_get_averages(CT* self)
 {
+	if (self->total_samples < REQUIRED_CT_SAMPLES) {
+		return CT_NOT_ENOUGH_SAMPLES;
+	}
+	double temp_sum = 0.0;
+	double conductivity_sum = 0.0;
+	for (int i = 0; i < self->total_samples; i++) {
+		temp_sum += self->samples_buf[i].temp;
+		conductivity_sum += self->samples_buf[i].conductivity;
+	}
 
+	self->averages.temp = temp_sum / self->total_samples;
+	self->averages.conductivity = conductivity_sum / self->total_samples;
+
+	return CT_SUCCESS;
 }
 
 /**
@@ -129,19 +142,29 @@ ct_error_code_t ct_self_test(CT* self)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_SELF_TEST_FAIL;
+	uint32_t elapsed_time;
+	bool add_warm_up_time = true;
+
+	HAL_TIM_Base_Start(self->millis_timer);
 	// The first round is a guaranteed fail since the message hasn't
 	// been requested yet, so start at -1 to account for that
 	int fail_counter = -1;
-
 	while(fail_counter++ < 10) {
 		// See if we got the message, otherwise retry
 		if (tx_event_flags_get(self->event_flags, CT_READY, TX_OR_CLEAR,
 				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS)
 		{
-			reset_ct_uart(self, 9600);
+			HAL_UART_DMAStop(self->ct_uart_handle);
+//			reset_ct_uart(self, 9600);
 			HAL_UART_Receive_DMA(self->ct_uart_handle,
 				(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
 			__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
+			// Check the elapsed time
+			elapsed_time = __HAL_TIM_GET_COUNTER(self->millis_timer);
+			if (elapsed_time > WARMUP_TIME) {
+				add_warm_up_time = false;
+			}
+
 			continue;
 		}
 
@@ -166,6 +189,15 @@ ct_error_code_t ct_self_test(CT* self)
 
 		if (temperature == 0.0){
 			continue;
+		}
+
+		// Handle the warmup delay
+		if (add_warm_up_time) {
+			int32_t required_delay = WARMUP_TIME -
+					__HAL_TIM_GET_COUNTER(self->millis_timer);
+			if (required_delay > 0) {
+				HAL_Delay(required_delay);
+			}
 		}
 
 		return_code = CT_SUCCESS;
