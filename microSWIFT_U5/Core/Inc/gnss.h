@@ -51,6 +51,7 @@ typedef enum {
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 100
+#define SELF_TEST_BUFFER_SIZE 500
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
@@ -101,7 +102,7 @@ typedef struct GNSS {
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
-	gnss_error_code_t (*gnss_process_message)(struct GNSS* self, bool is_self_test);
+	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self);
 } GNSS;
 
@@ -119,7 +120,7 @@ gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* long
 
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
 
-gnss_error_code_t gnss_process_message(GNSS* self, bool is_self_test);
+gnss_error_code_t gnss_process_message(GNSS* self);
 
 gnss_error_code_t gnss_sleep(GNSS* self);
 

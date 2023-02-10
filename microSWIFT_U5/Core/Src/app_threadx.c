@@ -54,8 +54,6 @@
 #define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
 // Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
 #define WAVES_ARRAY_SIZE 32768
-// Size of the CT data array
-#define CT_DATA_ARRAY_SIZE 290 * 2
 // Size of an Iridium message TODO: figure this out
 #define IRIDIUM_MESSAGE_SIZE 340
 // The size of our queue
@@ -359,54 +357,6 @@ void MX_ThreadX_Init(device_handles_t *handles)
   /* USER CODE END  Kernel_Start_Error */
 }
 
-/**
-  * @brief  App_ThreadX_LowPower_Timer_Setup
-  * @param  count : TX timer count
-  * @retval None
-  */
-//void App_ThreadX_LowPower_Timer_Setup(ULONG count)
-//{
-//  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Setup */
-//
-//  /* USER CODE END  App_ThreadX_LowPower_Timer_Setup */
-//}
-//
-///**
-//  * @brief  App_ThreadX_LowPower_Enter
-//  * @param  None
-//  * @retval None
-//  */
-//void App_ThreadX_LowPower_Enter(void)
-//{
-//  /* USER CODE BEGIN  App_ThreadX_LowPower_Enter */
-//
-//  /* USER CODE END  App_ThreadX_LowPower_Enter */
-//}
-//
-///**
-//  * @brief  App_ThreadX_LowPower_Exit
-//  * @param  None
-//  * @retval None
-//  */
-//void App_ThreadX_LowPower_Exit(void)
-//{
-//  /* USER CODE BEGIN  App_ThreadX_LowPower_Exit */
-//
-//  /* USER CODE END  App_ThreadX_LowPower_Exit */
-//}
-//
-///**
-//  * @brief  App_ThreadX_LowPower_Timer_Adjust
-//  * @param  None
-//  * @retval Amount of time (in ticks)
-//  */
-//ULONG App_ThreadX_LowPower_Timer_Adjust(void)
-//{
-//  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Adjust */
-//  return 0;
-//  /* USER CODE END  App_ThreadX_LowPower_Timer_Adjust */
-//}
-
 /* USER CODE BEGIN 1 */
 /**
   * @brief  startup_thread_entry
@@ -441,7 +391,16 @@ void startup_thread_entry(ULONG thread_input){
 		}
 	}
 
-	// Start GNSS DMA reception
+	// Wait until we get valid UBX messages in before we move on
+	fail_counter = 0;
+	if (gnss->self_test(gnss) != GNSS_SUCCESS) {
+		// TODO: cycle power to the board, do some stuff
+		HAL_NVIC_SystemReset();
+	}
+
+	// If we made it here, the self test passed
+	gnss->is_configured = true;
+	// Now start GNSS regular message reception
 	fail_counter = 0;
 	while (HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
 			(uint8_t*)&(ubx_DMA_message_buf[0]), UBX_BUFFER_SIZE) != HAL_OK) {
@@ -451,20 +410,11 @@ void startup_thread_entry(ULONG thread_input){
 
 		if (++fail_counter == 10) {
 			// TODO: cycle power to the board, do some stuff
-			fail_counter = fail_counter;
+			HAL_NVIC_SystemReset();
 		}
 	}
 	//  No need for the half-transfer complete interrupt, so disable it
 	__HAL_DMA_DISABLE_IT(gnss->gnss_dma_handle, DMA_IT_HT);
-
-	// Wait until we get valid UBX messages in before we move on
-	fail_counter = 0;
-	while (gnss->self_test(gnss) != GNSS_SUCCESS) {
-		if (++fail_counter == 10) {
-			// TODO: cycle power to the board, do some stuff
-			fail_counter = fail_counter;
-		}
-	}
 
 	// We received a bunch of good quality messages, GNSS is good
 	threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
@@ -478,37 +428,21 @@ void startup_thread_entry(ULONG thread_input){
 	// TODO: insert a 20 second delay somewhere to warm up the sensor
 	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, &thread_flags, ct_data);
 
-	fail_counter = 0;
-	while (HAL_UART_Receive_DMA(ct->ct_uart_handle,
-			(uint8_t*)&(ct->data_buf[0]), CT_DATA_ARRAY_SIZE) != HAL_OK) {
-
-		reset_uart(ct->ct_uart_handle);
-		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_1);
-
-		if (++fail_counter == 10) {
-			// TODO: cycle power to the board, do some stuff
-			fail_counter = fail_counter;
-		}
-	}
-	//  No need for the half-transfer complete interrupt, so disable it
-	__HAL_DMA_DISABLE_IT(ct->ct_dma_handle, DMA_IT_HT);
-
 	// Wait until we get valid data across from CT sensor
 	fail_counter = 0;
 	while (ct->self_test(ct) != CT_SUCCESS) {
 		if (++fail_counter == 10) {
 			// TODO: cycle power to the board, do some stuff
-			fail_counter = fail_counter;
+			HAL_NVIC_SystemReset();
 		}
 	}
-
-
-	/* CT test */
-	HAL_return = HAL_UART_Receive_DMA(device_handles->CT_uart,(uint8_t*)&(ct_data[0]), CT_DATA_ARRAY_SIZE);
-	__HAL_DMA_DISABLE_IT(device_handles->CT_dma_handle, DMA_IT_HT);
-	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-	/* END CT TEST */
+	// We received a good message from the CT sensor
+	threadx_return = tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
+	if (threadx_return != TX_SUCCESS) {
+		// TODO: create a "handle_tx_error" function and call it in here
+		HAL_Delay(10);
+		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
+	}
 	// This thread will suspend on exit and will not be restarted
 }
 
@@ -526,7 +460,7 @@ void gnss_thread_entry(ULONG thread_input){
 	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	while(1){
-			gnss->gnss_process_message(gnss, false);
+			gnss->gnss_process_message(gnss);
 	}
 }
 
@@ -558,11 +492,14 @@ void ct_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	tx_event_flags_get(&thread_flags, CT_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	char* index = strstr(ct_data, "mS/cm");
-	index += 7;
-	double num = atof(index);
-//	int multiplier = (*index == '-') ? -1 : 1;
-//	double num = atof(++index);
+	while (ct->total_samples < 10) {
+		ct_error_code_t result = ct_parse_sample(ct);
+		if (result != CT_SUCCESS) {
+			// TODO: do something
+		}
+	}
+
+
 
 
 }
@@ -719,7 +656,7 @@ void teardown_thread_entry(ULONG thread_input){
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	// Save the thread context
 	_tx_thread_context_save();
-	static uint32_t message_counter = 0;
+	static uint32_t msg_counter = 0;
 	// Need to make sure this is being called by USART3 (the GNSS UART port)
 	if (huart->Instance == USART3) {
 		if (!gnss->is_configured) {
@@ -732,15 +669,20 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		} else {
 			HAL_StatusTypeDef HAL_return;
 			ULONG num_msgs_enqueued, available_space;
-			UINT ret;
 			// get info on the number of enqueued messages and available space
 			tx_queue_info_get(&ubx_queue, TX_NULL, &num_msgs_enqueued,
 					&available_space, TX_NULL, TX_NULL, TX_NULL);
+			if (num_msgs_enqueued == 3) {
+				// Queue is full, need to signal this condition and exit
+				tx_event_flags_set(&thread_flags, UBX_QUEUE_FULL, TX_OR);
+				_tx_thread_context_restore();
+				return;
+			}
 
 			CHAR* current_msg;
-			message_counter = message_counter % 3;
+			msg_counter = msg_counter % 3;
 			// Find the right queue message pointer to assign to
-			switch(message_counter){
+			switch(msg_counter){
 			case 0:
 				current_msg = &(queue_message_1[0]);
 				break;
@@ -755,7 +697,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 				current_msg = &(queue_message_3[0]);
 				break;
 			}
-			++message_counter;
+			msg_counter++;
 
 			memcpy(current_msg, ubx_DMA_message_buf, UBX_BUFFER_SIZE);
 			tx_queue_send(&ubx_queue, &current_msg, TX_NO_WAIT);
@@ -784,7 +726,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	_tx_thread_context_restore();
 }
 
-
+// TODO: write Error_Handler() function
 static void reset_uart(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == USART3) {
@@ -837,19 +779,19 @@ static void reset_uart(UART_HandleTypeDef *huart)
 		ct->ct_uart_handle->AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
 		if (HAL_UART_Init(ct->ct_uart_handle) != HAL_OK)
 		{
-		Error_Handler();
+			Error_Handler();
 		}
 		if (HAL_UARTEx_SetTxFifoThreshold(ct->ct_uart_handle, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
 		{
-		Error_Handler();
+			Error_Handler();
 		}
 		if (HAL_UARTEx_SetRxFifoThreshold(ct->ct_uart_handle, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
 		{
-		Error_Handler();
+			Error_Handler();
 		}
 		if (HAL_UARTEx_DisableFifoMode(ct->ct_uart_handle) != HAL_OK)
 		{
-		Error_Handler();
+			Error_Handler();
 		}
 	}
 }

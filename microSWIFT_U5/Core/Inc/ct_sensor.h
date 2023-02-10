@@ -22,6 +22,7 @@ typedef enum {
 	CT_SUCCESS = 0,
 	CT_UART_ERROR = -1,
 	CT_PARSING_ERROR = -2,
+	CT_SELF_TEST_FAIL = -3
 }ct_error_code_t;
 
 typedef struct ct_samples{

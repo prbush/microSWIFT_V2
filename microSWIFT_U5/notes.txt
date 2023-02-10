@@ -1,5 +1,5 @@
 main.c
-  MX_ThreadX_Init(&huart3, &handle_GPDMA1_Channel0);
+  MX_ThreadX_Init(&handles);
   
 app_azure_rtos_config.h
 #define TX_APP_MEM_POOL_SIZE                     753248

@@ -102,22 +102,10 @@ gnss_error_code_t gnss_config(GNSS* self){
 		return GNSS_CONFIG_ERROR;
 	}
 
-	// Stop GNSS signal processing so we can sync up DMA message reception
-	if ((stop_start_gnss(self, true)) == GNSS_CONFIG_ERROR) {
-		return GNSS_CONFIG_ERROR;
-	}
-	// Wait to make sure we don't get any more GNSS messages
-	HAL_Delay(200);
-	// Start GNSS signal processing
-	if ((stop_start_gnss(self, false)) == GNSS_CONFIG_ERROR) {
-		return GNSS_CONFIG_ERROR;
-	}
-
 	HAL_Delay(200);
 	LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
 	reset_gnss_uart(self, 9600);
 
-	self->is_configured = true;
 	return GNSS_SUCCESS;
 }
 
@@ -129,22 +117,58 @@ gnss_error_code_t gnss_config(GNSS* self){
  */
 gnss_error_code_t gnss_self_test(GNSS* self)
 {
-	//!!!!!!!!!!!!!!!!!!!!!!!
-	// TODO: velocities during self_test will likely exceed max wave velocities
+	gnss_error_code_t return_code = GNSS_SELF_TEST_FAILED;
+	uint8_t fail_counter = 0;
+	ULONG actual_flags;
+	uint8_t msg_buf[SELF_TEST_BUFFER_SIZE];
+	memset(&(msg_buf[0]),0,sizeof(msg_buf));
 
+    // We'll try for a little over 2 mins to get good data before failing out
+	while (++fail_counter <= 120) {
+		// Grab 10 UBX_NAV_PVT messages
+		while (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+				&actual_flags, TX_NO_WAIT) != TX_SUCCESS) {
+			reset_gnss_uart(self, 9600);
 
-	int fail_counter = 0;
-
-
-
-
-	while (gnss_process_message(self, true) != GNSS_SUCCESS) {
-		// If it fails 60 times (2 mins worth of messages), fail out
-		if (++fail_counter == 60) {
-			return GNSS_SELF_TEST_FAILED;
+			HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
+					sizeof(msg_buf));
+			__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+			// Need at least 1 second for 5 messages, so give it just a little extra
+			HAL_Delay(1250);
 		}
+
+		// Reset the valid message processed counter
+		self->messages_processed = 0;
+
+		process_self_test_messages(self, msg_buf);
+
+		if (self->messages_processed > 4 &&
+				self->number_cycles_without_data < 2 &&
+				self->total_samples  >= 4)
+		{
+			return_code = GNSS_SUCCESS;
+			break;
+		}
+		// Zero out the buffer to prevent reading old values
+		memset(&(msg_buf[0]),0,sizeof(msg_buf));
+//		buf_start = (const char*)&(msg_buf[0]);
+//		buf_end = buf_start;
+	} /*** end while loop ***/
+
+	if (return_code == GNSS_SELF_TEST_FAILED){
+		return GNSS_CONFIG_ERROR;
 	}
 
+	// Stop GNSS signal processing so we can sync up DMA message reception
+	if ((stop_start_gnss(self, true)) == GNSS_CONFIG_ERROR) {
+		return GNSS_CONFIG_ERROR;
+	}
+	// Wait to make sure we don't get any more GNSS messages
+	HAL_Delay(200);
+	// Start GNSS signal processing
+	if ((stop_start_gnss(self, false)) == GNSS_CONFIG_ERROR) {
+		return GNSS_CONFIG_ERROR;
+	}
 
 	// Reset a bunch of stuff, we don't want this data
 	self->messages_processed = 0;
@@ -166,7 +190,10 @@ gnss_error_code_t gnss_self_test(GNSS* self)
 	memset(self->GNSS_E_Array, 0, (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t)));
 	memset(self->GNSS_D_Array, 0, (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t)));
 
-	return GNSS_SUCCESS;
+	// Flush the queue (just to be safe)
+	tx_queue_flush(self->message_queue);
+
+	return return_code;
 }
 
 /**
@@ -174,7 +201,7 @@ gnss_error_code_t gnss_self_test(GNSS* self)
  *
  * @return gnss_error_code_t
  */
-gnss_error_code_t gnss_process_message(GNSS* self, bool is_self_test)
+gnss_error_code_t gnss_process_message(GNSS* self)
 {
 	ULONG num_msgs_enqueued, available_space;
 	uint8_t *message;
@@ -186,21 +213,10 @@ gnss_error_code_t gnss_process_message(GNSS* self, bool is_self_test)
 	    // Grab a message -- this will block until a message is on the queue
 	    tx_queue_receive(self->message_queue, (VOID*)msg_ptr, TX_WAIT_FOREVER);
 
-	    if (is_self_test) {
-	    	process_self_test_messages(self, message);
-			// Make sure we didn't have too many errors processing the messages
-			if (self->messages_processed < 8 ||
-					self->number_cycles_without_data > 1 ||
-					self->total_samples  <= total_samples + 9) {
-
-				return_code = GNSS_MESSAGE_PROCESS_ERROR;
-			}
-			break;
-	    }
-
 	    // Process the contents
 		process_messages(self, message);
 		// Make sure we didn't have too many errors processing the messages
+		// TODO: figure out how useful this is
 		if (self->messages_processed < 8 ||
 				self->number_cycles_without_data > 1 ||
 				self->total_samples  <= total_samples + 9) {
@@ -326,6 +342,9 @@ static gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate)
 	{
 		return GNSS_UART_ERROR;
 	}
+
+	LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
+
 	return GNSS_SUCCESS;
 }
 
@@ -357,13 +376,15 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		// Send over the configuration settings
 		HAL_UART_Transmit(self->gnss_uart_handle, &(config_array[0]),
 				message_size, 1000);
-		LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
 		// Grab the acknowledgment message
-		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
+		do {
+			HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
 				sizeof(msg_buf));
-		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
-		tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-				&actual_flags, TX_WAIT_FOREVER);
+			__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+			HAL_Delay(1500);
+		}
+		while (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+				&actual_flags, TX_NO_WAIT) != TX_SUCCESS);
 
 		/* The ack/nak message is guaranteed to be sent within one second, but
 		 * we may receive a few navigation messages before the ack is received,
@@ -383,7 +404,6 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 
 				if (message_id == 0x01) {
 					// This is an ACK message, we're good
-					LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
 					reset_gnss_uart(self, 9600);
 					return GNSS_SUCCESS;
 				}
@@ -431,9 +451,7 @@ static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
 	{
 		return GNSS_CONFIG_ERROR;
 	}
-//	LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
-	// Reinitialize the UART port and restart DMA receive
-//	reset_gnss_uart(self, 9600);
+
 	return GNSS_SUCCESS;
 }
 
@@ -553,7 +571,7 @@ static void process_self_test_messages(GNSS* self, uint8_t* process_buf)
 	const char* buf_start = (const char*)&(process_buf[0]);
 	const char* buf_end = buf_start;
 	// Our input buffer is a message off the queue, 10 UBX_NAV_PVT msgs
-	size_t buf_length = UBX_BUFFER_SIZE;
+	size_t buf_length = SELF_TEST_BUFFER_SIZE;
 	int32_t message_class = 0;
 	int32_t message_id = 0;
 	int32_t num_payload_bytes = 0;
@@ -598,7 +616,6 @@ static void process_self_test_messages(GNSS* self, uint8_t* process_buf)
 		buf_length -= buf_end - buf_start;
 		buf_start = buf_end;
 	}
-	message_class = 0;
 }
 
 /**

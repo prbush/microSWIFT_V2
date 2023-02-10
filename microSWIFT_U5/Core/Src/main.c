@@ -45,7 +45,10 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+I2C_HandleTypeDef hi2c1;
+
 OSPI_HandleTypeDef hospi1;
+OSPI_HandleTypeDef hospi2;
 
 RTC_HandleTypeDef hrtc;
 
@@ -75,6 +78,8 @@ static void MX_USART2_UART_Init(void);
 static void MX_ICACHE_Init(void);
 static void MX_OCTOSPI1_Init(void);
 static void MX_UART4_Init(void);
+static void MX_I2C1_Init(void);
+static void MX_OCTOSPI2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -124,6 +129,8 @@ int main(void)
   MX_ICACHE_Init();
   MX_OCTOSPI1_Init();
   MX_UART4_Init();
+  MX_I2C1_Init();
+  MX_OCTOSPI2_Init();
   /* USER CODE BEGIN 2 */
   device_handles_t handles = {&hospi1, &hrtc, &huart4, &huart1, &huart2,
 	&huart3, &handle_GPDMA1_Channel1, &handle_GPDMA1_Channel0};
@@ -249,6 +256,54 @@ static void MX_GPDMA1_Init(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x00506682;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief ICACHE Initialization Function
   * @param None
   * @retval None
@@ -335,6 +390,64 @@ static void MX_OCTOSPI1_Init(void)
   /* USER CODE BEGIN OCTOSPI1_Init 2 */
 
   /* USER CODE END OCTOSPI1_Init 2 */
+
+}
+
+/**
+  * @brief OCTOSPI2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_OCTOSPI2_Init(void)
+{
+
+  /* USER CODE BEGIN OCTOSPI2_Init 0 */
+
+  /* USER CODE END OCTOSPI2_Init 0 */
+
+  OSPIM_CfgTypeDef sOspiManagerCfg = {0};
+  HAL_OSPI_DLYB_CfgTypeDef HAL_OSPI_DLYB_Cfg_Struct = {0};
+
+  /* USER CODE BEGIN OCTOSPI2_Init 1 */
+
+  /* USER CODE END OCTOSPI2_Init 1 */
+  /* OCTOSPI2 parameter configuration*/
+  hospi2.Instance = OCTOSPI2;
+  hospi2.Init.FifoThreshold = 1;
+  hospi2.Init.DualQuad = HAL_OSPI_DUALQUAD_DISABLE;
+  hospi2.Init.MemoryType = HAL_OSPI_MEMTYPE_MICRON;
+  hospi2.Init.DeviceSize = 32;
+  hospi2.Init.ChipSelectHighTime = 1;
+  hospi2.Init.FreeRunningClock = HAL_OSPI_FREERUNCLK_DISABLE;
+  hospi2.Init.ClockMode = HAL_OSPI_CLOCK_MODE_0;
+  hospi2.Init.WrapSize = HAL_OSPI_WRAP_NOT_SUPPORTED;
+  hospi2.Init.ClockPrescaler = 1;
+  hospi2.Init.SampleShifting = HAL_OSPI_SAMPLE_SHIFTING_NONE;
+  hospi2.Init.DelayHoldQuarterCycle = HAL_OSPI_DHQC_DISABLE;
+  hospi2.Init.ChipSelectBoundary = 0;
+  hospi2.Init.DelayBlockBypass = HAL_OSPI_DELAY_BLOCK_BYPASSED;
+  hospi2.Init.MaxTran = 0;
+  hospi2.Init.Refresh = 0;
+  if (HAL_OSPI_Init(&hospi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sOspiManagerCfg.ClkPort = 2;
+  sOspiManagerCfg.IOLowPort = HAL_OSPIM_IOPORT_2_LOW;
+  sOspiManagerCfg.IOHighPort = HAL_OSPIM_IOPORT_2_HIGH;
+  if (HAL_OSPIM_Config(&hospi2, &sOspiManagerCfg, HAL_OSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  HAL_OSPI_DLYB_Cfg_Struct.Units = 0;
+  HAL_OSPI_DLYB_Cfg_Struct.PhaseSel = 0;
+  if (HAL_OSPI_DLYB_SetConfig(&hospi2, &HAL_OSPI_DLYB_Cfg_Struct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN OCTOSPI2_Init 2 */
+
+  /* USER CODE END OCTOSPI2_Init 2 */
 
 }
 
@@ -661,12 +774,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USER_BUTTON_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PF0 PF1 PF2 PF3
-                           PF4 PF5 PF11 PF12
-                           PF13 PF14 PF15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_11|GPIO_PIN_12
-                          |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+  /*Configure GPIO pins : PF5 PF11 PF12 PF13
+                           PF14 PF15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13
+                          |GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
@@ -693,18 +804,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PG0 PG1 PG3 PG4
-                           PG5 PG6 PG7 PG8
-                           PG9 PG10 PG12 PG13
-                           PG14 PG15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_12|GPIO_PIN_13
-                          |GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
   /*Configure GPIO pin : UCPD_FLT_Pin */
   GPIO_InitStruct.Pin = UCPD_FLT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -729,6 +828,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_RED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PG3 PG4 PG5 PG6
+                           PG7 PG8 PG12 PG15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_12|GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC6 PC8 PC9 PC10
                            PC11 PC12 */
