@@ -7,7 +7,6 @@
 
 #include "ct_sensor.h"
 
-static ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate);
 
 /**
  * Initialize the CT struct
@@ -32,8 +31,9 @@ void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct
 	self->get_averages = ct_get_averages;
 	self->shutdown = ct_shutdown;
 	self->self_test = ct_self_test;
+	self->reset_ct_uart = reset_ct_uart;
 
-	memset(&(self->data_buf[0]),0,sizeof(290 * 2));
+	memset(&(self->data_buf[0]),0,CT_DATA_ARRAY_SIZE);
 }
 
 /**
@@ -133,17 +133,15 @@ ct_error_code_t ct_self_test(CT* self)
 	// been requested yet, so start at -1 to account for that
 	int fail_counter = -1;
 
-	while(++fail_counter < 10) {
+	while(fail_counter++ < 10) {
 		// See if we got the message, otherwise retry
 		if (tx_event_flags_get(self->event_flags, CT_READY, TX_OR_CLEAR,
-				&actual_flags, TX_NO_WAIT) != TX_SUCCESS) {
-
+				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS)
+		{
 			reset_ct_uart(self, 9600);
 			HAL_UART_Receive_DMA(self->ct_uart_handle,
 				(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
 			__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
-			// Messages are sent at 0.5Hz from the sensor, we want to grab 2
-			HAL_Delay(9000);
 			continue;
 		}
 
@@ -171,6 +169,7 @@ ct_error_code_t ct_self_test(CT* self)
 		}
 
 		return_code = CT_SUCCESS;
+
 		break;
 	}
 
@@ -178,12 +177,12 @@ ct_error_code_t ct_self_test(CT* self)
 }
 
 /**
- * Reinitialize the GNSS UART port. Required when switching between Tx and Rx.
+ * Reinitialize the CT UART port. Required when switching between Tx and Rx.
  *
  * @param self - GNSS struct
  * @param baud_rate - baud rate to set port to
  */
-static ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
+ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
 {
 
 	if (HAL_UART_DeInit(self->ct_uart_handle) != HAL_OK) {

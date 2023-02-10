@@ -48,6 +48,7 @@ typedef struct CT{
 	ct_samples (*get_averages) (struct CT* self);
 	ct_error_code_t (*shutdown) (struct CT* self);
 	ct_error_code_t (*self_test) (struct CT* self);
+	ct_error_code_t (*reset_ct_uart) (struct CT* self, uint16_t baud_rate);
 } CT;
 
 void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct_dma_handle,
@@ -56,5 +57,6 @@ ct_error_code_t ct_parse_sample(CT* self);
 ct_samples ct_get_averages(CT* self);
 ct_error_code_t ct_shutdown(CT* self);
 ct_error_code_t ct_self_test(CT* self);
+ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate);
 
 #endif /* SRC_CT_H_ */

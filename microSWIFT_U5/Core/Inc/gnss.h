@@ -104,6 +104,7 @@ typedef struct GNSS {
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
 	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self);
+	gnss_error_code_t (*reset_gnss_uart)(struct GNSS* self, uint16_t baud_rate);
 } GNSS;
 
 /* Function declarations */
@@ -111,18 +112,13 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 		DMA_HandleTypeDef* gnss_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags,
 		TX_QUEUE* message_queue, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
 		int16_t* GNSS_D_Array);
-
 gnss_error_code_t gnss_config(GNSS* self);
-
 gnss_error_code_t gnss_self_test(GNSS* self);
-
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
-
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
-
 gnss_error_code_t gnss_process_message(GNSS* self);
-
 gnss_error_code_t gnss_sleep(GNSS* self);
+gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate);
 
 
 
