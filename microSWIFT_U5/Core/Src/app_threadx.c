@@ -376,10 +376,22 @@ void MX_ThreadX_Init(device_handles_t *handles)
   * @retval void
   */
 void startup_thread_entry(ULONG thread_input){
-	// TODO: figure out self-check
-	// TODO: set event flags to "ready" for all threads except waves, Iridium
+	// TODO: Check flash for first-time flag. If present, skip, otherwise run
+	// TODO: set event flags to "ready" for all threads
 	UINT threadx_return;
 	int fail_counter = 0;
+
+	/*TODO: flash:
+	 * 			  (1) Read some predetermined page and quadword.
+	 * 			  (2) If the contents are 0xFFFFFFFF, it has not been written to
+	 * 			  	(a) run this thread in its entirety
+	 * 			  	(b) at the end of the thread, write a bit pattern to that
+	 * 			  	    page and address. Maybe something like 0xAAAAAAAA.
+	 * 			  (3) If the contents are 0xAAAAAAAA, skip this thread.
+	 * 			  	(a) run a different, more watered down version that just
+	 * 			  	    warms up the GNSS receiver until it is getting good
+	 * 			  	    reception
+	 */
 	/* WAVES TEST */
 //	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
 //
