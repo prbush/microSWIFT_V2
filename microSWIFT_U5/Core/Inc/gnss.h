@@ -15,7 +15,7 @@
 
 #ifndef SRC_GPS_H_
 #define SRC_GPS_H_
-//#include "gnss_error_codes.h"
+
 #include "app_threadx.h"
 #include "tx_api.h"
 #include "main.h"
@@ -46,8 +46,8 @@ typedef enum {
 } gnss_error_code_t;
 
 // Macros
+// TODO: define GPIO pins
 #define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
-
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 100
@@ -57,18 +57,18 @@ typedef enum {
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
 #define MAX_ACCEPTABLE_SACC 100 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
-
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
-
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
-
-#define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins TODO: verify this
 
 typedef struct GNSS {
 	// The UART and DMA handle for the GNSS interface
 	UART_HandleTypeDef* gnss_uart_handle;
 	DMA_HandleTypeDef* gnss_dma_handle;
-	// Pointers to the arrays
+	// Event flags
+	TX_EVENT_FLAGS_GROUP* event_flags;
+	// UBX message queue filled from DMA ISR
+	TX_QUEUE* message_queue;
+	// Velocity sample array pointers
 	int16_t* GNSS_N_Array;
 	int16_t* GNSS_E_Array;
 	int16_t* GNSS_D_Array;
@@ -92,10 +92,6 @@ typedef struct GNSS {
 	bool is_location_valid;
 	bool is_velocity_valid;
 	bool is_clock_set;
-	// Event flags
-	TX_EVENT_FLAGS_GROUP* event_flags;
-	// UBX message queue filled from DMA ISR
-	TX_QUEUE* message_queue;
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
 	gnss_error_code_t (*self_test)(struct GNSS* self);

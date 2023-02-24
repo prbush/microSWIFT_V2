@@ -105,6 +105,7 @@ CHAR* ct_data;
 CHAR* iridium_message;
 GNSS* gnss;
 CT* ct;
+Iridium* iridium;
 
 device_handles_t *device_handles;
 /* USER CODE END PV */
@@ -332,6 +333,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// The ct struct
 	ret = tx_byte_allocate(byte_pool, (VOID**) &ct, sizeof(CT), TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+	// The iridium struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium, sizeof(Iridium), TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 		return ret;
 	}

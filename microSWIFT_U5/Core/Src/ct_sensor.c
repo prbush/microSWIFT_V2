@@ -33,7 +33,7 @@ void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct
 	self->shutdown = ct_shutdown;
 	self->self_test = ct_self_test;
 	self->reset_ct_uart = reset_ct_uart;
-
+	// zero out the buffer
 	memset(&(self->data_buf[0]),0,CT_DATA_ARRAY_SIZE);
 }
 
