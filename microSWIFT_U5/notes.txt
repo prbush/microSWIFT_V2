@@ -2,7 +2,7 @@ main.c
   MX_ThreadX_Init(&handles);
   
 app_azure_rtos_config.h
-#define TX_APP_MEM_POOL_SIZE                     753248 // max possible 774704
+#define TX_APP_MEM_POOL_SIZE                     753248 // max possible 774288
 
 
 app_threadx.c

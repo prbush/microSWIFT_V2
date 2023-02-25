@@ -42,9 +42,10 @@ typedef enum {
 typedef struct Iridium {
 	// The UART and DMA handle for the Iridium interface
 	UART_HandleTypeDef* iridium_uart_handle;
-	DMA_HandleTypeDef* iridium_dma_handle;
+	DMA_HandleTypeDef* iridium_rx_dma_handle;
+	DMA_HandleTypeDef* iridium_tx_dma_handle;
 	// ThreadX timer (tick-based granularity is fine for this)
-	TX_TIMER* tx_timer;
+	TX_TIMER* tick_timer;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
 	// pointer to the message array
@@ -78,8 +79,9 @@ typedef struct Iridium_Flash_Message {
 
 /* Function declarations */
 void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
-		DMA_HandleTypeDef* iridium_dma_handle, TX_TIMER* tx_timer,
-		TX_EVENT_FLAGS_GROUP* event_flags, uint8_t* message_buffer);
+		DMA_HandleTypeDef* iridium_rx_dma_handle, TX_TIMER* tx_timer,
+		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
+		uint8_t* message_buffer);
 iridium_error_code_t iridium_config(Iridium* self);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);

@@ -13,12 +13,14 @@
  * @return void
  */
 void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
-		DMA_HandleTypeDef* iridium_dma_handle, TX_TIMER* tx_timer,
-		TX_EVENT_FLAGS_GROUP* event_flags, uint8_t* message_buffer)
+		DMA_HandleTypeDef* iridium_rx_dma_handle, TX_TIMER* tx_timer,
+		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
+		uint8_t* message_buffer)
 {
 	self->iridium_uart_handle = iridium_uart_handle;
-	self->iridium_dma_handle = iridium_dma_handle;
-	self->tx_timer = tx_timer;
+	self->iridium_rx_dma_handle = iridium_rx_dma_handle;
+	self->iridium_tx_dma_handle = iridium_tx_dma_handle;
+	self->tick_timer = tx_timer;
 	self->event_flags = event_flags;
 	self->message_buffer = message_buffer;
 	self->current_lat = 0;

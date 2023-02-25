@@ -85,6 +85,8 @@ TX_QUEUE ubx_queue;
 TX_QUEUE ct_queue;
 // We'll use flags to signal other threads to run/shutdown
 TX_EVENT_FLAGS_GROUP thread_flags;
+// Timer for the Iridium thread
+TX_TIMER thread_timer;
 // All our data to store/ process
 int16_t* GNSS_N_Array;
 int16_t* GNSS_E_Array;
@@ -245,10 +247,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Create our CT message queue
-//	ret = tx_queue_create(&ubx_queue, "CT queue", TX_1_ULONG, pointer, (UBX_QUEUE_SIZE * sizeof(void*)));
-//	if (ret != TX_SUCCESS) {
-//		return ret;
-//	}
+    create a tx timer here
 
 	ret = memory_pool_init(pointer, 0x927C0); // 600,000 bytes (32 byte aligned)
 	if (ret == -1) {
@@ -462,7 +461,10 @@ void startup_thread_entry(ULONG thread_input){
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
-
+	iridium_init(iridium, device_handles->iridium_uart_handle,
+			device_handles->iridium_rx_dma_handle, TX_TIMER* tx_timer,
+			device_handles->iridium_tx_dma_handle, &thread_flags,
+			(uint8_t*)iridium_message);
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
 
