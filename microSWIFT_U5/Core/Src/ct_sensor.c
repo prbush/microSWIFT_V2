@@ -55,7 +55,7 @@ ct_error_code_t ct_parse_sample(CT* self)
 
 	while(++fail_counter < 10) {
 		// See if we got the message, otherwise retry
-		if (tx_event_flags_get(self->event_flags, CT_READY, TX_OR_CLEAR,
+		if (tx_event_flags_get(self->event_flags, CT_MSG_RECVD, TX_OR_CLEAR,
 				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS) {
 			HAL_UART_DMAStop(self->ct_uart_handle);
 			reset_ct_uart(self, 9600);
@@ -151,7 +151,7 @@ ct_error_code_t ct_self_test(CT* self)
 	int fail_counter = -1;
 	while(fail_counter++ < 10) {
 		// See if we got the message, otherwise retry
-		if (tx_event_flags_get(self->event_flags, CT_READY, TX_OR_CLEAR,
+		if (tx_event_flags_get(self->event_flags, CT_MSG_RECVD, TX_OR_CLEAR,
 				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS)
 		{
 			HAL_UART_DMAStop(self->ct_uart_handle);
@@ -204,6 +204,8 @@ ct_error_code_t ct_self_test(CT* self)
 
 		break;
 	}
+
+	HAL_TIM_Base_Stop(self->millis_timer);
 
 	return return_code;
 }

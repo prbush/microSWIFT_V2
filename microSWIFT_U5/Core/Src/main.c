@@ -53,6 +53,7 @@ OSPI_HandleTypeDef hospi1;
 RTC_HandleTypeDef hrtc;
 
 TIM_HandleTypeDef htim15;
+TIM_HandleTypeDef htim17;
 
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
@@ -85,6 +86,7 @@ static void MX_I2C1_Init(void);
 static void MX_TIM15_Init(void);
 static void MX_UART5_Init(void);
 static void MX_ADC4_Init(void);
+static void MX_TIM17_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -137,6 +139,7 @@ int main(void)
   MX_TIM15_Init();
   MX_UART5_Init();
   MX_ADC4_Init();
+  MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
   device_handles_t handles;
 
@@ -150,6 +153,7 @@ int main(void)
   handles.Iridium_tx_dma_handle = &handle_GPDMA1_Channel2;
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.millis_timer = &htim15;
+  handles.ten_min_timer = &htim17;
   /* USER CODE END 2 */
 
   MX_ThreadX_Init(&handles);
@@ -568,6 +572,38 @@ static void MX_TIM15_Init(void)
   /* USER CODE BEGIN TIM15_Init 2 */
 
   /* USER CODE END TIM15_Init 2 */
+
+}
+
+/**
+  * @brief TIM17 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM17_Init(void)
+{
+
+  /* USER CODE BEGIN TIM17_Init 0 */
+
+  /* USER CODE END TIM17_Init 0 */
+
+  /* USER CODE BEGIN TIM17_Init 1 */
+
+  /* USER CODE END TIM17_Init 1 */
+  htim17.Instance = TIM17;
+  htim17.Init.Prescaler = 12000;
+  htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim17.Init.Period = 59999;
+  htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim17.Init.RepetitionCounter = 10;
+  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim17) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM17_Init 2 */
+
+  /* USER CODE END TIM17_Init 2 */
 
 }
 

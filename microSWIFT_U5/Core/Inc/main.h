@@ -47,6 +47,7 @@ typedef struct {
 	DMA_HandleTypeDef* Iridium_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
 	TIM_HandleTypeDef* millis_timer;
+	TIM_HandleTypeDef* ten_min_timer;
 } device_handles_t;
 /* USER CODE END ET */
 

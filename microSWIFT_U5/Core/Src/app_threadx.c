@@ -54,13 +54,6 @@
 #define THREAD_LARGE_STACK_SIZE 2048
 #define THREAD_MEDIUM_STACK_SIZE 1024
 #define THREAD_SMALL_STACK_SIZE 512
-// Sensor data arrays -> 2bytes * 8192 samples = 16384 bytes, which is 32 byte aligned.
-#define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
-// Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
-#define WAVES_ARRAY_SIZE 32768
-// Size of an Iridium message TODO: figure this out
-#define IRIDIUM_MESSAGE_SIZE 340
-// The size of our queue
 #define UBX_QUEUE_SIZE 3
 /* USER CODE END PD */
 
@@ -85,8 +78,6 @@ TX_QUEUE ubx_queue;
 TX_QUEUE ct_queue;
 // We'll use flags to signal other threads to run/shutdown
 TX_EVENT_FLAGS_GROUP thread_flags;
-// Timer for the Iridium thread
-TX_TIMER thread_timer;
 // All our data to store/ process
 int16_t* GNSS_N_Array;
 int16_t* GNSS_E_Array;
@@ -105,6 +96,7 @@ char queue_message_3[UBX_BUFFER_SIZE];
 
 CHAR* ct_data;
 CHAR* iridium_message;
+CHAR* iridium_response_message;
 GNSS* gnss;
 CT* ct;
 Iridium* iridium;
@@ -246,9 +238,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 
 	//
-	// Create our CT message queue
-    create a tx timer here
-
+	// create a memory pool for waves algorithm
 	ret = memory_pool_init(pointer, 0x927C0); // 600,000 bytes (32 byte aligned)
 	if (ret == -1) {
 		return ret;
@@ -325,6 +315,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
+	// The Iridium response message array
+	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_response_message, IRIDIUM_MAX_RESPONSE_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
 	// The gnss struct
 	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss, sizeof(GNSS), TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
@@ -398,7 +393,7 @@ void startup_thread_entry(ULONG thread_input){
 	/* END WAVES TEST */
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-
+#ifdef FULL_STARTUP_TEST
 	// Initialize GNSS struct
 	gnss_init(gnss, device_handles->GNSS_uart, device_handles->GNSS_dma_handle, &thread_flags, &ubx_queue,
 			GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
@@ -458,13 +453,16 @@ void startup_thread_entry(ULONG thread_input){
 		HAL_Delay(10);
 		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
 	}
-
+#endif
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
-	iridium_init(iridium, device_handles->iridium_uart_handle,
-			device_handles->iridium_rx_dma_handle, TX_TIMER* tx_timer,
-			device_handles->iridium_tx_dma_handle, &thread_flags,
-			(uint8_t*)iridium_message);
+	iridium_init(iridium, device_handles->Iridium_uart,
+			device_handles->Iridium_rx_dma_handle, device_handles->ten_min_timer,
+			device_handles->Iridium_tx_dma_handle, &thread_flags,
+			(uint8_t*)iridium_message, (uint8_t*)iridium_response_message);
+
+	if (iridium->self_test(iridium) == IRIDIUM_SUCCESS)
+		while(1);
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
 
@@ -486,7 +484,7 @@ void gnss_thread_entry(ULONG thread_input){
 	// Wait until we get the ready flag
 	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	while(gnss->total_samples < 8192){
+	while(gnss->total_samples < TOTAL_SAMPLES_PER_WINDOW){
 		// TODO: add a synchronization step in here that checks that we
 		//       processed 10 messages in the last go. A simple prime number
 		//       delay will do it
@@ -757,7 +755,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 	// CT sensor
 	else if (huart->Instance == UART4) {
-		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
+		tx_event_flags_set(&thread_flags, CT_MSG_RECVD, TX_OR);
+	}
+
+	// Iridium modem
+	else if (huart->Instance == UART5) {
+		tx_event_flags_set(&thread_flags, IRIDIUM_MSG_RECVD, TX_OR);
 	}
 	// Restore the thread context
 	_tx_thread_context_restore();
