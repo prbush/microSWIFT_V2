@@ -205,7 +205,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the Iridium thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&iridium_thread, "iridium thread", iridium_thread_entry, 0, pointer,
-		  THREAD_SMALL_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_MEDIUM_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}

@@ -33,13 +33,17 @@ typedef enum {
 // Macros
 // TODO: define GPIO pins
 #define MAX_TRANSMIT_TIME 600
+#define MAX_RETRIES 10
+#define ACK_MESSAGE_SIZE 9
+#define ACK_MAX_WAIT_TIME 100
 #define IRIDIUM_MESSAGE_PAYLOAD_SIZE 340
 #define IRIDIUM_FET_PIN 0
 #define IRIDIUM_NETAV_PIN 0
 #define IRIDIUM_RI_PIN 0
 #define IRIDIUM_ONOFF_PIN 0
 #define IRIDIUM_DEFAULT_BAUD_RATE 19200
-#define IRIDIUM_CAP_CHARGE_TIME 15000
+// TODO: figure out a good value for this
+#define IRIDIUM_CAP_CHARGE_TIME 30000
 
 typedef struct Iridium {
 	// The UART and DMA handle for the Iridium interface

@@ -9,6 +9,15 @@
 
 // Static functions
 static uint16_t get_checksum(uint8_t* payload, size_t payload_size);
+static iridium_error_code_t get_ack_message(Iridium* self);
+
+// static variables
+static bool timer_timeout;
+// const strings for Iridium AT commands
+const char* ack = "AT\r";
+const char* disable_flow_control = "AT&K0\r";
+const char* short_burst_binary = "AT+SBDWB=340\r";
+const char* ready = "READY\r";
 
 /**
  * Initialize the CT struct
@@ -70,64 +79,28 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 	char * needle;
 	uint8_t receive_fail_counter;
 	uint16_t num_bytes_received = 0;
-	uint32_t elapsed_time;
-	bool add_warm_up_time = true;
+	uint32_t elapsed_time = 0;
 	// Zero out the buffer
 	memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 	self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 
 	// Start the timer
 	HAL_TIM_Base_Start(self->ten_min_timer);
-	elapsed_time = __HAL_TIM_GET_COUNTER(self->ten_min_timer);
+	// Wait an appropriate amount of time for the caps to charge
 	while (elapsed_time < IRIDIUM_CAP_CHARGE_TIME) {
+		HAL_Delay(1000);
 		elapsed_time = __HAL_TIM_GET_COUNTER(self->ten_min_timer);
 	}
 	HAL_TIM_Base_Stop(self->ten_min_timer);
 
-	receive_fail_counter = 0;
-	for (receive_fail_counter = 0; receive_fail_counter < 10; receive_fail_counter++) {
-		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(ack[0]),
-				strlen(ack), 1000);
-
-		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-				&(self->response_buffer[0]), IRIDIUM_MAX_RESPONSE_SIZE, &num_bytes_received, 1250);
-
-		needle = strstr((char*)self->response_buffer, "OK");
-		if (needle != NULL) {
-			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-			break;
-		}
-		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+	// Make sure we can get an acknowledgment from the modem
+	if (get_ack_message(self) != IRIDIUM_SUCCESS){
+		return_code = IRIDIUM_UART_ERROR;
 	}
-
-	if (receive_fail_counter == 2){
-		return IRIDIUM_SELF_TEST_FAILED;
-	}
-
-//	self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-	num_bytes_received = 0;
-
-	for (receive_fail_counter = 0; receive_fail_counter < 10; receive_fail_counter++) {
-		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(disable_flow_control[0]),
-				strlen(disable_flow_control), 1000);
-
-		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-				&(self->response_buffer[0]), IRIDIUM_MAX_RESPONSE_SIZE, &num_bytes_received, 1250);
-
-		needle = strstr((char*)self->response_buffer, "OK");
-		if (needle != NULL) {
-			break;
-		}
-		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-	}
-
-	if (receive_fail_counter == 2) return_code = IRIDIUM_SELF_TEST_FAILED;
 
 	self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 
-	// TODO: toggle OnOff pin here
+	self->sleep(self);
 
 	return return_code;
 }
@@ -140,6 +113,27 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 iridium_error_code_t iridium_transmit_message(Iridium* self)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
+	ULONG actual_flags;
+	uint32_t elapsed_time = 0;
+	bool message_tx_success = false;
+
+	// Wait until the Waves thread is done, at which point the message will be ready
+	tx_event_flags_get(self->event_flags, WAVES_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+
+	// Make sure we can get an acknowledgment from the modem
+	if (get_ack_message(self) != IRIDIUM_SUCCESS){
+			return IRIDIUM_UART_ERROR;
+	}
+	// get the most recent location
+	self->get_location(self);
+
+	// Start the timer
+	HAL_TIM_Base_Start(self->ten_min_timer);
+	timer_timeout = false;
+	// Go until we have reached the max time
+	while (!timer_timeout) {
+		//HAL_UART_Transmit(self->iridium_uart_handle
+	}
 
 	return return_code;
 }
@@ -165,6 +159,8 @@ iridium_error_code_t iridium_sleep(Iridium* self)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 
+	// TODO: toggle GPIO pin here
+	//		 can probably change return type to void
 	return return_code;
 }
 
@@ -177,6 +173,12 @@ iridium_error_code_t iridium_store_in_flash(Iridium* self)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 
+	HAL_FLASH_Unlock();
+
+
+
+
+	HAL_FLASH_Lock();
 	return return_code;
 }
 
@@ -228,5 +230,66 @@ iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rat
 static uint16_t get_checksum(uint8_t* payload, size_t payload_size)
 {
 
+}
+
+static iridium_error_code_t get_ack_message(Iridium* self)
+{
+	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
+		// Quick ack message
+		const char* ack = "AT\r";
+		// Disable flow control message
+		const char* disable_flow_control = "AT&K0\r";
+		// will become location of 'O' in "OK\r" response from modem
+		char * needle;
+		uint8_t receive_fail_counter;
+		uint8_t ack_buffer[ACK_MESSAGE_SIZE];
+		uint16_t num_bytes_received = 0;
+		uint32_t elapsed_time;
+		// Zero out the buffer
+		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+
+		receive_fail_counter = 0;
+		for (receive_fail_counter = 0; receive_fail_counter < MAX_RETRIES; receive_fail_counter++) {
+			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(ack[0]),
+					strlen(ack), 1000);
+
+			HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
+					&(ack_buffer[0]), ACK_MESSAGE_SIZE, &num_bytes_received, ACK_MAX_WAIT_TIME);
+
+			needle = strstr((char*)self->response_buffer, "OK");
+			if (needle != NULL) {
+				memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+				break;
+			}
+			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+			memset(&(ack_buffer[0]), 0, ACK_MESSAGE_SIZE);
+		}
+
+		if (receive_fail_counter == MAX_RETRIES){
+			return IRIDIUM_SELF_TEST_FAILED;
+		}
+
+
+		for (receive_fail_counter = 0; receive_fail_counter < MAX_RETRIES; receive_fail_counter++) {
+			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(disable_flow_control[0]),
+					strlen(disable_flow_control), 1000);
+
+			HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
+					&(ack_buffer[0]), ACK_MESSAGE_SIZE, &num_bytes_received, ACK_MAX_WAIT_TIME);
+
+			needle = strstr((char*)self->response_buffer, "OK");
+			if (needle != NULL) {
+				break;
+			}
+			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+			memset(&(ack_buffer[0]), 0, ACK_MESSAGE_SIZE);
+		}
+
+		if (receive_fail_counter == MAX_RETRIES) return_code = IRIDIUM_SELF_TEST_FAILED;
+
+		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+
+		return return_code;
 }
 

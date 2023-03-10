@@ -46,6 +46,8 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
 
+DCACHE_HandleTypeDef hdcache1;
+
 I2C_HandleTypeDef hi2c1;
 
 OSPI_HandleTypeDef hospi1;
@@ -87,6 +89,7 @@ static void MX_TIM15_Init(void);
 static void MX_UART5_Init(void);
 static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
+static void MX_DCACHE1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -140,6 +143,7 @@ int main(void)
   MX_UART5_Init();
   MX_ADC4_Init();
   MX_TIM17_Init();
+  MX_DCACHE1_Init();
   /* USER CODE BEGIN 2 */
   device_handles_t handles;
 
@@ -301,6 +305,33 @@ static void MX_ADC4_Init(void)
   /* USER CODE BEGIN ADC4_Init 2 */
 
   /* USER CODE END ADC4_Init 2 */
+
+}
+
+/**
+  * @brief DCACHE1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_DCACHE1_Init(void)
+{
+
+  /* USER CODE BEGIN DCACHE1_Init 0 */
+
+  /* USER CODE END DCACHE1_Init 0 */
+
+  /* USER CODE BEGIN DCACHE1_Init 1 */
+
+  /* USER CODE END DCACHE1_Init 1 */
+  hdcache1.Instance = DCACHE1;
+  hdcache1.Init.ReadBurstType = DCACHE_READ_BURST_WRAP;
+  if (HAL_DCACHE_Init(&hdcache1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DCACHE1_Init 2 */
+
+  /* USER CODE END DCACHE1_Init 2 */
 
 }
 
@@ -1011,6 +1042,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
 
+  // TODO: add code here to signal Iridium that time ran out
   /* USER CODE END Callback 1 */
 }
 
