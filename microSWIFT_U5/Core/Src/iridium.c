@@ -428,8 +428,8 @@ static iridium_error_code_t transmit_message(uint8_t* payload)
 //	static const char* ready = "READY\r";
 	int fail_counter;
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
-		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(ack[0]),
-				strlen(ack), 1000);
+		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(sbd[0]),
+				strlen(sbd), 1000);
 
 		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
 				&(ack_buffer[0]), ACK_MESSAGE_SIZE, &num_bytes_received, ACK_MAX_WAIT_TIME);
