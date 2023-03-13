@@ -199,7 +199,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Allocate stack for the Iridium thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_MEDIUM_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -461,8 +461,10 @@ void startup_thread_entry(ULONG thread_input){
 			device_handles->Iridium_tx_dma_handle, &thread_flags,
 			(uint8_t*)iridium_message, (uint8_t*)iridium_response_message);
 
-	if (iridium->self_test(iridium) == IRIDIUM_SUCCESS)
-		while(1);
+//	if (iridium->self_test(iridium) == IRIDIUM_SUCCESS)
+//		while(1);
+	if (iridium->storage_queue->msg_queue[0][0] == 0x2)
+		iridium->storage_queue->msg_queue[0][0] = 0x3;
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
 

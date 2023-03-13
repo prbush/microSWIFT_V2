@@ -44,6 +44,9 @@ typedef enum {
 #define IRIDIUM_DEFAULT_BAUD_RATE 19200
 // TODO: figure out a good value for this
 #define IRIDIUM_CAP_CHARGE_TIME 30000
+#define MAX_SRAM4_MESSAGES 16384 / 340
+#define STORAGE_QUEUE_SIZE 340*48
+#define SRAM4_START_ADDR 0x28000000
 
 typedef struct Iridium {
 	// The UART and DMA handle for the Iridium interface
@@ -58,6 +61,8 @@ typedef struct Iridium {
 	uint8_t* message_buffer;
 	// pointer to the response array
 	uint8_t* response_buffer;
+	// Unsent message storage queue
+	struct Iridium_message_queue* storage_queue;
 	// current lat/long
 	int32_t current_lat;
 	int32_t current_long;
@@ -70,20 +75,20 @@ typedef struct Iridium {
 	iridium_error_code_t (*self_test)(struct Iridium* self);
 	iridium_error_code_t (*transmit_message)(struct Iridium* self);
 	iridium_error_code_t (*get_location)(struct Iridium* self);
-	iridium_error_code_t (*sleep)(struct Iridium* self);
+	iridium_error_code_t (*on_off)(struct Iridium* self, bool on);
 	iridium_error_code_t (*store_in_flash)(struct Iridium* self);
 	iridium_error_code_t (*reset_uart)(struct Iridium* self, uint16_t baud_rate);
+	void				 (*queue_create)(struct Iridium* self);
+	iridium_error_code_t (*queue_add)(struct Iridium* self, uint8_t* payload);
+	iridium_error_code_t (*queue_get)(struct Iridium* self, uint8_t* retreived_payload);
+	iridium_error_code_t (*queue_flush)(struct Iridium* self);
 } Iridium;
 
-//TODO: fill out this struct for making a bastardized priority queue in flash
-typedef struct Iridium_Flash_Message {
-	uint8_t* message_payload;
-	uint32_t payload_size;
-	// TODO: maybe allow for negative numbers to indicate bas messages?
-	int32_t message_priority;
-	struct Iridium_Flash_Message* next_message;
-	uint32_t next_message_page;
-}Iridium_Flash_Message;
+typedef struct Iridium_message_queue {
+	uint8_t msg_queue [MAX_SRAM4_MESSAGES][IRIDIUM_MESSAGE_PAYLOAD_SIZE];
+	uint8_t num_msgs_enqueued;
+}Iridium_message_queue;
+
 
 /* Function declarations */
 void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
@@ -94,8 +99,13 @@ iridium_error_code_t iridium_config(Iridium* self);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
 iridium_error_code_t iridium_get_location(Iridium* self);
-iridium_error_code_t iridium_sleep(Iridium* self);
+iridium_error_code_t iridium_on_off(Iridium* self, bool on);
 iridium_error_code_t iridium_store_in_flash(Iridium* self);
 iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rate);
+void				 iridium_storage_queue_create(Iridium* self);
+iridium_error_code_t iridium_storage_queue_add(Iridium* self,uint8_t* payload);
+iridium_error_code_t iridium_storage_queue_get(Iridium* self,uint8_t* retreived_payload);
+iridium_error_code_t iridium_storage_queue_flush(Iridium* self);
+
 
 #endif /* SRC_IRIDIUM_H_ */

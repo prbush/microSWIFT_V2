@@ -14,10 +14,10 @@ static iridium_error_code_t get_ack_message(Iridium* self);
 // static variables
 static bool timer_timeout;
 // const strings for Iridium AT commands
-const char* ack = "AT\r";
-const char* disable_flow_control = "AT&K0\r";
-const char* short_burst_binary = "AT+SBDWB=340\r";
-const char* ready = "READY\r";
+static const char* ack = "AT\r";
+static const char* disable_flow_control = "AT&K0\r";
+static const char* sbd = "AT+SBDWB=340\r";
+static const char* ready = "READY\r";
 
 /**
  * Initialize the CT struct
@@ -40,15 +40,22 @@ void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 	self->current_long = 0;
 	self->current_flash_page = 0; //TODO: figure out how to do this
 	self->current_message_transmit_attempts = 0;
+	self->storage_queue = (Iridium_message_queue*) SRAM4_START_ADDR;
 	self->config = iridium_config;
 	self->self_test = iridium_self_test;
 	self->transmit_message = iridium_transmit_message;
 	self->get_location = iridium_get_location;
-	self->sleep = iridium_sleep;
+	self->on_off = iridium_on_off;
 	self->store_in_flash = iridium_store_in_flash;
 	self->reset_uart = iridium_reset_iridium_uart;
+	self->queue_create = iridium_storage_queue_create;
+	self->queue_add = iridium_storage_queue_add;
+	self->queue_get = iridium_storage_queue_get;
+	self->queue_flush = iridium_storage_queue_flush;
 	// TODO: figure out if this is a good idea
 	memset(&(self->message_buffer[0]), 0, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+
+	self->queue_create(self);
 }
 
 /**
@@ -71,14 +78,7 @@ iridium_error_code_t iridium_config(Iridium* self)
 iridium_error_code_t iridium_self_test(Iridium* self)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
-	// Quick ack message
-	const char* ack = "AT\r";
-	// Disable flow control message
-	const char* disable_flow_control = "AT&K0\r";
-	// will become location of 'O' in "OK\r" response from modem
-	char * needle;
-	uint8_t receive_fail_counter;
-	uint16_t num_bytes_received = 0;
+
 	uint32_t elapsed_time = 0;
 	// Zero out the buffer
 	memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
@@ -100,7 +100,7 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 
 	self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 
-	self->sleep(self);
+	self->on_off(self, false);
 
 	return return_code;
 }
@@ -155,7 +155,7 @@ iridium_error_code_t iridium_get_location(Iridium* self)
  *
  * @return iridium_error_code_t
  */
-iridium_error_code_t iridium_sleep(Iridium* self)
+iridium_error_code_t iridium_on_off(Iridium* self, bool on)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 
@@ -244,7 +244,6 @@ static iridium_error_code_t get_ack_message(Iridium* self)
 		uint8_t receive_fail_counter;
 		uint8_t ack_buffer[ACK_MESSAGE_SIZE];
 		uint16_t num_bytes_received = 0;
-		uint32_t elapsed_time;
 		// Zero out the buffer
 		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
@@ -293,3 +292,36 @@ static iridium_error_code_t get_ack_message(Iridium* self)
 		return return_code;
 }
 
+void iridium_storage_queue_create(Iridium* self)
+{
+	memset(self->storage_queue, 0, STORAGE_QUEUE_SIZE);
+	for (int i = 0; i < 48; i++){
+		for (int j = 0; j < 340; j++) {
+			self->storage_queue->msg_queue[i][j] = 0x1;
+		}
+	}
+
+	for (int i = 0; i < 48; i++){
+		for (int j = 0; j < 340; j++) {
+			if (self->storage_queue->msg_queue[i][j] == 0x1){
+				self->storage_queue->msg_queue[i][j]++;
+			}
+		}
+	}
+
+}
+
+iridium_error_code_t iridium_storage_queue_add(Iridium* self,uint8_t* payload)
+{
+
+}
+
+iridium_error_code_t iridium_storage_queue_get(Iridium* self,uint8_t* retreived_payload)
+{
+
+}
+
+iridium_error_code_t iridium_storage_queue_flush(Iridium* self)
+{
+
+}

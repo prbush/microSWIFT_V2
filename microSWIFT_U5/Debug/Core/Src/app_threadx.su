@@ -2,10 +2,10 @@
 ../Core/Src/app_threadx.c:126:6:App_ThreadX_Init	64	static
 ../Core/Src/app_threadx.c:351:6:MX_ThreadX_Init	16	static
 ../Core/Src/app_threadx.c:372:6:startup_thread_entry	56	static
-../Core/Src/app_threadx.c:481:6:gnss_thread_entry	32	static
-../Core/Src/app_threadx.c:503:6:imu_thread_entry	16	static
-../Core/Src/app_threadx.c:520:6:ct_thread_entry	32	static
-../Core/Src/app_threadx.c:549:6:waves_thread_entry	400	static
-../Core/Src/app_threadx.c:597:6:iridium_thread_entry	32	static
-../Core/Src/app_threadx.c:610:6:teardown_thread_entry	48	static
-../Core/Src/app_threadx.c:691:6:HAL_UART_RxCpltCallback	48	static
+../Core/Src/app_threadx.c:483:6:gnss_thread_entry	32	static
+../Core/Src/app_threadx.c:505:6:imu_thread_entry	16	static
+../Core/Src/app_threadx.c:522:6:ct_thread_entry	32	static
+../Core/Src/app_threadx.c:551:6:waves_thread_entry	400	static
+../Core/Src/app_threadx.c:599:6:iridium_thread_entry	32	static
+../Core/Src/app_threadx.c:612:6:teardown_thread_entry	48	static
+../Core/Src/app_threadx.c:693:6:HAL_UART_RxCpltCallback	48	static
