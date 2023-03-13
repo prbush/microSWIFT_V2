@@ -14,6 +14,7 @@
 #include "stdint.h"
 #include "string.h"
 #include "stm32u5xx_hal.h"
+#include "stm32u5xx_hal_tim.h"
 #include "stm32u5xx_ll_dma.h"
 #include "stdio.h"
 #include "stdbool.h"
@@ -27,7 +28,9 @@ typedef enum {
 	IRIDIUM_TRANSMIT_ERROR = -3,
 	IRIDIUM_SELF_TEST_FAILED = -4,
 	IRIDIUM_RECEIVE_ERROR = -5,
-	IRIDIUM_FLASH_STORAGE_ERROR = -6
+	IRIDIUM_FLASH_STORAGE_ERROR = -6,
+	IRIDIUM_STORAGE_QUEUE_FULL = -7,
+	IRIDIUM_STORAGE_QUEUE_EMPTY = -8
 } iridium_error_code_t;
 
 // Macros
@@ -45,8 +48,11 @@ typedef enum {
 // TODO: figure out a good value for this
 #define IRIDIUM_CAP_CHARGE_TIME 30000
 #define MAX_SRAM4_MESSAGES 16384 / 340
-#define STORAGE_QUEUE_SIZE 340*48
+#define STORAGE_QUEUE_SIZE 341*48
 #define SRAM4_START_ADDR 0x28000000
+#define IRIDIUM_TIMER_INSTANCE TIM17
+#define IRIDIUM_LL_TX_DMA_HANDLE LL_DMA_CHANNEL_2
+#define IRIDIUM_LL_RX_DMA_HANDLE LL_DMA_CHANNEL_3
 
 typedef struct Iridium {
 	// The UART and DMA handle for the Iridium interface
@@ -63,13 +69,11 @@ typedef struct Iridium {
 	uint8_t* response_buffer;
 	// Unsent message storage queue
 	struct Iridium_message_queue* storage_queue;
+	// timeout flag
+	bool* transmit_timeout;
 	// current lat/long
 	int32_t current_lat;
 	int32_t current_long;
-	// Next available flash page
-	uint32_t current_flash_page;
-	// How many times we've tried to transmit the current message
-	uint32_t current_message_transmit_attempts;
 
 	iridium_error_code_t (*config)(struct Iridium* self);
 	iridium_error_code_t (*self_test)(struct Iridium* self);
@@ -81,13 +85,20 @@ typedef struct Iridium {
 	void				 (*queue_create)(struct Iridium* self);
 	iridium_error_code_t (*queue_add)(struct Iridium* self, uint8_t* payload);
 	iridium_error_code_t (*queue_get)(struct Iridium* self, uint8_t* retreived_payload);
-	iridium_error_code_t (*queue_flush)(struct Iridium* self);
+	void                 (*queue_flush)(struct Iridium* self);
 } Iridium;
 
+typedef struct Iridium_message {
+	uint8_t payload[IRIDIUM_MESSAGE_PAYLOAD_SIZE];
+	bool valid;
+}Iridium_message;
+
 typedef struct Iridium_message_queue {
-	uint8_t msg_queue [MAX_SRAM4_MESSAGES][IRIDIUM_MESSAGE_PAYLOAD_SIZE];
+	Iridium_message msg_queue [MAX_SRAM4_MESSAGES];
+//	uint8_t msg_queue [MAX_SRAM4_MESSAGES][IRIDIUM_MESSAGE_PAYLOAD_SIZE];
 	uint8_t num_msgs_enqueued;
 }Iridium_message_queue;
+
 
 
 /* Function declarations */
@@ -105,7 +116,7 @@ iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rat
 void				 iridium_storage_queue_create(Iridium* self);
 iridium_error_code_t iridium_storage_queue_add(Iridium* self,uint8_t* payload);
 iridium_error_code_t iridium_storage_queue_get(Iridium* self,uint8_t* retreived_payload);
-iridium_error_code_t iridium_storage_queue_flush(Iridium* self);
+void                 iridium_storage_queue_flush(Iridium* self);
 
 
 #endif /* SRC_IRIDIUM_H_ */

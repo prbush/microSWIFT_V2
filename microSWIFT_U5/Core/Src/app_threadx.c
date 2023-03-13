@@ -463,8 +463,7 @@ void startup_thread_entry(ULONG thread_input){
 
 //	if (iridium->self_test(iridium) == IRIDIUM_SUCCESS)
 //		while(1);
-	if (iridium->storage_queue->msg_queue[0][0] == 0x2)
-		iridium->storage_queue->msg_queue[0][0] = 0x3;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
 

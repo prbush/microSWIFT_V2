@@ -85,6 +85,8 @@
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6235:13:HAL_TIM_TriggerCallback	16	static
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6250:13:HAL_TIM_TriggerHalfCpltCallback	16	static
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6265:13:HAL_TIM_ErrorCallback	16	static
+../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6316:19:HAL_TIM_RegisterCallback	32	static
+../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6584:19:HAL_TIM_UnRegisterCallback	24	static
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6878:22:HAL_TIM_Base_GetState	16	static
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6888:22:HAL_TIM_OC_GetState	16	static
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:6898:22:HAL_TIM_PWM_GetState	16	static
@@ -120,3 +122,4 @@
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:8130:13:TIM_ITRx_SetConfig	24	static
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:8160:6:TIM_ETR_SetConfig	32	static
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:8192:6:TIM_CCxChannelCmd	32	static
+../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c:8216:6:TIM_ResetCallback	16	static

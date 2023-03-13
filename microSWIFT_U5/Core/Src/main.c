@@ -68,6 +68,8 @@ DMA_HandleTypeDef handle_GPDMA1_Channel0;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
+bool iridium_timeout;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -91,7 +93,7 @@ static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_DCACHE1_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void initialize_gpio(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -145,6 +147,9 @@ int main(void)
   MX_TIM17_Init();
   MX_DCACHE1_Init();
   /* USER CODE BEGIN 2 */
+  //TODO: Set initial state for all GPIO here
+  initialize_gpio();
+
   device_handles_t handles;
 
   handles.hospi1 = &hospi1;
@@ -158,6 +163,7 @@ int main(void)
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.millis_timer = &htim15;
   handles.ten_min_timer = &htim17;
+
   /* USER CODE END 2 */
 
   MX_ThreadX_Init(&handles);
@@ -1021,7 +1027,10 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void initialize_gpio(void)
+{
 
+}
 /* USER CODE END 4 */
 
 /**
@@ -1042,7 +1051,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
 
-  // TODO: add code here to signal Iridium that time ran out
   /* USER CODE END Callback 1 */
 }
 
