@@ -98,22 +98,12 @@
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-// UBX_NAV_PVT is 100 bytes
-#define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
-// The buffer size we'll use for UBX messages
-#define UBX_BUFFER_SIZE (10 * UBX_MESSAGE_SIZE)
-// Size of the CT data array -- messages are 291 bytes long
-#define CT_DATA_ARRAY_SIZE 291
 // Total number of samples in a sampling window
 #define TOTAL_SAMPLES_PER_WINDOW 8192
 // Sensor data arrays -> 2bytes * 8192 samples = 16384 bytes, which is 32 byte aligned.
 #define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
 // Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
 #define WAVES_ARRAY_SIZE 32768
-// Size of an Iridium message
-#define IRIDIUM_MESSAGE_SIZE 340
-// Max size of a response from the modem
-#define IRIDIUM_MAX_RESPONSE_SIZE 128
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

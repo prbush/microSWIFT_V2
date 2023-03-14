@@ -18,9 +18,10 @@
 #include "stdio.h"
 #include "stdbool.h"
 
-// 20,000 milliseconds
+// 20,000 milliseconds -> 20 seconds
 #define WARMUP_TIME 20000
 #define REQUIRED_CT_SAMPLES 10
+#define CT_DATA_ARRAY_SIZE 291
 
 typedef enum {
 	CT_SUCCESS = 0,

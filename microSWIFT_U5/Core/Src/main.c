@@ -68,8 +68,6 @@ DMA_HandleTypeDef handle_GPDMA1_Channel0;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
-bool iridium_timeout;
-
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -898,8 +896,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin
-                          |IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, UCPD_DBn_Pin|LED_BLUE_Pin, GPIO_PIN_RESET);
@@ -1002,10 +1002,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_GREEN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IMU_FET_Pin IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin
-                           IRIDIUM_OnOff_Pin */
-  GPIO_InitStruct.Pin = IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin
-                          |IRIDIUM_OnOff_Pin;
+  /*Configure GPIO pins : IMU_FET_Pin IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin */
+  GPIO_InitStruct.Pin = IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1016,6 +1014,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : IRIDIUM_OnOff_Pin */
+  GPIO_InitStruct.Pin = IRIDIUM_OnOff_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(IRIDIUM_OnOff_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : UCPD_DBn_Pin LED_BLUE_Pin */
   GPIO_InitStruct.Pin = UCPD_DBn_Pin|LED_BLUE_Pin;
