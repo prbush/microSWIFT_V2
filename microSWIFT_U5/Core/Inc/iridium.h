@@ -37,6 +37,11 @@ typedef enum {
 // TODO: define GPIO pins
 #define MAX_RETRIES 10
 #define ACK_MESSAGE_SIZE 9
+#define DISABLE_FLOW_CTRL_SIZE 12
+#define SBDWB_READY_RESPONSE_SIZE 22
+#define SBDWB_LOAD_RESPONSE_SIZE 11
+#define SBDIX_RESPONSE_SIZE 11
+#define SBDIX_COMMAND_RESPONSE_SIZE 50
 #define IRIDIUM_MESSAGE_PAYLOAD_SIZE 327
 #define IRIDIUM_CHECKSUM_LENGTH 2
 #define IRIDIUM_MAX_RESPONSE_SIZE 128
@@ -56,6 +61,7 @@ typedef enum {
 #define STORAGE_QUEUE_SIZE 328*49
 #define SRAM4_START_ADDR 0x28000000
 #define IRIDIUM_TIMER_INSTANCE TIM17
+#define IRIDIUM_UART_INSTANCE UART5
 #define IRIDIUM_LL_TX_DMA_HANDLE LL_DMA_CHANNEL_2
 #define IRIDIUM_LL_RX_DMA_HANDLE LL_DMA_CHANNEL_3
 
@@ -74,8 +80,6 @@ typedef struct Iridium {
 	uint8_t* response_buffer;
 	// Unsent message storage queue
 	struct Iridium_message_queue* storage_queue;
-	// timeout flag
-	bool* transmit_timeout;
 	// current lat/long
 	int32_t current_lat;
 	int32_t current_long;
@@ -91,6 +95,10 @@ typedef struct Iridium {
 	iridium_error_code_t (*queue_add)(struct Iridium* self, uint8_t* payload);
 	iridium_error_code_t (*queue_get)(struct Iridium* self, uint8_t* retreived_payload);
 	void                 (*queue_flush)(struct Iridium* self);
+
+	// ISR flags
+	bool transmit_timeout;
+	bool dma_message_received;
 } Iridium;
 
 typedef struct Iridium_message {

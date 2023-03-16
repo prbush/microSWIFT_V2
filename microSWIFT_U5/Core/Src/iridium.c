@@ -11,16 +11,20 @@
 static uint16_t get_checksum(uint8_t* payload, size_t payload_size);
 static iridium_error_code_t get_ack_message(Iridium* self);
 static iridium_error_code_t send_msg_from_queue(Iridium* self);
-static void transmit_timeout_callback(TIM_HandleTypeDef *htim);
 static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload);
 static uint8_t get_signal_strength(Iridium* self);
+// ISR callback functions
+static void transmit_timeout_callback(TIM_HandleTypeDef *htim);
+static void uart_receive_dma_callback(UART_HandleTypeDef *huart);
 
 // static variables
-static bool timer_timeout;
+static bool timer_timeout = false;
+static bool dma_message_received = false;
 // const strings for Iridium AT commands
 static const char* ack = "AT\r";
 static const char* disable_flow_control = "AT&K0\r";
-static const char* send_sbd = "AT+SBDWB=340\r";
+static const char* load_sbd = "AT+SBDWB=327\r";
+static const char* send_sbd = "AT+SBDIX\r";
 static const char* signal_strength = "AT+CSQ\r";
 
 /**
@@ -42,7 +46,8 @@ void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 	self->event_flags = event_flags;
 	self->message_buffer = message_buffer;
 	self->response_buffer = response_buffer;
-	self->transmit_timeout = &timer_timeout;
+	self->transmit_timeout = timer_timeout;
+	self->dma_message_received = dma_message_received;
 	self->current_lat = 0;
 	self->current_long = 0;
 	self->config = iridium_config;
@@ -58,6 +63,10 @@ void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 	self->queue_flush = iridium_storage_queue_flush;
 	// TODO: figure out if this is a good idea
 	memset(&(self->message_buffer[0]), 0, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+	memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+
+//	HAL_UART_RegisterCallback(self->iridium_uart_handle, HAL_UART_RX_COMPLETE_CB_ID,
+//			uart_receive_dma_callback);
 
 	self->queue_create(self);
 }
@@ -260,24 +269,30 @@ static iridium_error_code_t get_ack_message(Iridium* self)
 		char * needle;
 		uint8_t fail_counter;
 		uint16_t num_bytes_received = 0;
+		ULONG actual_flags;
 		// Zero out the response buffer
 		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-		// reset uart
-		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+//		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 
 		for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
 			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(ack[0]),
 					strlen(ack), ONE_SECOND);
+//			HAL_UART_Receive_DMA(self->iridium_uart_handle,
+//					&(self->response_buffer[0]), ACK_MESSAGE_SIZE);
+//			tx_event_flags_get(self->event_flags, IRIDIUM_MSG_RECVD, TX_OR_CLEAR,
+//					&actual_flags, TX_TIMER_TICKS_PER_SECOND);
 
 			HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-					&(self->response_buffer[0]), ACK_MESSAGE_SIZE, &num_bytes_received, ONE_SECOND);
+							&(self->response_buffer[0]), ACK_MESSAGE_SIZE,
+							&num_bytes_received, ONE_SECOND);
 
+//			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 			needle = strstr((char*)&(self->response_buffer[0]), "OK");
 			if (needle != NULL) {
 				memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 				break;
 			}
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+
 			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 			self->on_off(self, false);
 			HAL_Delay(100);
@@ -291,16 +306,24 @@ static iridium_error_code_t get_ack_message(Iridium* self)
 			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(disable_flow_control[0]),
 					strlen(disable_flow_control), ONE_SECOND);
 
-			HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-					&(self->response_buffer[0]), ACK_MESSAGE_SIZE*2, &num_bytes_received, ONE_SECOND);
+//			HAL_UART_Receive_DMA(self->iridium_uart_handle,
+//					&(self->response_buffer[0]), DISABLE_FLOW_CTRL_SIZE);
+//			tx_event_flags_get(self->event_flags, IRIDIUM_MSG_RECVD, TX_OR_CLEAR,
+//					&actual_flags, TX_TIMER_TICKS_PER_SECOND);
 
+			HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
+										&(self->response_buffer[0]), DISABLE_FLOW_CTRL_SIZE,
+										&num_bytes_received, ONE_SECOND);
+
+
+//			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 			needle = strstr((char*)&(self->response_buffer[0]), "OK");
 			if (needle != NULL) {
 				break;
 			}
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+
 			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-			self->on_off(self, false);
+			//self->on_off(self, false);
 			HAL_Delay(100);
 		}
 
@@ -407,19 +430,6 @@ static iridium_error_code_t send_msg_from_queue(Iridium* self) {
 }
 
 /**
- * Callback function ISR for timer period elapsed timeout
- *
- * @param htim - timer handle that called this callback
- * @return void
- */
-static void transmit_timeout_callback(TIM_HandleTypeDef *htim) {
-	// Make sure we were called by the Iridium timer
-	if (htim->Instance == IRIDIUM_TIMER_INSTANCE) {
-		timer_timeout = true;
-	}
-}
-
-/**
  * Helper method to transmit a message via Iridium modem.
  *
  * @param payload - pointer to a 340 byte SBD message
@@ -430,27 +440,32 @@ static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload)
 //	static const char* sbd = "AT+SBDWB=340\r";
 //	static const char* ready = "READY\r";
 	char* needle;
-	char response_pointers[4] = {NULL, NULL, NULL, NULL};
-	int possible_responses[4] = {0, 1, 2, 3};
+	char* token;
+	char* token_array[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
+	char* delimeter = ",";
+	char* response_pointers[4] = {NULL, NULL, NULL, NULL};
+	char SBDWB_response_code;
+	int possible_responses[4] = {'0', '1', '2', '3'};
 	int fail_counter;
+	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	uint16_t num_bytes_received;
 	uint16_t checksum;
-	uint8_t* checksum_ptr = &checksum;
+	uint8_t* checksum_ptr = (uint8_t*)&checksum;
 	uint32_t transfer_wait_time = ONE_SECOND;
 
 	// get the checksum and place the bits in the last 2 bytes of the payload
 	checksum = get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
-	payload[CHECKSUM_FIRST_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
-	checksum_ptr++;
 	payload[CHECKSUM_SECOND_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
+	checksum_ptr++;
+	payload[CHECKSUM_FIRST_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
 
 	// Tell the modem we are sending over a 340 byte message
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
-		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
-				strlen(send_sbd), transfer_wait_time);
+		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(load_sbd[0]),
+				strlen(load_sbd), transfer_wait_time);
 
 		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-				&(self->response_buffer[0]), ACK_MESSAGE_SIZE, &num_bytes_received, transfer_wait_time);
+				&(self->response_buffer[0]), SBDWB_READY_RESPONSE_SIZE, &num_bytes_received, transfer_wait_time);
 
 		needle = strstr((char*)&(self->response_buffer[0]), "READY");
 		if (needle != NULL) {
@@ -459,18 +474,19 @@ static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload)
 		}
 		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+
+		//TODO: define return code
 	}
 
 	fail_counter = 0;
+	transfer_wait_time = ONE_SECOND;
 	// Send over the message and checksum
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(payload[0]),
 				IRIDIUM_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH, transfer_wait_time);
 
-		// TODO: need to examine exactly what the response looks like, could be messy
-		//		 Using strtok might be a simpler way of doing things
 		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-				&(self->response_buffer[0]), ACK_MESSAGE_SIZE, &num_bytes_received, transfer_wait_time);
+				&(self->response_buffer[0]), SBDWB_LOAD_RESPONSE_SIZE, &num_bytes_received, transfer_wait_time);
 
 		// 4 possible responses, we'll search for all of them and figure out which one we got
 		for (int i = 0; i < 4; i++) {
@@ -503,10 +519,80 @@ static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload)
 			break;
 		}
 
+		SBDWB_response_code = self->response_buffer[2];
+
+		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+
+		switch (SBDWB_response_code) {
+			case '0' :
+				break;
+
+			case '1' :
+				transfer_wait_time += ONE_SECOND;
+				break;
+
+			case '2' :
+				checksum = get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+				payload[CHECKSUM_SECOND_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
+				checksum_ptr++;
+				payload[CHECKSUM_FIRST_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
+				break;
+
+			case '3' :
+				break;
+
+			default:
+				break;
+		}
+		memset(&(response_pointers[0]), 0, 4*sizeof(char*));
+		//TODO: define return code
+	}
+
+	fail_counter = 0;
+	transfer_wait_time = ONE_SECOND * 60;
+
+	// TODO: figure out how to poll for signal strength
+
+
+	// Tell the modem to send the message
+	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
+		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
+				strlen(send_sbd), transfer_wait_time);
+
+		// Catch the echo
+		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
+				&(self->response_buffer[0]), SBDIX_RESPONSE_SIZE, &num_bytes_received, ONE_SECOND);
+
+		//TODO: figure out how to grab the response and max response length
+		//
+
+		HAL_Delay(100);
+		// Catch the command response
+		HAL_UART_Receive(self->iridium_uart_handle,
+						&(self->response_buffer[0]), 50, transfer_wait_time);
+
+		if (num_bytes_received < SBDIX_COMMAND_RESPONSE_SIZE - 5){
+			continue;
+		}
+
+		// Initialize token and fill the char* array
+		token[0] = strtok(&(self->response_buffer[0]), delimeter);
+		for (int i = 1; i < 6 && token != NULL; i++) {
+			token[i] = strtok(NULL, delimeter);
+		}
+
+
+		break;
+
+		memset(&(token_array[0]), 0, 6*sizeof(char*));
+
+		//TODO: define return code
 	}
 
 	// TODO: stuff
+	return return_code;
 
+	//TODO: make each step into a separate function
 }
 
 /**
@@ -548,4 +634,26 @@ static uint8_t get_signal_strength(Iridium* self)
 	}
 
 	return return_val;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+////////////////// ISR callback functions ////////////////////////////////////////
+/**
+ * Callback function ISR for timer period elapsed timeout
+ *
+ * @param htim - timer handle that called this callback
+ * @return void
+ */
+static void transmit_timeout_callback(TIM_HandleTypeDef *htim) {
+	// Make sure we were called by the Iridium timer
+	if (htim->Instance == IRIDIUM_TIMER_INSTANCE) {
+		timer_timeout = true;
+	}
+}
+
+static void uart_receive_dma_callback(UART_HandleTypeDef *huart)
+{
+	if (huart->Instance == IRIDIUM_UART_INSTANCE) {
+			dma_message_received = true;
+	}
 }
