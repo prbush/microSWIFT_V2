@@ -362,7 +362,8 @@ iridium_error_code_t iridium_storage_queue_add(Iridium* self, uint8_t* payload)
 	for (int i = 0; i < MAX_SRAM4_MESSAGES; i ++) {
 		if (!self->storage_queue->msg_queue[i].valid) {
 			// copy the message over
-			memcpy(self->storage_queue->msg_queue[i].payload, payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+			memcpy(self->storage_queue->msg_queue[i].payload, payload,
+					IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 			// Make the entry valid
 			self->storage_queue->msg_queue[i].valid = true;
 			self->storage_queue->num_msgs_enqueued++;
@@ -437,21 +438,16 @@ static iridium_error_code_t send_msg_from_queue(Iridium* self) {
  */
 static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload)
 {
-//	static const char* sbd = "AT+SBDWB=340\r";
-//	static const char* ready = "READY\r";
 	char* needle;
-	char* token;
-	char* token_array[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
-	char* delimeter = ",";
-	char* response_pointers[4] = {NULL, NULL, NULL, NULL};
-	char SBDWB_response_code;
-	int possible_responses[4] = {'0', '1', '2', '3'};
+	char response_code;
+	int SBDIX_response_code;
 	int fail_counter;
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	uint16_t num_bytes_received;
 	uint16_t checksum;
 	uint8_t* checksum_ptr = (uint8_t*)&checksum;
-	uint32_t transfer_wait_time = ONE_SECOND;
+	uint32_t adaptive_delay_time[5] = {ONE_SECOND * 3, ONE_SECOND * 5,
+			ONE_SECOND * 30, ONE_SECOND * 60, ONE_SECOND * 180};
 
 	// get the checksum and place the bits in the last 2 bytes of the payload
 	checksum = get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
@@ -462,16 +458,17 @@ static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload)
 	// Tell the modem we are sending over a 340 byte message
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(load_sbd[0]),
-				strlen(load_sbd), transfer_wait_time);
+				strlen(load_sbd), ONE_SECOND);
 
-		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-				&(self->response_buffer[0]), SBDWB_READY_RESPONSE_SIZE, &num_bytes_received, transfer_wait_time);
+		HAL_UART_Receive(self->iridium_uart_handle,
+				&(self->response_buffer[0]), SBDWB_READY_RESPONSE_SIZE, ONE_SECOND);
 
 		needle = strstr((char*)&(self->response_buffer[0]), "READY");
 		if (needle != NULL) {
 			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 			break;
 		}
+
 		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 
@@ -479,112 +476,92 @@ static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload)
 	}
 
 	fail_counter = 0;
-	transfer_wait_time = ONE_SECOND;
 	// Send over the message and checksum
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(payload[0]),
-				IRIDIUM_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH, transfer_wait_time);
+				IRIDIUM_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH, ONE_SECOND);
 
-		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-				&(self->response_buffer[0]), SBDWB_LOAD_RESPONSE_SIZE, &num_bytes_received, transfer_wait_time);
+		HAL_UART_Receive(self->iridium_uart_handle,
+				&(self->response_buffer[0]), SBDWB_LOAD_RESPONSE_SIZE, ONE_SECOND);
 
-		// 4 possible responses, we'll search for all of them and figure out which one we got
-		for (int i = 0; i < 4; i++) {
-			response_pointers[i] = strchr((char*)&(self->response_buffer[0]), possible_responses[i]);
-		}
+		response_code = self->response_buffer[SBDWB_RESPONSE_CODE_INDEX];
 
-		if (response_pointers[3] != NULL) {
-			// Response "3" means the message was the wrong size, so we're just going to try again
-			continue;
-		}
-
-		if (response_pointers[2] != NULL) {
-			// Response "2" means the checksum didn't match, so we'll try calculating it again
-			checksum = get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
-			payload[CHECKSUM_FIRST_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
-			checksum_ptr++;
-			payload[CHECKSUM_SECOND_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
-			continue;
-		}
-
-		if (response_pointers[1] != NULL) {
-			// Response "1" means the message was not received before the timeout, so we'll try adjusting
-			// the max time to transfer (shouldn't matter...)
-			transfer_wait_time += ONE_SECOND;
-			continue;
-		}
-
-		if (response_pointers[0] != NULL) {
-			// Response "0" means success
+		// Response of 0 means success
+		if (response_code == '0') {
+			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 			break;
 		}
 
-		SBDWB_response_code = self->response_buffer[2];
+		// Response of 2 means checksum didn't match, so try calculating it again
+		if (response_code == '2') {
+			checksum = get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+			payload[CHECKSUM_SECOND_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
+			checksum_ptr++;
+			payload[CHECKSUM_FIRST_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
+		}
 
 		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-
-		switch (SBDWB_response_code) {
-			case '0' :
-				break;
-
-			case '1' :
-				transfer_wait_time += ONE_SECOND;
-				break;
-
-			case '2' :
-				checksum = get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
-				payload[CHECKSUM_SECOND_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
-				checksum_ptr++;
-				payload[CHECKSUM_FIRST_BYTE_INDEX] = ((uint8_t)*checksum_ptr);
-				break;
-
-			case '3' :
-				break;
-
-			default:
-				break;
-		}
-		memset(&(response_pointers[0]), 0, 4*sizeof(char*));
 		//TODO: define return code
 	}
 
 	fail_counter = 0;
-	transfer_wait_time = ONE_SECOND * 60;
-
-	// TODO: figure out how to poll for signal strength
-
-
 	// Tell the modem to send the message
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
+		// TODO: add location at the end of the message
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
-				strlen(send_sbd), transfer_wait_time);
+				strlen(send_sbd), ONE_SECOND);
 
-		// Catch the echo
-		HAL_UARTEx_ReceiveToIdle(self->iridium_uart_handle,
-				&(self->response_buffer[0]), SBDIX_RESPONSE_SIZE, &num_bytes_received, ONE_SECOND);
-
-		//TODO: figure out how to grab the response and max response length
-		//
-
-		HAL_Delay(100);
-		// Catch the command response
 		HAL_UART_Receive(self->iridium_uart_handle,
-						&(self->response_buffer[0]), 50, transfer_wait_time);
+				&(self->response_buffer[0]), SBDIX_RESPONSE_SIZE, ONE_SECOND * 30);
 
-		if (num_bytes_received < SBDIX_COMMAND_RESPONSE_SIZE - 5){
-			continue;
+		response_code = self->response_buffer[SBDIX_RESPONSE_CODE_INDEX];
+
+		// A response code of 0-4 indicates success
+		if (response_code == '0' || response_code == '1' || response_code == '3'
+				|| response_code == '4') {
+			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+			break;
 		}
 
-		// Initialize token and fill the char* array
-		token[0] = strtok(&(self->response_buffer[0]), delimeter);
-		for (int i = 1; i < 6 && token != NULL; i++) {
-			token[i] = strtok(NULL, delimeter);
-		}
+		// If response did not indicate success, the response code will be defined by 2 chars
+		SBDIX_response_code = (self->response_buffer[SBDIX_RESPONSE_CODE_INDEX] - '0') +
+				(self->response_buffer[SBDIX_RESPONSE_CODE_INDEX + 1] - '0');
 
+		switch (response_code) {
+
+			case 11:
+
+				break;
+
+			case 16:
+
+				break;
+
+			case 33:
+
+				break;
+
+			case 34:
+
+				break;
+
+			case 36:
+
+				break;
+
+			case 38:
+
+				break;
+
+			case 65:
+
+				break;
+
+			default: // Any other response
+				break;
+		}
 
 		break;
-
-		memset(&(token_array[0]), 0, 6*sizeof(char*));
 
 		//TODO: define return code
 	}
@@ -644,7 +621,8 @@ static uint8_t get_signal_strength(Iridium* self)
  * @param htim - timer handle that called this callback
  * @return void
  */
-static void transmit_timeout_callback(TIM_HandleTypeDef *htim) {
+static void transmit_timeout_callback(TIM_HandleTypeDef *htim)
+{
 	// Make sure we were called by the Iridium timer
 	if (htim->Instance == IRIDIUM_TIMER_INSTANCE) {
 		timer_timeout = true;
