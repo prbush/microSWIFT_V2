@@ -199,13 +199,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Allocate stack for the Iridium thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Create the Iridium thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&iridium_thread, "iridium thread", iridium_thread_entry, 0, pointer,
-			THREAD_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -461,7 +461,15 @@ void startup_thread_entry(ULONG thread_input){
 			device_handles->Iridium_rx_dma_handle, device_handles->ten_min_timer,
 			device_handles->Iridium_tx_dma_handle, &thread_flags,
 			(uint8_t*)iridium_message, (uint8_t*)iridium_response_message);
-	iridium->self_test(iridium);
+	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
+		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
+		// TODO: do something here
+	}
+
+	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
+		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
+		// TODO: do something here
+	}
 
 	tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
 

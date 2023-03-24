@@ -26,11 +26,13 @@ typedef enum {
 	IRIDIUM_UNKNOWN_ERROR = -1,
 	IRIDIUM_UART_ERROR = -2,
 	IRIDIUM_TRANSMIT_ERROR = -3,
-	IRIDIUM_SELF_TEST_FAILED = -4,
-	IRIDIUM_RECEIVE_ERROR = -5,
-	IRIDIUM_FLASH_STORAGE_ERROR = -6,
-	IRIDIUM_STORAGE_QUEUE_FULL = -7,
-	IRIDIUM_STORAGE_QUEUE_EMPTY = -8
+	IRIDIUM_COMMAND_RESPONSE_ERROR = -4,
+	IRIDIUM_SELF_TEST_FAILED = -5,
+	IRIDIUM_RECEIVE_ERROR = -6,
+	IRIDIUM_FLASH_STORAGE_ERROR = -7,
+	IRIDIUM_STORAGE_QUEUE_FULL = -8,
+	IRIDIUM_STORAGE_QUEUE_EMPTY = -9,
+	IRIDIUM_TIMER_ERROR = -10
 } iridium_error_code_t;
 
 // Macros
@@ -38,11 +40,15 @@ typedef enum {
 #define MAX_RETRIES 10
 #define ACK_MESSAGE_SIZE 9
 #define DISABLE_FLOW_CTRL_SIZE 12
+#define ENABLE_RI_SIZE 18
+#define STORE_CONFIG_SIZE 12
+#define SELECT_PWR_UP_SIZE 12
 #define SBDWB_READY_RESPONSE_SIZE 22
 #define SBDWB_LOAD_RESPONSE_SIZE 11
 #define SBDWB_RESPONSE_CODE_INDEX 2
 #define SBDIX_RESPONSE_CODE_INDEX 19
-#define SBDIX_RESPONSE_SIZE 50
+#define SBDIX_RESPONSE_SIZE 21
+#define SBDD_RESPONSE_SIZE 20
 #define SBDIX_WAIT_TIME ONE_SECOND * 13
 #define IRIDIUM_MESSAGE_PAYLOAD_SIZE 327
 #define IRIDIUM_CHECKSUM_LENGTH 2
@@ -58,7 +64,8 @@ typedef enum {
 #define ASCII_ZERO 48
 #define ASCII_FIVE 53
 // TODO: figure out a good value for this
-#define IRIDIUM_CAP_CHARGE_TIME 30
+#define IRIDIUM_CAP_CHARGE_TIME 30 // TODO: change this back to a good value
+#define IRIDIUM_MAX_TRANSMIT_PERIOD 0 //TODO: change this to 10
 #define MAX_SRAM4_MESSAGES 16384 / 328
 #define STORAGE_QUEUE_SIZE 328*49
 #define SRAM4_START_ADDR 0x28000000
@@ -90,9 +97,10 @@ typedef struct Iridium {
 	iridium_error_code_t (*self_test)(struct Iridium* self);
 	iridium_error_code_t (*transmit_message)(struct Iridium* self);
 	iridium_error_code_t (*get_location)(struct Iridium* self);
-	iridium_error_code_t (*on_off)(struct Iridium* self, bool on);
+	void 				 (*on_off)(struct Iridium* self, bool on);
 	iridium_error_code_t (*store_in_flash)(struct Iridium* self);
 	iridium_error_code_t (*reset_uart)(struct Iridium* self, uint16_t baud_rate);
+	iridium_error_code_t (*reset_timer)(struct Iridium* self);
 	void				 (*queue_create)(struct Iridium* self);
 	iridium_error_code_t (*queue_add)(struct Iridium* self, uint8_t* payload);
 	iridium_error_code_t (*queue_get)(struct Iridium* self, uint8_t* retreived_payload);
@@ -125,9 +133,10 @@ iridium_error_code_t iridium_config(Iridium* self);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
 iridium_error_code_t iridium_get_location(Iridium* self);
-iridium_error_code_t iridium_on_off(Iridium* self, bool on);
+void				 iridium_on_off(Iridium* self, bool on);
 iridium_error_code_t iridium_store_in_flash(Iridium* self);
 iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rate);
+iridium_error_code_t iridium_reset_timer(Iridium* self);
 void				 iridium_storage_queue_create(Iridium* self);
 iridium_error_code_t iridium_storage_queue_add(Iridium* self,uint8_t* payload);
 iridium_error_code_t iridium_storage_queue_get(Iridium* self,uint8_t* retreived_payload);
