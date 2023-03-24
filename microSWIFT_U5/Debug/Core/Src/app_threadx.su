@@ -5,7 +5,8 @@
 ../Core/Src/app_threadx.c:491:6:gnss_thread_entry	32	static
 ../Core/Src/app_threadx.c:513:6:imu_thread_entry	16	static
 ../Core/Src/app_threadx.c:530:6:ct_thread_entry	32	static
-../Core/Src/app_threadx.c:559:6:waves_thread_entry	400	static
-../Core/Src/app_threadx.c:607:6:iridium_thread_entry	360	static
-../Core/Src/app_threadx.c:645:6:teardown_thread_entry	48	static
-../Core/Src/app_threadx.c:727:6:HAL_UART_RxCpltCallback	48	static
+../Core/Src/app_threadx.c:560:6:waves_thread_entry	400	static
+../Core/Src/app_threadx.c:608:6:iridium_thread_entry	360	static
+../Core/Src/app_threadx.c:646:6:teardown_thread_entry	48	static
+../Core/Src/app_threadx.c:728:6:HAL_UART_RxCpltCallback	48	static
+../Core/Src/app_threadx.c:814:6:HAL_TIM_PeriodElapsedCallback	16	static

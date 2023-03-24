@@ -46,8 +46,8 @@ typedef enum {
 #define SBDWB_READY_RESPONSE_SIZE 22
 #define SBDWB_LOAD_RESPONSE_SIZE 11
 #define SBDWB_RESPONSE_CODE_INDEX 2
-#define SBDIX_RESPONSE_CODE_INDEX 19
-#define SBDIX_RESPONSE_SIZE 21
+#define SBDI_RESPONSE_CODE_INDEX 16
+#define SBDI_RESPONSE_SIZE 19
 #define SBDD_RESPONSE_SIZE 20
 #define SBDIX_WAIT_TIME ONE_SECOND * 13
 #define IRIDIUM_MESSAGE_PAYLOAD_SIZE 327
@@ -64,8 +64,9 @@ typedef enum {
 #define ASCII_ZERO 48
 #define ASCII_FIVE 53
 // TODO: figure out a good value for this
-#define IRIDIUM_CAP_CHARGE_TIME 30 // TODO: change this back to a good value
-#define IRIDIUM_MAX_TRANSMIT_PERIOD 0 //TODO: change this to 10
+#define IRIDIUM_CAP_CHARGE_TIME 25 //25000 TODO: change this back to a good value
+// number of mins to try to get a message off, starts at 0, so to get 10, you actually use 9
+#define IRIDIUM_MAX_TRANSMIT_PERIOD 0//6 - 1 TODO: change this back to a good value
 #define MAX_SRAM4_MESSAGES 16384 / 328
 #define STORAGE_QUEUE_SIZE 328*49
 #define SRAM4_START_ADDR 0x28000000
@@ -80,13 +81,14 @@ typedef struct Iridium {
 	DMA_HandleTypeDef* iridium_rx_dma_handle;
 	DMA_HandleTypeDef* iridium_tx_dma_handle;
 	// ThreadX timer (tick-based granularity is fine for this)
-	TIM_HandleTypeDef* ten_min_timer;
+	TIM_HandleTypeDef* timer;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
 	// pointer to the message array
 	uint8_t* message_buffer;
 	// pointer to the response array
 	uint8_t* response_buffer;
+
 	// Unsent message storage queue
 	struct Iridium_message_queue* storage_queue;
 	// current lat/long
@@ -106,9 +108,7 @@ typedef struct Iridium {
 	iridium_error_code_t (*queue_get)(struct Iridium* self, uint8_t* retreived_payload);
 	void                 (*queue_flush)(struct Iridium* self);
 
-	// ISR flags
-	bool transmit_timeout;
-	bool dma_message_received;
+	bool timer_timeout;
 } Iridium;
 
 typedef struct Iridium_message {
@@ -126,7 +126,7 @@ typedef struct Iridium_message_queue {
 
 /* Function declarations */
 void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
-		DMA_HandleTypeDef* iridium_rx_dma_handle, TIM_HandleTypeDef* ten_min_timer,
+		DMA_HandleTypeDef* iridium_rx_dma_handle, TIM_HandleTypeDef* timer,
 		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
 		uint8_t* message_buffer, uint8_t* response_buffer);
 iridium_error_code_t iridium_config(Iridium* self);

@@ -458,7 +458,7 @@ void startup_thread_entry(ULONG thread_input){
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
 	iridium_init(iridium, device_handles->Iridium_uart,
-			device_handles->Iridium_rx_dma_handle, device_handles->ten_min_timer,
+			device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
 			device_handles->Iridium_tx_dma_handle, &thread_flags,
 			(uint8_t*)iridium_message, (uint8_t*)iridium_response_message);
 	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
@@ -530,7 +530,8 @@ void imu_thread_entry(ULONG thread_input){
 void ct_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	ct_error_code_t result;
-	tx_event_flags_get(&thread_flags, CT_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	// TODO: make sure this works with the GNSS_DONE flag
+	tx_event_flags_get(&thread_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	while (ct->total_samples < REQUIRED_CT_SAMPLES) {
 		result = ct_parse_sample(ct);
@@ -800,6 +801,29 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	}
 	// Restore the thread context
 	_tx_thread_context_restore();
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM16 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM16) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+  if (htim->Instance == TIM17) {
+	iridium->timer_timeout = true;
+  }
+  /* USER CODE END Callback 1 */
 }
 
 /* USER CODE END 1 */
