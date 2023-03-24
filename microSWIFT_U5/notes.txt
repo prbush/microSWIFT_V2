@@ -8,12 +8,18 @@ app_azure_rtos_config.h
 app_threadx.c
 void MX_ThreadX_Init(device_handles_t *handles)
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM16) {
+    HAL_IncTick();
+  }
+  if (htim->Instance == TIM17) {
+	iridium->timer_timeout = true;
+  }
+}
+
 app_threadx.h
 void MX_ThreadX_Init(device_handles_t *handles)
 
 tx_user.h
 #define TX_TIMER_TICKS_PER_SECOND                5 <or whatever>
-
-stm32u5xx_hal_conf.h
-#define  USE_HAL_TIM_REGISTER_CALLBACKS        1U /* TIM register callback disabled       */
-#define  USE_HAL_UART_REGISTER_CALLBACKS       1U /* UART register callback disabled      */

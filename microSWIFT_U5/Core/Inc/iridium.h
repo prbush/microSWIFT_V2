@@ -67,8 +67,8 @@ typedef enum {
 #define IRIDIUM_CAP_CHARGE_TIME 25 //25000 TODO: change this back to a good value
 // number of mins to try to get a message off, starts at 0, so to get 10, you actually use 9
 #define IRIDIUM_MAX_TRANSMIT_PERIOD 0//6 - 1 TODO: change this back to a good value
-#define MAX_SRAM4_MESSAGES 16384 / 328
-#define STORAGE_QUEUE_SIZE 328*49
+#define MAX_SRAM4_MESSAGES 16384 / (IRIDIUM_MESSAGE_PAYLOAD_SIZE + 1)
+#define STORAGE_QUEUE_SIZE MAX_SRAM4_MESSAGES * (IRIDIUM_MESSAGE_PAYLOAD_SIZE  + 1)
 #define SRAM4_START_ADDR 0x28000000
 #define IRIDIUM_TIMER_INSTANCE TIM17
 #define IRIDIUM_UART_INSTANCE UART5

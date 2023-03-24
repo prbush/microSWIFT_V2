@@ -12,7 +12,7 @@ static void get_checksum(uint8_t* payload, size_t payload_size);
 static iridium_error_code_t send_basic_command_message(Iridium* self,
 		const char* command, uint8_t response_size, uint32_t wait_time);
 static iridium_error_code_t send_msg_from_queue(Iridium* self);
-static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload);
+static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* payload);
 static uint8_t get_signal_strength(Iridium* self);
 static void cycle_power(Iridium* self);
 
@@ -267,6 +267,118 @@ iridium_error_code_t iridium_reset_timer(Iridium* self)
  *
  * @return iridium_error_code_t
  */
+void iridium_storage_queue_create(Iridium* self)
+{
+	// place the storage queue in SRAM 4
+	self->storage_queue = (Iridium_message_queue*) SRAM4_START_ADDR;
+	// Zero out the queue space
+	memset(self->storage_queue->msg_queue, 0, STORAGE_QUEUE_SIZE);
+	self->storage_queue->num_msgs_enqueued = 0;
+}
+
+/**
+ *
+ *
+ * @return iridium_error_code_t
+ */
+iridium_error_code_t iridium_storage_queue_add(Iridium* self, uint8_t* payload)
+{
+	if (self->storage_queue->num_msgs_enqueued == MAX_SRAM4_MESSAGES) {
+		return IRIDIUM_STORAGE_QUEUE_FULL;
+	}
+
+	for (int i = 0; i < MAX_SRAM4_MESSAGES; i ++) {
+		if (!self->storage_queue->msg_queue[i].valid) {
+			// copy the message over
+			memcpy(self->storage_queue->msg_queue[i].payload, payload,
+					IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+			// Make the entry valid
+			self->storage_queue->msg_queue[i].valid = true;
+			self->storage_queue->num_msgs_enqueued++;
+			break;
+		}
+	}
+
+	return IRIDIUM_SUCCESS;
+}
+
+/**
+ * Find the next message to be sent from the storage queue based on significant wave height.
+ * NOTE: does not mark message as invalid -- this must be done by the sender.
+ *
+ * @param self- Iridium struct
+ * @param msg_index - return parameter for next message index
+ * @return iridium_error_code_t - either IRIDIUM_STORAGE_QUEUE_EMPTY or IRIDIUM_SUCCESS
+ */
+iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index)
+{
+	float significant_wave_height = 0.0;
+	float msg_wave_float = 0.0;
+	real16_T msg_wave_height;
+	msg_wave_height.bitPattern = 0;
+
+	if (self->storage_queue->num_msgs_enqueued == 0) {
+		return IRIDIUM_STORAGE_QUEUE_EMPTY;
+	}
+
+	for (int i = 0; i < MAX_SRAM4_MESSAGES; i++) {
+		if (self->storage_queue->msg_queue[i].valid) {
+			msg_wave_height.bitPattern = self->storage_queue->msg_queue[i].payload[4] +
+					(self->storage_queue->msg_queue[i].payload[5] << 8);
+			// Try following that! Gets the absolute value of msg_wave_height
+			msg_wave_float = (float)fabs((double)halfToFloat(msg_wave_height));
+
+			if (msg_wave_float >= significant_wave_height) {
+				significant_wave_height = msg_wave_float;
+				*msg_index = i;
+			}
+		}
+	}
+
+	return IRIDIUM_SUCCESS;
+}
+
+/**
+ * Flushes the message storage queue.
+ *
+ * @param self- Iridium struct
+ * @return void
+ */
+void iridium_storage_queue_flush(Iridium* self)
+{
+	memset(self->storage_queue->msg_queue, 0, STORAGE_QUEUE_SIZE);
+	self->storage_queue->num_msgs_enqueued = 0;
+}
+
+/**
+ * Static helper message to send message from the queue.
+ *
+ * @param self- Iridium struct
+ * @return iridium_error_code_t
+ */
+static iridium_error_code_t send_msg_from_queue(Iridium* self)
+{
+	iridium_error_code_t return_code;
+	uint8_t* payload_index = 0;
+	return_code = self->queue_get(self, payload_index);
+	if (return_code == IRIDIUM_STORAGE_QUEUE_EMPTY) {
+		return return_code;
+	}
+	// try transmitting the message
+	return_code = internal_transmit_message(self, self->storage_queue->msg_queue[*payload_index].payload);
+	// If the message successfully transmitted, mark it as invalid
+	if (return_code == IRIDIUM_SUCCESS) {
+		self->storage_queue->msg_queue[*payload_index].valid = false;
+		self->storage_queue->num_msgs_enqueued--;
+	}
+	return return_code;
+}
+
+/**
+ *
+ *
+ * @return iridium_error_code_t
+ */
 static void get_checksum(uint8_t* payload, size_t payload_size)
 {
 	uint16_t checksum = 0;
@@ -309,52 +421,11 @@ static iridium_error_code_t send_basic_command_message(Iridium* self,
  *
  * @return iridium_error_code_t
  */
-void iridium_storage_queue_create(Iridium* self)
-{
-	// place the storage queue in SRAM 4
-	self->storage_queue = (Iridium_message_queue*) SRAM4_START_ADDR;
-	// Zero out the queue space
-	memset(self->storage_queue->msg_queue, 0, STORAGE_QUEUE_SIZE);
-	self->storage_queue->num_msgs_enqueued = 0;
-}
-
-/**
- *
- *
- * @return iridium_error_code_t
- */
-iridium_error_code_t iridium_storage_queue_add(Iridium* self, uint8_t* payload)
-{
-	if (self->storage_queue->num_msgs_enqueued == MAX_SRAM4_MESSAGES) {
-		return IRIDIUM_STORAGE_QUEUE_FULL;
-	}
-
-	for (int i = 0; i < MAX_SRAM4_MESSAGES; i ++) {
-		if (!self->storage_queue->msg_queue[i].valid) {
-			// copy the message over
-			memcpy(self->storage_queue->msg_queue[i].payload, payload,
-					IRIDIUM_MESSAGE_PAYLOAD_SIZE);
-			// Make the entry valid
-			self->storage_queue->msg_queue[i].valid = true;
-			self->storage_queue->num_msgs_enqueued++;
-			break;
-		}
-	}
-
-	return IRIDIUM_SUCCESS;
-}
-
-/**
- *
- *
- * @return iridium_error_code_t
- */
 iridium_error_code_t iridium_transmit_message(Iridium* self)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	iridium_error_code_t queue_return_code = IRIDIUM_SUCCESS;
 	int fail_counter;
-	uint64_t elapsed_time = 0;
 	bool message_tx_success = false;
 	bool all_messages_sent = false;
 
@@ -371,6 +442,25 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	if (fail_counter == MAX_RETRIES) {
 		return IRIDIUM_UART_ERROR;
 	}
+
+	//////////
+	// testing
+	for (int i = 0; i < MAX_SRAM4_MESSAGES; i++) {
+		self->queue_add(self, self->message_buffer);
+	}
+
+	self->queue_add(self, self->message_buffer);
+
+	uint8_t index;
+	for (int i = 0; i < MAX_SRAM4_MESSAGES; i++) {
+		self->queue_get(self, &index);
+		self->storage_queue->msg_queue[index].valid = false;
+		self->storage_queue->num_msgs_enqueued--;
+	}
+	self->queue_get(self, &index);
+	////////////
+
+
 	// reset the timer and clear the flag
 	self->reset_timer(self);
 	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
@@ -378,103 +468,37 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated
 	while (!self->timer_timeout && !message_tx_success) {
-		return_code = transmit_message(self, self->message_buffer);
+		return_code = internal_transmit_message(self, self->message_buffer);
 		message_tx_success = return_code == IRIDIUM_SUCCESS ? true : false;
 	}
 
-	// Message failed to send and the queue is full, so just return
-	if (self->timer_timeout && !message_tx_success &&
-			self->storage_queue->num_msgs_enqueued == MAX_SRAM4_MESSAGES) {
+	// Message failed to send. If there is space in the queue, store it,
+	// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
+	if (self->timer_timeout && !message_tx_success) {
 
 			// reset the timer and clear the flag for the next time
+			HAL_TIM_Base_Stop_IT(self->timer);
 			self->timer_timeout = false;
 			self->reset_timer(self);
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
-			return IRIDIUM_STORAGE_QUEUE_FULL;
+			return self->queue_add(self, self->message_buffer);
 	}
 
-	// Make sure we actually have messages in the queue
-	all_messages_sent = self->storage_queue->num_msgs_enqueued == 0 ? true : false;
+	// If we made it here, there's still time left, try sending a queued message
+	// First, make sure we actually have messages in the queue
+	all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 	// If we have time, send messages from the queue
 	while (!self->timer_timeout && !all_messages_sent) {
 		queue_return_code = send_msg_from_queue(self);
-		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0 ? true : false;
+		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 	}
 
 	// reset the timer and clear the flag for the next time
+	HAL_TIM_Base_Stop_IT(self->timer);
 	self->timer_timeout = false;
 	self->reset_timer(self);
 	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
-	return return_code;
-}
-
-/**
- * Find the next message to be sent from the storage queue based on significant wave height.
- * NOTE: does not mark message as invalid -- this must be done by the sender.
- *
- * @param self- Iridium struct
- * @param msg_index - return parameter for next message index
- * @return iridium_error_code_t - either IRIDIUM_STORAGE_QUEUE_EMPTY or IRIDIUM_SUCCESS
- */
-iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index)
-{
-	float significant_wave_height = 0.0;
-	float msg_wave_float = 0.0;
-	real16_T msg_wave_height;
-	msg_wave_height.bitPattern = 0;
-
-	if (self->storage_queue->num_msgs_enqueued == 0) {
-		return IRIDIUM_STORAGE_QUEUE_EMPTY;
-	}
-
-	for (int i = 0; i < MAX_SRAM4_MESSAGES; i++) {
-		if (self->storage_queue->msg_queue[i].valid) {
-			msg_wave_height.bitPattern = self->storage_queue->msg_queue[i].payload[4] +
-					(self->storage_queue->msg_queue[i].payload[5] << 8);
-			msg_wave_float = halfToFloat(msg_wave_height);
-			if (msg_wave_float >= significant_wave_height) {
-				significant_wave_height = msg_wave_float;
-				*msg_index = i;
-			}
-		}
-	}
-
-	return IRIDIUM_SUCCESS;
-}
-
-/**
- * Flushes the message storage queue.
- *
- * @param self- Iridium struct
- * @return void
- */
-void iridium_storage_queue_flush(Iridium* self)
-{
-	memset(self->storage_queue->msg_queue, 0, STORAGE_QUEUE_SIZE);
-	self->storage_queue->num_msgs_enqueued = 0;
-}
-
-/**
- * Static helper message to send message from the queue.
- *
- * @param self- Iridium struct
- * @return iridium_error_code_t
- */
-static iridium_error_code_t send_msg_from_queue(Iridium* self)
-{
-	iridium_error_code_t return_code;
-	uint8_t* payload_index = 0;
-	return_code = self->queue_get(self, payload_index);
-	if (return_code == IRIDIUM_STORAGE_QUEUE_EMPTY) {
-		return return_code;
-	}
-	// try transmitting the message
-	return_code = transmit_message(self, self->storage_queue->msg_queue[*payload_index].payload);
-	// If the message successfully transmitted, mark it as invalid
-	if (return_code == IRIDIUM_SUCCESS) {
-		self->storage_queue->msg_queue[*payload_index].valid = false;
-	}
 	return return_code;
 }
 
@@ -486,7 +510,7 @@ static iridium_error_code_t send_msg_from_queue(Iridium* self)
  * @param payload - pointer to a SBD message payload
  * @return iridium_error_code_t - Either IRIDIUM_UART_ERROR or IRIDIUM_SUCCESS
  */
-static iridium_error_code_t transmit_message(Iridium* self, uint8_t* payload)
+static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* payload)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	char* needle;
