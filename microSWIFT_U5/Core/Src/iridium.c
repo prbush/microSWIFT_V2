@@ -687,6 +687,26 @@ static uint8_t get_signal_strength(Iridium* self)
 	char* token;
 	char delimeter[2] = ":";
 
+	static const char* signal_strength = "AT+CSQ\r";
+
+	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
+		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(signal_strength[0]),
+				strlen(signal_strength), ONE_SECOND);
+
+		HAL_UART_Receive(self->iridium_uart_handle,
+				&(self->response_buffer[0]), SBDWB_READY_RESPONSE_SIZE, ONE_SECOND);
+
+		needle = strstr((char*)&(self->response_buffer[0]), "READY");
+		// Success case
+		if (needle != NULL) {
+			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+			break;
+		}
+
+		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+	}
+
 	// Request signal strength from the modem
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(signal_strength[0]),
