@@ -23,3 +23,15 @@ void MX_ThreadX_Init(device_handles_t *handles)
 
 tx_user.h
 #define TX_TIMER_TICKS_PER_SECOND                5 <or whatever>
+
+!!!!!!!!!!!!!!!!!!!!!!
+Lengthy list of TODOs:
+	* Go through all files and satisfy any remaining TODOs
+	* Ensure no issues moving CT sampling to after GNSS complete
+	* Full length test!!!
+	* Figure out one-shot self-test and per-window self-test
+		- Include some blinky lights
+	* Figure out sleep between windows
+	* Figure out configuration header file and associated config struct
+	* Figure out error message (Type 99) reporting
+	* 

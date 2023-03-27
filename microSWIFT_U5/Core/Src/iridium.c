@@ -50,6 +50,7 @@ void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 	self->config = iridium_config;
 	self->self_test = iridium_self_test;
 	self->transmit_message = iridium_transmit_message;
+	self->transmit_error_message = iridium_transmit_error_message;
 	self->get_location = iridium_get_location;
 	self->on_off = iridium_on_off;
 	self->store_in_flash = iridium_store_in_flash;
@@ -242,7 +243,7 @@ iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rat
  *
  * @return iridium_error_code_t
  */
-iridium_error_code_t iridium_reset_timer(Iridium* self)
+iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minutes)
 {
 	if (HAL_TIM_Base_DeInit(self->timer) != HAL_OK) {
 		return IRIDIUM_TIMER_ERROR;
@@ -253,7 +254,7 @@ iridium_error_code_t iridium_reset_timer(Iridium* self)
 	self->timer->Init.CounterMode = TIM_COUNTERMODE_UP;
 	self->timer->Init.Period = 59999;
 	self->timer->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	self->timer->Init.RepetitionCounter = IRIDIUM_MAX_TRANSMIT_PERIOD;
+	self->timer->Init.RepetitionCounter = timeout_in_minutes;
 	self->timer->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 	if (HAL_TIM_Base_Init(self->timer) != HAL_OK) {
 		return IRIDIUM_TIMER_ERROR;
@@ -443,33 +444,16 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		return IRIDIUM_UART_ERROR;
 	}
 
-	//////////
-	// testing
-	for (int i = 0; i < MAX_SRAM4_MESSAGES; i++) {
-		self->queue_add(self, self->message_buffer);
-	}
-
-	self->queue_add(self, self->message_buffer);
-
-	uint8_t index;
-	for (int i = 0; i < MAX_SRAM4_MESSAGES; i++) {
-		self->queue_get(self, &index);
-		self->storage_queue->msg_queue[index].valid = false;
-		self->storage_queue->num_msgs_enqueued--;
-	}
-	self->queue_get(self, &index);
-	////////////
-
-
-	// reset the timer and clear the flag
-	self->reset_timer(self);
+	// reset the timer and clear the interrupt flag
+	self->reset_timer(self, IRIDIUM_MAX_TRANSMIT_PERIOD);
+	self->timer_timeout = false;
 	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated
 	while (!self->timer_timeout && !message_tx_success) {
 		return_code = internal_transmit_message(self, self->message_buffer);
-		message_tx_success = return_code == IRIDIUM_SUCCESS ? true : false;
+		message_tx_success = return_code == IRIDIUM_SUCCESS;
 	}
 
 	// Message failed to send. If there is space in the queue, store it,
@@ -479,7 +463,6 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 			// reset the timer and clear the flag for the next time
 			HAL_TIM_Base_Stop_IT(self->timer);
 			self->timer_timeout = false;
-			self->reset_timer(self);
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
 			return self->queue_add(self, self->message_buffer);
@@ -497,7 +480,6 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	// reset the timer and clear the flag for the next time
 	HAL_TIM_Base_Stop_IT(self->timer);
 	self->timer_timeout = false;
-	self->reset_timer(self);
 	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 	return return_code;
 }
@@ -617,6 +599,52 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 
 	if (fail_counter == MAX_RETRIES && return_code != IRIDIUM_UNKNOWN_ERROR) {
 		return_code = IRIDIUM_TRANSMIT_ERROR;
+	}
+
+	return return_code;
+}
+
+/**
+ * Helper method to get the current signal strength.
+ *
+ * @param self - Iridium struct
+ * @param error_message - null terminated error message of 320 bytes or less. Note that this
+ * 						  string is mutable to handle the case of terminating a too-long string
+ * @return IRIDIUM_SUCCESS to indicate message was sent
+ * 		   IRIDIUM_TRANSMIT_ERROR if it didn't send
+ * 		   IRIDIUM_UART_ERROR if something went wrong trying to talk to the modem
+ */
+iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_message)
+{
+	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
+	uint32_t str_length = strlen(error_message);
+	bool message_tx_success = false;
+
+	// If the error message is too long, we'll just cut it off
+	if (str_length > ERROR_MESSAGE_MAX_LENGTH - 1) {
+		error_message[ERROR_MESSAGE_MAX_LENGTH - 1] = 0;
+	}
+
+	// reset the timer and clear the interrupt flag
+	self->reset_timer(self, IRIDIUM_MAX_TRANSMIT_PERIOD);
+	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+	// Start the timer in interrupt mode
+	HAL_TIM_Base_Start_IT(self->timer);
+	// Send the message that was just generated
+	while (!self->timer_timeout && !message_tx_success) {
+		return_code = internal_transmit_message(self, self->message_buffer);
+		message_tx_success = return_code == IRIDIUM_SUCCESS;
+	}
+
+	// Message failed to send.
+	if (self->timer_timeout && !message_tx_success) {
+
+			// reset the timer and clear the flag for the next time
+			HAL_TIM_Base_Stop_IT(self->timer);
+			self->timer_timeout = false;
+			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+
+			return_code = IRIDIUM_TRANSMIT_ERROR;
 	}
 
 	return return_code;

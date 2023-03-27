@@ -387,11 +387,6 @@ void startup_thread_entry(ULONG thread_input){
 	 * 			  	    warms up the GNSS receiver until it is getting good
 	 * 			  	    reception
 	 */
-	/* WAVES TEST */
-//	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
-//
-//	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-	/* END WAVES TEST */
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
 #ifdef FULL_STARTUP_TEST
@@ -607,7 +602,22 @@ void waves_thread_entry(ULONG thread_input){
   */
 void iridium_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, IRIDIUM_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	ULONG required_flags = GNSS_DONE | CT_DONE | WAVES_DONE | IRIDIUM_READY;
+	ULONG error_flags = GNSS_ERROR | CT_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR
+			| DMA_ERROR | UART_ERROR;
+
+#ifdef IMU_ENABLED
+	required_flags |= IMU_DONE;
+	error_flags |= IMU_ERROR;
+#endif
+
+	tx_event_flags_get(&thread_flags, required_flags, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+
+	// The event flags contain an error message, figure it out
+	if (actual_flags & error_flags) {
+		// TODO: figure out how to send an error message, make sure to store some flag in
+		//   	 flash so it only sends once
+	}
 
 	uint8_t test[327] = {0x37,0x34,0x06,0x47,0x01,0xBB,0x40,0x4D,0x44,0x63,0x50,0x07,0x2D,0x7B,0x39,0x38,
 			0x41,0x53,0x43,0x56,0x43,0xEC,0x44,0xDA,0x44,0x44,0x41,0xD1,0x40,0x2E,0x40,0xC6,
