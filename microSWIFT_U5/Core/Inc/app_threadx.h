@@ -45,8 +45,9 @@
 #include "log.h"
 #include "math.h"
 #include "mem_replacements.h"
+#include "configuration.h"
 
- // NEDWaves test
+// Waves files
 #include "NEDwaves_memlight.h"
 #include "NEDwaves_memlight_emxAPI.h"
 #include "NEDwaves_memlight_terminate.h"

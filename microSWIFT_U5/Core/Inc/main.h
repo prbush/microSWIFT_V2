@@ -33,6 +33,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 //#include "stm32u5xx_nucleo.h"
+#include "configuration.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

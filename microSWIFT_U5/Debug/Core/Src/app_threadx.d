@@ -44,6 +44,7 @@ Core/Src/app_threadx.o: ../Core/Src/app_threadx.c \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_usb.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pcd_ex.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_exti.h \
+ ../Core/Inc/configuration.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h \
  ../Core/Inc/gnss.h ../Core/Inc/app_threadx.h \
  ../Core/Inc/u_ubx_protocol.h ../Core/Inc/u_error_common.h \
@@ -100,6 +101,7 @@ Core/Src/app_threadx.o: ../Core/Src/app_threadx.c \
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_usb.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_pcd_ex.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_hal_exti.h:
+../Core/Inc/configuration.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h:
 ../Core/Inc/gnss.h:
 ../Core/Inc/app_threadx.h:

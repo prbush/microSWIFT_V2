@@ -485,12 +485,17 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 }
 
 /**
- * Helper method to transmit a message via Iridium modem. Remember, ASCII chars
- * are actually ints.
+ ********************************************************************************************
+ * TODO: When we get to the point of implimenting two-way comms, this will need significant
+ *       overhaul
+ ********************************************************************************************
+ * Helper method to transmit a message via Iridium modem.
  *
- *
+ * @param self - pointer to Iridium struct
  * @param payload - pointer to a SBD message payload
- * @return iridium_error_code_t - Either IRIDIUM_UART_ERROR or IRIDIUM_SUCCESS
+ * @return IRIDIUM_SUCCESS to indicate message was sent
+ * 		   IRIDIUM_TRANSMIT_ERROR if it didn't send
+ * 		   IRIDIUM_UART_ERROR if something went wrong trying to talk to the modem
  */
 static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* payload)
 {
@@ -506,6 +511,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 	// get the checksum
 	get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 
+	// Tell the modem we want to send a message
 	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(load_sbd[0]),
 				strlen(load_sbd), ONE_SECOND);
@@ -526,6 +532,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 
 	if (fail_counter == MAX_RETRIES) { return IRIDIUM_UART_ERROR;}
 
+	// Send over the payload + checksum
 	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(payload[0]),
 				IRIDIUM_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH, ONE_SECOND);
@@ -551,8 +558,8 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 
 	if (fail_counter == MAX_RETRIES) { return IRIDIUM_UART_ERROR;}
 
+	// Tell the modem to send the message
 	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
-		// TODO: add location at the end of the message
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
 				strlen(send_sbd), ONE_SECOND);
 		// We will only grab the response up to and including MO status

@@ -45,7 +45,7 @@ AZURE_RTOS/App/app_azure_rtos.o: ../AZURE_RTOS/App/app_azure_rtos.c \
  ../AZURE_RTOS/App/app_azure_rtos_config.h ../Core/Inc/app_threadx.h \
  ../Middlewares/ST/threadx/common/inc/tx_api.h \
  ../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc/tx_port.h \
- ../Core/Inc/tx_user.h ../Core/Inc/main.h \
+ ../Core/Inc/tx_user.h ../Core/Inc/main.h ../Core/Inc/configuration.h \
  ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h \
  ../Core/Inc/gnss.h ../Core/Inc/app_threadx.h \
  ../Core/Inc/u_ubx_protocol.h ../Core/Inc/u_error_common.h \
@@ -104,6 +104,7 @@ AZURE_RTOS/App/app_azure_rtos.o: ../AZURE_RTOS/App/app_azure_rtos.c \
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc/tx_port.h:
 ../Core/Inc/tx_user.h:
 ../Core/Inc/main.h:
+../Core/Inc/configuration.h:
 ../Drivers/STM32U5xx_HAL_Driver/Inc/stm32u5xx_ll_dma.h:
 ../Core/Inc/gnss.h:
 ../Core/Inc/app_threadx.h:

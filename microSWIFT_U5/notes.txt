@@ -28,9 +28,12 @@ tx_user.h
 Lengthy list of TODOs:
 	* Go through all files and satisfy any remaining TODOs
 	* Ensure no issues moving CT sampling to after GNSS complete
+	* Figure out data exchange between GNSS, CT, Iridium
+	* Fill out configuration.h and associated struct
 	* Full length test!!!
+	* Impliment watchdog timer
 	* Figure out one-shot self-test and per-window self-test
-		- Include some blinky lights
+		- Include some blinky lights for one-shot
 	* Figure out sleep between windows
 	* Figure out configuration header file and associated config struct
 	* Figure out error message (Type 99) reporting
