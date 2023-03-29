@@ -1,6 +1,8 @@
 main.c
   MX_ThreadX_Init(&handles);
   
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  
 app_azure_rtos_config.h
 #define TX_APP_MEM_POOL_SIZE                     753248 // max possible 757592
 

@@ -649,6 +649,7 @@ static void set_clock(GNSS* self, uint8_t* msg_payload)
 	uint8_t sec = msg_payload[10];
 
 	// TODO: figure all this out
+	// TODO: make sure to HAL_RTC_SetDate() and HAL_RTC_Set_time()
 	if (tAcc < MAX_ACCEPTABLE_TACC) {
 
 		bool isAM = true;

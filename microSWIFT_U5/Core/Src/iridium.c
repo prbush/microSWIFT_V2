@@ -12,9 +12,11 @@ static void get_checksum(uint8_t* payload, size_t payload_size);
 static iridium_error_code_t send_basic_command_message(Iridium* self,
 		const char* command, uint8_t response_size, uint32_t wait_time);
 static iridium_error_code_t send_msg_from_queue(Iridium* self);
-static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* payload);
+static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* payload,
+		uint16_t payload_size);
 static uint8_t get_signal_strength(Iridium* self);
 static void cycle_power(Iridium* self);
+static float get_timestamp(Iridium* self);
 
 // static variables
 static const char* ack = "AT\r";
@@ -23,7 +25,6 @@ static const char* enable_ring_indications = "AT+SBDMTA=1\r";
 static const char* store_config = "AT&W0\r";
 static const char* select_power_up_profile = "AT&Y0\r";
 static const char* clear_MO = "AT+SBDD0\r";
-static const char* load_sbd = "AT+SBDWB=327\r";
 static const char* send_sbd = "AT+SBDI\r";
 static const char* signal_strength = "AT+CSQ\r";
 
@@ -35,17 +36,18 @@ static const char* signal_strength = "AT+CSQ\r";
 void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 		DMA_HandleTypeDef* iridium_rx_dma_handle, TIM_HandleTypeDef* timer,
 		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
-		uint8_t* message_buffer, uint8_t* response_buffer)
+		RTC_HandleTypeDef* rtc_handle, uint8_t* message_buffer, uint8_t* response_buffer)
 {
 	self->iridium_uart_handle = iridium_uart_handle;
 	self->iridium_rx_dma_handle = iridium_rx_dma_handle;
 	self->iridium_tx_dma_handle = iridium_tx_dma_handle;
 	self->timer = timer;
 	self->event_flags = event_flags;
+	self->rtc_handle = rtc_handle;
 	self->message_buffer = message_buffer;
 	self->response_buffer = response_buffer;
-	self->current_lat = 0;
-	self->current_long = 0;
+	self->current_lat = 0.0;
+	self->current_lon = 0.0;
 	self->timer_timeout = false;
 	self->config = iridium_config;
 	self->self_test = iridium_self_test;
@@ -366,7 +368,9 @@ static iridium_error_code_t send_msg_from_queue(Iridium* self)
 		return return_code;
 	}
 	// try transmitting the message
-	return_code = internal_transmit_message(self, self->storage_queue->msg_queue[*payload_index].payload);
+	return_code = internal_transmit_message(self,
+			self->storage_queue->msg_queue[*payload_index].payload,
+			IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 	// If the message successfully transmitted, mark it as invalid
 	if (return_code == IRIDIUM_SUCCESS) {
 		self->storage_queue->msg_queue[*payload_index].valid = false;
@@ -452,7 +456,8 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated
 	while (!self->timer_timeout && !message_tx_success) {
-		return_code = internal_transmit_message(self, self->message_buffer);
+		return_code = internal_transmit_message(self, self->message_buffer,
+				IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 		message_tx_success = return_code == IRIDIUM_SUCCESS;
 	}
 
@@ -497,10 +502,16 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
  * 		   IRIDIUM_TRANSMIT_ERROR if it didn't send
  * 		   IRIDIUM_UART_ERROR if something went wrong trying to talk to the modem
  */
-static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* payload)
+static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* payload,
+		uint16_t payload_size)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	char* needle;
+	char payload_size_str[4];
+	char load_sbd[15] = "AT+SBDWB=";
+	itoa(payload_size, payload_size_str, 10);
+	strcat(load_sbd, payload_size_str);
+	strcat(load_sbd, "/r");
 	char SBDWB_response_code;
 	int SBDI_response_code;
 	int fail_counter;
@@ -509,7 +520,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 			ONE_SECOND * 30, ONE_SECOND * 60, ONE_SECOND * 180};
 
 	// get the checksum
-	get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+	get_checksum(payload, payload_size);
 
 	// Tell the modem we want to send a message
 	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
@@ -535,7 +546,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 	// Send over the payload + checksum
 	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
 		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(payload[0]),
-				IRIDIUM_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH, ONE_SECOND);
+				payload_size + IRIDIUM_CHECKSUM_LENGTH, ONE_SECOND);
 
 		HAL_UART_Receive(self->iridium_uart_handle,
 				&(self->response_buffer[0]), SBDWB_LOAD_RESPONSE_SIZE, ONE_SECOND);
@@ -549,7 +560,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 
 		// Response of 2 means checksum didn't match, so try calculating it again
 		if (SBDWB_response_code == '2') {
-			get_checksum(payload, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
+			get_checksum(payload, payload_size);
 		}
 
 		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
@@ -624,13 +635,37 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_message)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
-	uint32_t str_length = strlen(error_message);
+	uint32_t error_msg_str_length = strlen(error_message);
+	uint16_t payload_iterator = 0;
+	char error_message_payload[IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE];
+	float timestamp;
 	bool message_tx_success = false;
 
 	// If the error message is too long, we'll just cut it off
-	if (str_length > ERROR_MESSAGE_MAX_LENGTH - 1) {
+	if (error_msg_str_length > ERROR_MESSAGE_MAX_LENGTH - 1) {
 		error_message[ERROR_MESSAGE_MAX_LENGTH - 1] = 0;
 	}
+
+	// Assemble the error message payload, start by clearing the whole thing out
+	memset(error_message_payload, 0, IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE);
+	// First byte is message type (99)
+	error_message_payload[payload_iterator++] = ERROR_MESSAGE_TYPE;
+	for (int i = 0; i < error_msg_str_length; i++) {
+		error_message_payload[payload_iterator++] = error_message[i];
+	}
+	// Set the iterator to the index after the string
+	payload_iterator = ERROR_MESSAGE_MAX_LENGTH;
+	memcpy(&(error_message_payload[payload_iterator]), &self->current_lat,
+			sizeof(self->current_lat));
+	payload_iterator += sizeof(self->current_lat);
+	memcpy(&(error_message_payload[payload_iterator]), &self->current_lon,
+				sizeof(self->current_lon));
+	payload_iterator += sizeof(self->current_lon);
+	timestamp = get_timestamp(self);
+	memcpy(&(error_message_payload[payload_iterator]), &timestamp,
+			sizeof(float));
+
+
 
 	// reset the timer and clear the interrupt flag
 	self->reset_timer(self, IRIDIUM_MAX_TRANSMIT_PERIOD);
@@ -639,7 +674,8 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated
 	while (!self->timer_timeout && !message_tx_success) {
-		return_code = internal_transmit_message(self, self->message_buffer);
+		return_code = internal_transmit_message(self, self->message_buffer,
+				IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE);
 		message_tx_success = return_code == IRIDIUM_SUCCESS;
 	}
 
@@ -675,7 +711,9 @@ static void cycle_power(Iridium* self)
 
 /**
  * Helper method to get the current signal strength.
- *
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ * TODO: THIS FUNCTION IS NOT COMPLETED
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  * @param self - Iridium struct
  * @return value of signal strength (0xFF to indicate error)
  */
@@ -685,6 +723,7 @@ static uint8_t get_signal_strength(Iridium* self)
 	uint8_t fail_counter;
 	uint16_t num_bytes_received;
 	char* token;
+	char* needle;
 	char delimeter[2] = ":";
 
 	static const char* signal_strength = "AT+CSQ\r";
@@ -732,5 +771,36 @@ static uint8_t get_signal_strength(Iridium* self)
 	}
 
 	return return_val;
+}
+
+/**
+ * Helper method to get a timestamp from the RTC.
+ * MAGIC NUMBERS: 31556926 = seconds in a year
+ *                2629743  = seconds in a month
+ *                86400    = seconds in a day
+ *                3600     = seconds in an hour
+ *                60       = seconds in a minute (duh)
+ *
+ * @param self - Iridium struct
+ * @return timestamp as a float
+ */
+static float get_timestamp(Iridium* self)
+{
+	float timestamp = 0.0;
+	RTC_DateTypeDef rtc_date;
+	RTC_TimeTypeDef rtc_time;
+
+	// Ge the date and time
+	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD);
+	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD);
+
+	timestamp += (float)((rtc_date.Year - 1970) * 31556926);
+	timestamp += (float)((rtc_date.Month - 1) * 2629743);
+	timestamp += (float)((rtc_date.Date - 1) * 86400);
+	timestamp += (float)(rtc_time.Hours * 3600);
+	timestamp += (float)(rtc_time.Minutes * 60);
+	timestamp += (float)(rtc_time.Seconds);
+
+	return timestamp;
 }
 

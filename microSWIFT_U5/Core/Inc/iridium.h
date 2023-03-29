@@ -51,6 +51,8 @@ typedef enum {
 #define SBDD_RESPONSE_SIZE 20
 #define SBDIX_WAIT_TIME ONE_SECOND * 13
 #define IRIDIUM_MESSAGE_PAYLOAD_SIZE 327
+#define IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE 333
+#define ERROR_MESSAGE_TYPE 99
 #define IRIDIUM_CHECKSUM_LENGTH 2
 #define IRIDIUM_MAX_RESPONSE_SIZE 128
 #define IRIDIUM_FET_PIN 0
@@ -85,16 +87,17 @@ typedef struct Iridium {
 	TIM_HandleTypeDef* timer;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
+	// Handle to the RTC
+	RTC_HandleTypeDef* rtc_handle;
 	// pointer to the message array
 	uint8_t* message_buffer;
 	// pointer to the response array
 	uint8_t* response_buffer;
-
 	// Unsent message storage queue
 	struct Iridium_message_queue* storage_queue;
 	// current lat/long
-	int32_t current_lat;
-	int32_t current_long;
+	float current_lat;
+	float current_lon;
 
 	iridium_error_code_t (*config)(struct Iridium* self);
 	iridium_error_code_t (*self_test)(struct Iridium* self);
@@ -130,7 +133,7 @@ typedef struct Iridium_message_queue {
 void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 		DMA_HandleTypeDef* iridium_rx_dma_handle, TIM_HandleTypeDef* timer,
 		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
-		uint8_t* message_buffer, uint8_t* response_buffer);
+		RTC_HandleTypeDef* rtc_handle, uint8_t* message_buffer, uint8_t* response_buffer);
 iridium_error_code_t iridium_config(Iridium* self);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);

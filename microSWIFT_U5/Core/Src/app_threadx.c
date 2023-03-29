@@ -455,7 +455,9 @@ void startup_thread_entry(ULONG thread_input){
 	iridium_init(iridium, device_handles->Iridium_uart,
 			device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
 			device_handles->Iridium_tx_dma_handle, &thread_flags,
-			(uint8_t*)iridium_message, (uint8_t*)iridium_response_message);
+			device_handles->hrtc,(uint8_t*)iridium_message,
+			(uint8_t*)iridium_response_message);
+
 	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
 		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
 		// TODO: do something here
@@ -466,6 +468,19 @@ void startup_thread_entry(ULONG thread_input){
 		// TODO: do something here
 	}
 
+	// testing
+	RTC_DateTypeDef rtc_date;
+	rtc_date.Date = 29;
+	rtc_date.Month = RTC_MONTH_MARCH;
+	rtc_date.Year = 23;
+	rtc_date.WeekDay = RTC_WEEKDAY_WEDNESDAY;
+	HAL_RTC_SetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BCD);
+	RTC_TimeTypeDef rtc_time;
+	rtc_time.Hours = 8;
+	rtc_time.Minutes = 0;
+	rtc_time.Seconds = 0;
+	rtc_time.SecondFraction = 0;
+	HAL_RTC_SetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BCD);
 	tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
