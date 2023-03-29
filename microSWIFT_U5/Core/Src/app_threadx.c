@@ -95,8 +95,9 @@ char queue_message_2[UBX_BUFFER_SIZE];
 char queue_message_3[UBX_BUFFER_SIZE];
 
 CHAR* ct_data;
-CHAR* iridium_message;
-CHAR* iridium_response_message;
+uint8_t* iridium_message;
+uint8_t* iridium_response_message;
+uint8_t* iridium_error_message;
 GNSS* gnss;
 CT* ct;
 Iridium* iridium;
@@ -316,6 +317,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
+	// The Iridium error message payload array
+	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_error_message, IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH,
+				TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
 	// The Iridium response message array
 	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_response_message, IRIDIUM_MAX_RESPONSE_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
@@ -456,6 +463,7 @@ void startup_thread_entry(ULONG thread_input){
 			device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
 			device_handles->Iridium_tx_dma_handle, &thread_flags,
 			device_handles->hrtc,(uint8_t*)iridium_message,
+			(uint8_t*)iridium_error_message,
 			(uint8_t*)iridium_response_message);
 
 	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
@@ -657,9 +665,18 @@ void iridium_thread_entry(ULONG thread_input){
 			0x12,0x13,0x0E,0x07,0x0D,0xF6,0x0B,0xDB,0x41,0xA5,0x11,0xAA,0xC2,0x00,0x00,0x00,
 			0x00,0x00,0x00,0x1D,0x64,0xC6,0x4E};
 
+
+	// !!!!!!!!!!!!!!!!!!!
+	// testing
+	iridium->current_lat = 47.655357637587834;
+	iridium->current_lon = -122.32135545762652;
+	iridium->transmit_error_message(iridium, "Conductivity sensor UART error. Unable to obtain conductivity or temperature measurements.");
+
 	memcpy(iridium->message_buffer, test, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 	iridium->transmit_message(iridium);
 	tx_thread_suspend(&startup_thread);
+
+
 }
 
 /**

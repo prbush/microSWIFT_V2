@@ -54,7 +54,7 @@ typedef enum {
 #define IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE 333
 #define ERROR_MESSAGE_TYPE 99
 #define IRIDIUM_CHECKSUM_LENGTH 2
-#define IRIDIUM_MAX_RESPONSE_SIZE 128
+#define IRIDIUM_MAX_RESPONSE_SIZE 64
 #define IRIDIUM_FET_PIN 0
 #define IRIDIUM_NETAV_PIN 0
 #define IRIDIUM_RI_PIN 0
@@ -66,7 +66,7 @@ typedef enum {
 #define ASCII_ZERO 48
 #define ASCII_FIVE 53
 // TODO: figure out a good value for this
-#define IRIDIUM_CAP_CHARGE_TIME 25000
+#define IRIDIUM_CAP_CHARGE_TIME 25 //25000
 // number of mins to try to get a message off, starts at 0, so to get 10, you actually use 9
 #define IRIDIUM_MAX_TRANSMIT_PERIOD 6 - 1
 #define MAX_SRAM4_MESSAGES 16384 / (IRIDIUM_MESSAGE_PAYLOAD_SIZE + 1)
@@ -77,6 +77,13 @@ typedef enum {
 #define IRIDIUM_UART_INSTANCE UART5
 #define IRIDIUM_LL_TX_DMA_HANDLE LL_DMA_CHANNEL_2
 #define IRIDIUM_LL_RX_DMA_HANDLE LL_DMA_CHANNEL_3
+#define SECONDS_IN_MIN 60
+#define SECONDS_IN_HOUR 3600
+#define SECONDS_IN_DAY 86400
+#define SECONDS_IN_YEAR 31536000 // 365 day year, not accounting for 1/4 leap days
+#define SECONDS_1970_TO_2000 946713600
+#define EPOCH_YEAR 1970
+#define CURRENT_CENTURY 2000
 
 typedef struct Iridium {
 	// The UART and DMA handle for the Iridium interface
@@ -91,6 +98,8 @@ typedef struct Iridium {
 	RTC_HandleTypeDef* rtc_handle;
 	// pointer to the message array
 	uint8_t* message_buffer;
+	// Pointer to the error message payload buffer
+	uint8_t* error_message_buffer;
 	// pointer to the response array
 	uint8_t* response_buffer;
 	// Unsent message storage queue
@@ -133,7 +142,8 @@ typedef struct Iridium_message_queue {
 void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 		DMA_HandleTypeDef* iridium_rx_dma_handle, TIM_HandleTypeDef* timer,
 		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
-		RTC_HandleTypeDef* rtc_handle, uint8_t* message_buffer, uint8_t* response_buffer);
+		RTC_HandleTypeDef* rtc_handle, uint8_t* message_buffer,
+		uint8_t* error_message_buffer, uint8_t* response_buffer);
 iridium_error_code_t iridium_config(Iridium* self);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
