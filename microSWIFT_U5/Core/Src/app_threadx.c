@@ -400,7 +400,8 @@ void startup_thread_entry(ULONG thread_input){
 	// Initialize GNSS struct
 	gnss_init(gnss, device_handles->GNSS_uart, device_handles->GNSS_dma_handle, &thread_flags, &ubx_queue,
 			GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
-
+	// turn on the GNSS FET
+	gnss->on_off(gnss, true);
 	// Send the configuration commands to the GNSS unit.
 	if (gnss->config(gnss) != GNSS_SUCCESS) {
 		// TODO: cycle power to the board, do some stuff
@@ -438,11 +439,10 @@ void startup_thread_entry(ULONG thread_input){
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
-
-	// TODO: insert a 20 second delay somewhere to warm up the sensor
 	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle,
 			device_handles->millis_timer, &thread_flags, ct_data);
-
+	// Turn on the CT FET
+	ct->on_off(ct, true);
 	// Wait until we get valid data across from CT sensor
 	fail_counter = 0;
 	if (ct->self_test(ct) != CT_SUCCESS) {
@@ -465,12 +465,15 @@ void startup_thread_entry(ULONG thread_input){
 			device_handles->hrtc,(uint8_t*)iridium_message,
 			(uint8_t*)iridium_error_message,
 			(uint8_t*)iridium_response_message);
-
+	// Turn on the Iridium FET and set the sleep pin to off
+	iridium->on_off(iridium, true);
+	iridium->sleep(iridium, false);
+	// See if we can get an ack message from the modem
 	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
 		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
 		// TODO: do something here
 	}
-
+	// Send the configuration settings to the modem
 	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
 		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
 		// TODO: do something here
@@ -640,6 +643,7 @@ void iridium_thread_entry(ULONG thread_input){
 	if (actual_flags & error_flags) {
 		// TODO: figure out how to send an error message, make sure to store some flag in
 		//   	 flash so it only sends once
+		iridium->transmit_error_message(iridium, "Sample error message");
 	}
 
 	uint8_t test[327] =
@@ -670,7 +674,6 @@ void iridium_thread_entry(ULONG thread_input){
 	// testing
 	iridium->current_lat = 47.655357637587834;
 	iridium->current_lon = -122.32135545762652;
-	iridium->transmit_error_message(iridium, "Conductivity sensor UART error. Unable to obtain conductivity or temperature measurements.");
 
 	memcpy(iridium->message_buffer, test, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 	iridium->transmit_message(iridium);

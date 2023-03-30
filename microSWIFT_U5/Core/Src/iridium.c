@@ -55,7 +55,8 @@ void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
 	self->self_test = iridium_self_test;
 	self->transmit_message = iridium_transmit_message;
 	self->transmit_error_message = iridium_transmit_error_message;
-	self->get_location = iridium_get_location;
+	self->set_location = iridium_set_location;
+	self->sleep = iridium_sleep;
 	self->on_off = iridium_on_off;
 	self->store_in_flash = iridium_store_in_flash;
 	self->reset_uart = iridium_reset_iridium_uart;
@@ -133,6 +134,7 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 	uint32_t elapsed_time = 0;
 	// Power the unit by pulling the sleep pin to ground.
 	self->on_off(self, true);
+	self->sleep(self, false);
 	// Start the timer
 	HAL_TIM_Base_Start(self->timer);
 	// Wait an appropriate amount of time for the caps to charge
@@ -160,23 +162,40 @@ iridium_error_code_t iridium_self_test(Iridium* self)
  *
  * @return iridium_error_code_t
  */
-iridium_error_code_t iridium_get_location(Iridium* self)
+void iridium_set_location(Iridium* self, float latitude, float longitude)
 {
-	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
-
-	return return_code;
+	self->current_lat = latitude;
+	self->current_lon = longitude;
 }
 
 /**
  * Function to change GPIO pin state for the sleep/ on-off pin.
- * The unit is powered on when the pin is high, off when the pin
- * is pulled to ground.
+ * Note that power is still available at the unit and the capacitors
+ * will remain charged, but there is a current consumption.
+ *
+ * @param self - Iridium struct
+ * @param on - true for on, false for off
+ *
+ * @return void
+ */
+void iridium_sleep(Iridium* self, bool on)
+{
+	HAL_GPIO_WritePin(GPIOD, IRIDIUM_OnOff_Pin, on);
+}
+
+/**
+ * Function to change GPIO pin state for the power FET. Note that
+ * the capacitors will not remain charged when the device is powered
+ * down using this function
+ *
+ * @param self - Iridium struct
+ * @param on - true for on, false for off
  *
  * @return void
  */
 void iridium_on_off(Iridium* self, bool on)
 {
-	HAL_GPIO_WritePin(GPIOD, IRIDIUM_OnOff_Pin, on);
+	HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, on);
 }
 
 /**
@@ -445,7 +464,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 			break;
 		}
 	}
-
+	// If we were unable to get an ack from the modem, return IRIDIUM_UART_ERROR
 	if (fail_counter == MAX_RETRIES) {
 		return IRIDIUM_UART_ERROR;
 	}
@@ -709,9 +728,9 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
  */
 static void cycle_power(Iridium* self)
 {
-	self->on_off(self, false);
+	self->sleep(self, false);
 	HAL_Delay(2100);
-	self->on_off(self, true);
+	self->sleep(self, true);
 	HAL_Delay(2100);
 }
 
@@ -780,21 +799,21 @@ static uint8_t get_signal_strength(Iridium* self)
 }
 
 /**
- * Helper method to get a timestamp from the RTC.
+ * Helper method to generate a timestamp from the RTC.
  *
  * @param self - Iridium struct
  * @return timestamp as a float
  */
 static float get_timestamp(Iridium* self)
 {
-	uint32_t timestamp = 0.0;
+	uint32_t timestamp = 0;
 	bool is_leap_year = false;
-	uint8_t num_leaps_years_since_2000 = 0;
+	uint8_t num_leap_years_since_2000 = 0;
 	uint16_t julian_date_first_of_month = 0;
 	RTC_DateTypeDef rtc_date;
 	RTC_TimeTypeDef rtc_time;
 
-	// Ge the date and time
+	// Get the date and time
 	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD);
 	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD);
 
@@ -802,8 +821,8 @@ static float get_timestamp(Iridium* self)
 	// Years first
 	timestamp += SECONDS_1970_TO_2000;
 	timestamp += rtc_date.Year * SECONDS_IN_YEAR;
-	num_leaps_years_since_2000 = rtc_date.Year / 4;
-	timestamp += num_leaps_years_since_2000 * SECONDS_IN_DAY;
+	num_leap_years_since_2000 = rtc_date.Year / 4;
+	timestamp += num_leap_years_since_2000 * SECONDS_IN_DAY;
 
 	// Years are only represented with 2 digits. We'll set 0 as the year 2000, so anything
 	// evenly divisible by 4 is a leap year (2000, 2004, 2008, etc)

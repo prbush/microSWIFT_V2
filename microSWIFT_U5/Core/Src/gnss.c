@@ -20,7 +20,7 @@
 static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		size_t message_size);
 static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop);
-static void process_messages(GNSS* self, uint8_t* process_buf);
+static void internal_process_messages(GNSS* self, uint8_t* process_buf);
 static void process_self_test_messages(GNSS* self, uint8_t* process_buf);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes);
@@ -198,7 +198,7 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 	    tx_queue_receive(self->message_queue, (VOID*)msg_ptr, TX_WAIT_FOREVER);
 
 	    // Process the contents
-		process_messages(self, message);
+	    internal_process_messages(self, message);
 		// Make sure we didn't have too many errors processing the messages
 		// TODO: figure out how useful this is
 		if (self->messages_processed < 8 ||
@@ -278,12 +278,31 @@ gnss_error_code_t gnss_get_running_average_velocities(GNSS* self)
 
 
 /**
- *
+ * Send the sleep command to the GNSS unit. This does not remove power, but
+ * puts the device in low-power mode.
  *
  * @param self - GNSS struct
+ * @param put_to_sleep - true to command sleep, false to wake up
+ *
+ * @return GNSS_CONFIG_ERROR - command failed
+ * 		   GNSS_SUCCESS - command succeeded
  */
-gnss_error_code_t gnss_sleep(GNSS* self)
+gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep)
 {
+	return stop_start_gnss(self, put_to_sleep);
+}
+
+/**
+ * Switch the FET controlling power to the GNSS unit.
+ *
+ * @param self - GNSS struct
+ * @param on - true for tuen on, false for turn off
+ *
+ * @return void
+ */
+void gnss_on_off(GNSS* self, bool on)
+{
+	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, on);
 }
 
 /**
@@ -452,7 +471,7 @@ static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
  * @param self- GNSS struct
  * @param
  */
-static void process_messages(GNSS* self, uint8_t* process_buf)
+static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 {
 	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
 	const char* buf_start = (const char*)&(process_buf[0]);

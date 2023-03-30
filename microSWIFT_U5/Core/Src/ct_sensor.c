@@ -30,7 +30,7 @@ void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct
 	self->data_buf = data_buf;
 	self->parse_sample = ct_parse_sample;
 	self->get_averages = ct_get_averages;
-	self->shutdown = ct_shutdown;
+	self->on_off = ct_on_off;
 	self->self_test = ct_self_test;
 	self->reset_ct_uart = reset_ct_uart;
 	// zero out the buffer
@@ -128,9 +128,9 @@ ct_error_code_t ct_get_averages(CT* self)
  *
  * @return ct_error_code_t
  */
-ct_error_code_t ct_shutdown(CT* self)
+void ct_on_off(CT* self, bool on)
 {
-
+	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, on);
 }
 
 /**

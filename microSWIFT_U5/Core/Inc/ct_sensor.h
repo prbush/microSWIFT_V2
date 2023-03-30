@@ -52,10 +52,10 @@ typedef struct CT{
 	// Keep track of the number of samples
 	uint32_t total_samples;
 	// Function pointers
-	ct_error_code_t (*parse_sample) (struct CT* self);
-	ct_error_code_t (*get_averages) (struct CT* self);
-	ct_error_code_t (*shutdown) (struct CT* self);
-	ct_error_code_t (*self_test) (struct CT* self);
+	ct_error_code_t (*parse_sample)  (struct CT* self);
+	ct_error_code_t (*get_averages)  (struct CT* self);
+	void		    (*on_off) 		 (struct CT* self, bool on);
+	ct_error_code_t (*self_test) 	 (struct CT* self);
 	ct_error_code_t (*reset_ct_uart) (struct CT* self, uint16_t baud_rate);
 } CT;
 
@@ -63,7 +63,7 @@ void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct
 		TIM_HandleTypeDef* millis_timer, TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf);
 ct_error_code_t ct_parse_sample(CT* self);
 ct_error_code_t ct_get_averages(CT* self);
-ct_error_code_t ct_shutdown(CT* self);
+void            ct_on_off(CT* self, bool on);
 ct_error_code_t ct_self_test(CT* self);
 ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate);
 
