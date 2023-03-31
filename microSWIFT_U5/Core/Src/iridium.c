@@ -33,12 +33,13 @@ static const char* signal_strength = "AT+CSQ\r";
  *
  * @return void
  */
-void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
-		DMA_HandleTypeDef* iridium_rx_dma_handle, TIM_HandleTypeDef* timer,
-		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
-		RTC_HandleTypeDef* rtc_handle, uint8_t* message_buffer,
-		uint8_t* error_message_buffer, uint8_t* response_buffer)
+void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
+		UART_HandleTypeDef* iridium_uart_handle, DMA_HandleTypeDef* iridium_rx_dma_handle,
+		TIM_HandleTypeDef* timer, DMA_HandleTypeDef* iridium_tx_dma_handle,
+		TX_EVENT_FLAGS_GROUP* event_flags, RTC_HandleTypeDef* rtc_handle,
+		uint8_t* message_buffer, uint8_t* error_message_buffer, uint8_t* response_buffer)
 {
+	self->global_config = global_config;
 	self->iridium_uart_handle = iridium_uart_handle;
 	self->iridium_rx_dma_handle = iridium_rx_dma_handle;
 	self->iridium_tx_dma_handle = iridium_tx_dma_handle;

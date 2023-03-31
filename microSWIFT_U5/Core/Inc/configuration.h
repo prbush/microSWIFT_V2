@@ -10,23 +10,25 @@
 
 #include "stdbool.h"
 
+// Time in minutes representing a sample period. Any time left after sampling
+// and transmission will be spent in sleep mode
+#define DUTY_CYCLE 60
 // Number of samples in each sampling window
 #define TOTAL_SAMPLES_PER_WINDOW 8192
-// Time in seconds between each sampling window
-#define TOTAL_TIME_BETWEEN_WINDOWS 1800
 // Sampling rate in Hz for the GNSS sensor
 #define GNSS_SAMPLING_RATE 5
+// The max time to try to get an Iridium message off in seconds
+#define IRIDIUM_MAX_TRANSMIT_TIME 600
 // If the IMU will be utilized or not
 #define IMU_ENABLED false
-// Time delay between power-on self-test and start of operation
-#define START_OF_OPERATION_DELAY 0
+// If there is a CT sensor present
+#define CT_ENABLED true
 
 typedef struct microSWIFT_configuration {
-	uint32_t total_samples_per_window;
-	uint32_t total_time_between_windows;
-	uint32_t start_of_operation_delay;
-	uint8_t  gnss_sampling_rate;
-	bool imu_enabled;
+	uint32_t duty_cycle;
+	uint32_t samples_per_window;
+	uint32_t iridium_max_transmit_time;
+	uint32_t gnss_sampling_rate;
 } microSWIFT_configuration;
 
 

@@ -42,11 +42,11 @@ typedef enum {
 	GNSS_UART_ERROR = -8,
 	GNSS_CONFIG_ERROR = -9,
 	GNSS_SELF_TEST_FAILED = -10,
-	GNSS_MESSAGE_PROCESS_ERROR = -11
+	GNSS_MESSAGE_PROCESS_ERROR = -11,
+	GNSS_RTC_ERROR = -12
 } gnss_error_code_t;
 
 // Macros
-// TODO: define GPIO pins
 #define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
@@ -61,11 +61,29 @@ typedef enum {
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
+#define GNSS_DEFAULT_BAUD_RATE 9600
+#define MAX_THREADX_WAIT_TICKS_FOR_CONFIG 6
+
+// UBX message definitions
+#define FULLY_RESOLVED_AND_VALID_TIME_MASK 0x9
+#define UBX_NAV_PVT_YEAR_INDEX 4
+#define UBX_NAV_PVT_MONTH_INDEX 6
+#define UBX_NAV_PVT_DAY_INDEX 7
+#define UBX_NAV_PVT_HOUR_INDEX 8
+#define UBX_NAV_PVT_MINUTE_INDEX 9
+#define UBX_NAV_PVT_SECONDS_INDEX 10
+#define UBX_NAV_PVT_VALID_FLAGS_INDEX 11
+#define UBX_NAV_PVT_TACC_INDEX 12
+
 
 typedef struct GNSS {
+	// Our global configuration struct
+	microSWIFT_configuration* global_config;
 	// The UART and DMA handle for the GNSS interface
 	UART_HandleTypeDef* gnss_uart_handle;
 	DMA_HandleTypeDef* gnss_dma_handle;
+	// Handle to the RTC
+	RTC_HandleTypeDef* rtc_handle;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
 	// UBX message queue filled from DMA ISR
@@ -103,13 +121,15 @@ typedef struct GNSS {
 	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self, bool put_to_sleep);
 	void			  (*on_off)(struct GNSS* self, bool on);
+	gnss_error_code_t (*set_rtc)(struct GNSS* self, uint8_t* msg_payload);
 	gnss_error_code_t (*reset_gnss_uart)(struct GNSS* self, uint16_t baud_rate);
 } GNSS;
 
 /* Function declarations */
-void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
-		DMA_HandleTypeDef* gnss_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags,
-		TX_QUEUE* message_queue, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
+void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
+		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
+		TX_EVENT_FLAGS_GROUP* event_flags, TX_QUEUE* message_queue,
+		RTC_HandleTypeDef* rtc_handle, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
 		int16_t* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
 gnss_error_code_t gnss_self_test(GNSS* self);
@@ -118,6 +138,7 @@ gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
 gnss_error_code_t gnss_process_message(GNSS* self);
 gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);
 void			  gnss_on_off(GNSS* self, bool on);
+gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload);
 gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate);
 
 

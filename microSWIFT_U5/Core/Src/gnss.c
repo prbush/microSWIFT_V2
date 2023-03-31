@@ -4,19 +4,20 @@
  *  Created on: Oct 28, 2022
  *      Author: Phil
  *
- *`TODO: Make the arrays!!
- *`TODO: Add values to the arrays in processMessage
- *`TODO: Figure out set rtc and turn it into a function
- *`TODO: figure out signaling for CT sensor
- *`TODO: Power pin toggling in init
- *`TODO: Create teardown function
+ *`TODO: Figure out how to set the RTC
+ *`TODO: Update to pull from global_config
+ *`TODO: Change arrays to be the same used by waves
+ *`TODO: Update gnss_get_running_average_velocities for the no-samples case
+ *`TODO: Update velocity rejection criteria
+ *`TODO: test that setting the RTC in self-test works
+ *`TODO: hunt down the other TODOs
  */
 
 
 
 #include "gnss.h"
 
-// Some helper functions
+// Static helper functions
 static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		size_t message_size);
 static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop);
@@ -24,23 +25,23 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf);
 static void process_self_test_messages(GNSS* self, uint8_t* process_buf);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes);
-static void set_clock(GNSS* self, uint8_t* msg_payload);
 
 /**
  * Initialize the GNSS struct
  *
  * @return void
  */
-void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
-		DMA_HandleTypeDef* gnss_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags,
-		TX_QUEUE* message_queue, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
+void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
+		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
+		TX_EVENT_FLAGS_GROUP* event_flags, TX_QUEUE* message_queue,
+		RTC_HandleTypeDef* rtc_handle, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
 		int16_t* GNSS_D_Array)
 {
-	/* TODO:Turn on power pin?
-	 */
-	// initialize everything to 0/false
+	// initialize everything
+	self->global_config = global_config;
 	self->gnss_uart_handle = gnss_uart_handle;
 	self->gnss_dma_handle = gnss_dma_handle;
+	self->rtc_handle = rtc_handle;
 	self->GNSS_N_Array = GNSS_N_Array;
 	self->GNSS_E_Array = GNSS_E_Array;
 	self->GNSS_D_Array = GNSS_D_Array;
@@ -65,18 +66,22 @@ void gnss_init(GNSS* self, UART_HandleTypeDef* gnss_uart_handle,
 	self->get_running_average_velocities = gnss_get_running_average_velocities;
 	self->gnss_process_message = gnss_process_message;
 	self->sleep = gnss_sleep;
+	self->on_off = gnss_on_off;
+	self->set_rtc = gnss_set_rtc;
 	self->reset_gnss_uart = reset_gnss_uart;
 }
 
 /**
  * Configure the MAX-M10S chip by sending a series of UBX_CFG_VALSET messages
  *
- * @return gnss_error_code_t
+ * @return GNSS_SUCCESS or
+ * 		   GNSS_CONFIG_ERROR if response was not received
  */
 gnss_error_code_t gnss_config(GNSS* self){
 	int fail_counter = 0;
 	gnss_error_code_t return_code = GNSS_CONFIG_ERROR;
 	// The configuration message, type UBX_CFG_VALSET
+	// !!!! This is output from U-Center 2 software, do not change !!!
 	uint8_t config[144] =
 	{0xB5,0x62,0x06,0x8A,0x88,0x00,0x01,0x01,0x00,0x00,0xBA,0x00,0x91,0x20,0x00,
 	 0xBE,0x00,0x91,0x20,0x00,0xBB,0x00,0x91,0x20,0x00,0xC9,0x00,0x91,0x20,0x00,
@@ -104,12 +109,12 @@ gnss_error_code_t gnss_config(GNSS* self){
 		// Send over the BBR config settings
 		if (send_config(self, &(config[0]), sizeof(config)) == GNSS_SUCCESS) {
 			return_code = GNSS_SUCCESS;
-			reset_gnss_uart(self, 9600);
+			reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 			break;
 		}
 
 		HAL_Delay(100);
-		reset_gnss_uart(self, 9600);
+		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 	}
 
 	return return_code;
@@ -132,14 +137,14 @@ gnss_error_code_t gnss_self_test(GNSS* self)
     // We'll try for a little over 2 mins to get good data before failing out
 	while (fail_counter++ < 120) {
 		// Grab 5 UBX_NAV_PVT messages
-		reset_gnss_uart(self, 9600);
+		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
 				sizeof(msg_buf));
 		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
 
 		if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-				&actual_flags, 6) != TX_SUCCESS) {
-			// Insert a prime number delay to sync up reception
+				&actual_flags, MAX_THREADX_WAIT_TICKS_FOR_CONFIG) != TX_SUCCESS) {
+			// Insert a prime number delay to sync up UART reception
 			HAL_Delay(13);
 			continue;
 		}
@@ -153,12 +158,9 @@ gnss_error_code_t gnss_self_test(GNSS* self)
 				self->total_samples == 5)
 		{
 			return_code = GNSS_SUCCESS;
+			self->set_rtc(self, msg_buf);
 			break;
 		}
-	}
-
-	if (return_code == GNSS_SELF_TEST_FAILED){
-		return GNSS_CONFIG_ERROR;
 	}
 
 	// Just to be overly sure we're starting the sampling window from a fresh slate
@@ -353,6 +355,62 @@ gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate)
 }
 
 /**
+ * Set the RTC clock.
+ *
+ * @param GNSS - GNSS struct
+ * @param msg_payload - UBX_NAV_PVT message payload containing
+ *        time information.
+ *
+ * @return GNSS_SUCCESS or
+ * 		   GNSS_RTC_ERROR - if setting RTC returned an error
+ */
+gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
+{
+	gnss_error_code_t return_code = GNSS_SUCCESS;
+	RTC_DateTypeDef rtc_date;
+	RTC_TimeTypeDef rtc_time;
+
+	int32_t tAcc = msg_payload[UBX_NAV_PVT_TACC_INDEX] +
+			(msg_payload[UBX_NAV_PVT_TACC_INDEX + 1]<<8) +
+			(msg_payload[UBX_NAV_PVT_TACC_INDEX + 2]<<16) +
+			(msg_payload[UBX_NAV_PVT_TACC_INDEX + 3]<<24);
+	uint16_t year = msg_payload[UBX_NAV_PVT_YEAR_INDEX] +
+			(msg_payload[UBX_NAV_PVT_YEAR_INDEX + 1]<<8);
+	uint8_t month = msg_payload[UBX_NAV_PVT_MONTH_INDEX];
+	uint8_t day = msg_payload[UBX_NAV_PVT_DAY_INDEX];
+	uint8_t hour = msg_payload[UBX_NAV_PVT_HOUR_INDEX];
+	uint8_t min = msg_payload[UBX_NAV_PVT_MINUTE_INDEX];
+	uint8_t sec = msg_payload[UBX_NAV_PVT_SECONDS_INDEX];
+	uint8_t time_flags = msg_payload[UBX_NAV_PVT_VALID_FLAGS_INDEX];
+
+	// Set the date
+	rtc_date.Date = day;
+	rtc_date.Month = month;
+	rtc_date.Year = year - 2000; // RTC takes a 2 digit year
+	if (HAL_RTC_SetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD) != HAL_OK) {
+		return_code = GNSS_RTC_ERROR;
+		return return_code;
+	}
+	// Set the time
+	rtc_time.Hours = hour;
+	rtc_time.Minutes = min;
+	rtc_time.Seconds = sec;
+	rtc_time.SecondFraction = 0;
+	if (HAL_RTC_SetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD) != HAL_OK) {
+		return_code = GNSS_RTC_ERROR;
+		return return_code;
+	}
+
+	// We'll only call the clock as set when the valid flags indicate fully resolved,
+	// otherwise we'll still set it, it will just be off by some amount
+	if (time_flags & FULLY_RESOLVED_AND_VALID_TIME_MASK) {
+		self->is_clock_set = true;
+	}
+
+	return return_code;
+}
+
+/**
  * Send a configuration to the GNSS chip. Will retry up to 10 times before
  * returning failure.
  *
@@ -414,7 +472,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 
 				if (message_id == 0x01) {
 					// This is an ACK message, we're good
-					reset_gnss_uart(self, 9600);
+					reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 					return GNSS_SUCCESS;
 				}
 			}
@@ -424,14 +482,14 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		}
 
 		// Reinitialize the UART port and restart DMA receive
-		reset_gnss_uart(self, 9600);
+		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		// Zero out the buffer to prevent reading old values
 		memset(&(msg_buf[0]),0,sizeof(msg_buf));
 		buf_start = (const char*)&(msg_buf[0]);
 		buf_end = buf_start;
 	}
 	// If we made it here, config failed 10 attempts
-	reset_gnss_uart(self, 9600);
+	reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 	return GNSS_CONFIG_ERROR;
 }
 
@@ -524,7 +582,7 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 
 		// Start by setting the clock if needed
 		if (!self->is_clock_set) {
-			set_clock(self, (uint8_t*)payload);
+			self->set_rtc(self, (uint8_t*)payload);
 		}
 
 		// reset the location validity flag
@@ -649,36 +707,3 @@ static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 	}
 }
 
-/**
- * Set the RTC clock if the provided time is good enough.
- *
- * @param GNSS - GNSS struct
- * @param msg_payload - UBX_NAV_PVT message payload containing
- *        time information.
- */
-static void set_clock(GNSS* self, uint8_t* msg_payload)
-{
-	int32_t tAcc = msg_payload[12] + (msg_payload[13]<<8) +
-			(msg_payload[14]<<16) + (msg_payload[15]<<24);
-	uint16_t year = msg_payload[4] + (msg_payload[5]<<8);
-	uint8_t month = msg_payload[6];
-	uint8_t day = msg_payload[7];
-	uint8_t hour = msg_payload[8];
-	uint8_t min = msg_payload[9];
-	uint8_t sec = msg_payload[10];
-
-	// TODO: figure all this out
-	// TODO: make sure to HAL_RTC_SetDate() and HAL_RTC_Set_time()
-	if (tAcc < MAX_ACCEPTABLE_TACC) {
-
-		bool isAM = true;
-		if (hour > 12) { hour %= 12; isAM = false;}
-
-		RTC_TimeTypeDef time = {hour, min, sec,
-				(isAM) ?
-				RTC_HOURFORMAT12_AM : RTC_HOURFORMAT12_PM, 0, 0};
-		// TODO: figure out how to set the RTC here
-
-		self->is_clock_set = true;
-	}
-}

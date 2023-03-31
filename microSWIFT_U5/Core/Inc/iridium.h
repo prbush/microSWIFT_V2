@@ -86,6 +86,8 @@ typedef enum {
 #define CURRENT_CENTURY 2000
 
 typedef struct Iridium {
+	// Our global configuration struct
+	microSWIFT_configuration* global_config;
 	// The UART and DMA handle for the Iridium interface
 	UART_HandleTypeDef* iridium_uart_handle;
 	DMA_HandleTypeDef* iridium_rx_dma_handle;
@@ -140,11 +142,11 @@ typedef struct Iridium_message_queue {
 
 
 /* Function declarations */
-void iridium_init(Iridium* self, UART_HandleTypeDef* iridium_uart_handle,
-		DMA_HandleTypeDef* iridium_rx_dma_handle, TIM_HandleTypeDef* timer,
-		DMA_HandleTypeDef* iridium_tx_dma_handle,TX_EVENT_FLAGS_GROUP* event_flags,
-		RTC_HandleTypeDef* rtc_handle, uint8_t* message_buffer,
-		uint8_t* error_message_buffer, uint8_t* response_buffer);
+void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
+		UART_HandleTypeDef* iridium_uart_handle, DMA_HandleTypeDef* iridium_rx_dma_handle,
+		TIM_HandleTypeDef* timer, DMA_HandleTypeDef* iridium_tx_dma_handle,
+		TX_EVENT_FLAGS_GROUP* event_flags, RTC_HandleTypeDef* rtc_handle,
+		uint8_t* message_buffer, uint8_t* error_message_buffer, uint8_t* response_buffer);
 iridium_error_code_t iridium_config(Iridium* self);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);

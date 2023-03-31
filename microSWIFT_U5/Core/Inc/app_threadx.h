@@ -84,12 +84,20 @@
  	MEMORY_ALLOC_ERROR = 1 << 18,
  	DMA_ERROR = 1 << 19,
  	UART_ERROR = 1 << 20,
+	RTC_ERROR = 1 << 21,
 	// Misc
-	GNSS_CONFIG_RECVD = 1 << 21,
-	CT_MSG_RECVD = 1 << 22,
-	IRIDIUM_MSG_RECVD = 1 << 23,
-	UBX_QUEUE_FULL = 1 << 24
+	GNSS_CONFIG_RECVD = 1 << 22,
+	CT_MSG_RECVD = 1 << 23,
+	IRIDIUM_MSG_RECVD = 1 << 24,
+	UBX_QUEUE_FULL = 1 << 25
  }status_flags_t;
+
+typedef enum led_sequence_t{
+	INITIAL_LED_SEQUENCE = 1,
+	TEST_PASSED_LED_SEQUENCE = 2,
+	TEST_NON_CIRTICAL_FAULT_LED_SEQUENCE = 3,
+	TEST_CRITICAL_FAULT_LED_SEQUENCE = 4
+}led_sequence_t;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
