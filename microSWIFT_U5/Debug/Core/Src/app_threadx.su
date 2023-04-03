@@ -5,8 +5,8 @@
 ../Core/Src/app_threadx.c:526:6:gnss_thread_entry	32	static
 ../Core/Src/app_threadx.c:568:6:ct_thread_entry	32	static
 ../Core/Src/app_threadx.c:596:6:waves_thread_entry	400	static
-../Core/Src/app_threadx.c:644:6:iridium_thread_entry	368	static
-../Core/Src/app_threadx.c:708:6:teardown_thread_entry	48	static
-../Core/Src/app_threadx.c:790:6:HAL_UART_RxCpltCallback	48	static
-../Core/Src/app_threadx.c:876:6:HAL_TIM_PeriodElapsedCallback	16	static
-../Core/Src/app_threadx.c:897:13:led_sequence	32	static
+../Core/Src/app_threadx.c:644:6:iridium_thread_entry	392	static
+../Core/Src/app_threadx.c:729:6:teardown_thread_entry	48	static
+../Core/Src/app_threadx.c:811:6:HAL_UART_RxCpltCallback	48	static
+../Core/Src/app_threadx.c:897:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/app_threadx.c:924:13:led_sequence	32	static

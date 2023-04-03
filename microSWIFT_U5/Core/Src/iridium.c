@@ -134,8 +134,8 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 	int fail_counter;
 	uint32_t elapsed_time = 0;
 	// Power the unit by pulling the sleep pin to ground.
-	self->on_off(self, true);
-	self->sleep(self, false);
+	self->on_off(self, GPIO_PIN_SET);
+	self->sleep(self, GPIO_PIN_SET);
 	// Start the timer
 	HAL_TIM_Base_Start(self->timer);
 	// Wait an appropriate amount of time for the caps to charge
@@ -175,13 +175,14 @@ void iridium_set_location(Iridium* self, float latitude, float longitude)
  * will remain charged, but there is a current consumption.
  *
  * @param self - Iridium struct
- * @param on - true for on, false for off
+ * @param pin_state - GPIO_PIN_SET for on
+ * 					  GPIO_PIN_RESET for off
  *
  * @return void
  */
-void iridium_sleep(Iridium* self, bool on)
+void iridium_sleep(Iridium* self, GPIO_PinState pin_state)
 {
-	HAL_GPIO_WritePin(GPIOD, IRIDIUM_OnOff_Pin, on);
+	HAL_GPIO_WritePin(GPIOD, IRIDIUM_OnOff_Pin, pin_state);
 }
 
 /**
@@ -190,13 +191,14 @@ void iridium_sleep(Iridium* self, bool on)
  * down using this function
  *
  * @param self - Iridium struct
- * @param on - true for on, false for off
+ * @param pin_state - GPIO_PIN_SET for on
+ * 					  GPIO_PIN_RESET for off
  *
  * @return void
  */
-void iridium_on_off(Iridium* self, bool on)
+void iridium_on_off(Iridium* self, GPIO_PinState pin_state)
 {
-	HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, on);
+	HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
 }
 
 /**
@@ -684,14 +686,14 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
 	memcpy(&(self->error_message_buffer[payload_iterator]), error_message, error_msg_str_length);
 	// Set the iterator to the index after the string
 	payload_iterator += ERROR_MESSAGE_MAX_LENGTH;
-	memcpy(&(self->error_message_buffer[payload_iterator]), &lat_ptr,
+	memcpy(&(self->error_message_buffer[payload_iterator]), lat_ptr,
 			sizeof(self->current_lat));
 	payload_iterator += sizeof(self->current_lat);
-	memcpy(&(self->error_message_buffer[payload_iterator]), &lon_ptr,
+	memcpy(&(self->error_message_buffer[payload_iterator]), lon_ptr,
 				sizeof(self->current_lon));
 	payload_iterator += sizeof(self->current_lon);
 	timestamp = get_timestamp(self);
-	memcpy(&(self->error_message_buffer[payload_iterator]), &timestamp_ptr,
+	memcpy(&(self->error_message_buffer[payload_iterator]), timestamp_ptr,
 			sizeof(float));
 
 	// reset the timer and clear the interrupt flag
@@ -729,9 +731,9 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
  */
 static void cycle_power(Iridium* self)
 {
-	self->sleep(self, false);
+	self->sleep(self, GPIO_PIN_RESET);
 	HAL_Delay(2100);
-	self->sleep(self, true);
+	self->sleep(self, GPIO_PIN_SET);
 	HAL_Delay(2100);
 }
 
@@ -815,8 +817,8 @@ static float get_timestamp(Iridium* self)
 	RTC_TimeTypeDef rtc_time;
 
 	// Get the date and time
-	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD);
 	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD);
+	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD);
 
 	// Let's make a timestamp (yay...)
 	// Years first

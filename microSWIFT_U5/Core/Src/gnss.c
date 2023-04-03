@@ -134,6 +134,8 @@ gnss_error_code_t gnss_self_test(GNSS* self)
 	uint8_t msg_buf[SELF_TEST_BUFFER_SIZE];
 	memset(&(msg_buf[0]),0,sizeof(msg_buf));
 
+	self->on_off(self, GPIO_PIN_SET);
+
     // We'll try for a little over 2 mins to get good data before failing out
 	while (fail_counter++ < 120) {
 		// Grab 5 UBX_NAV_PVT messages
@@ -302,9 +304,9 @@ gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep)
  *
  * @return void
  */
-void gnss_on_off(GNSS* self, bool on)
+void gnss_on_off(GNSS* self, GPIO_PinState pin_state)
 {
-	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, on);
+	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, pin_state);
 }
 
 /**
@@ -387,6 +389,8 @@ gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
 	rtc_date.Date = day;
 	rtc_date.Month = month;
 	rtc_date.Year = year - 2000; // RTC takes a 2 digit year
+	// We are not using weekday, but the time will be set incorrectly if this field is not initialized
+	rtc_date.WeekDay = RTC_WEEKDAY_MONDAY;
 	if (HAL_RTC_SetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD) != HAL_OK) {
 		return_code = GNSS_RTC_ERROR;
 		return return_code;
@@ -531,7 +535,7 @@ static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
  */
 static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 {
-	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
+	uint8_t payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
 	const char* buf_start = (const char*)&(process_buf[0]);
 	const char* buf_end = buf_start;
 	// Our input buffer is a message off the queue, 10 UBX_NAV_PVT msgs
@@ -539,15 +543,17 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 	int32_t message_class = 0;
 	int32_t message_id = 0;
 	int32_t num_payload_bytes = 0;
+	int32_t lat, lon, sAcc, vnorth, veast, vdown;
+	int16_t pDOP;
 	// Reset the valid message processed counter
 	self->messages_processed = 0;
 
 	// Really gross for loop that processes msgs in each iteration
 	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-				 &message_class, &message_id, payload, sizeof(payload), &buf_end);
+				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end);
 			num_payload_bytes > 0;
 			num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-				 &message_class, &message_id, payload, sizeof(payload), &buf_end))
+				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end))
 	{
 		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01,
 		// message ID is 0x07
@@ -564,23 +570,16 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 
 		// Even if we don't end up using the values, we did get a valid message
 		self->messages_processed++;
-
 		// Grab a bunch of things from the message
-		int32_t lon = payload[24] + (payload[25]<<8) + (payload[26]<<16) +
-				(payload[27]<<24);
-		int32_t lat = payload[28] + (payload[29]<<8) + (payload[30]<<16) +
-				(payload[31]<<24);
-		int16_t pDOP =  payload[76] + (payload[77]<<8);
-		int32_t sAcc = payload[68] + (payload[69] << 8) + (payload[70] << 16) +
-				(payload[71] << 24);
-		int32_t vnorth = payload[48] + (payload[49] << 8) + (payload[50] << 16)
-				+ (payload[51] << 24);
-		int32_t veast = payload[52] + (payload[53] << 8) + (payload[54] << 16)
-				+ (payload[55] << 24);
-		int32_t vdown = payload[56] + (payload[57] << 8) + (payload[58] << 16)
-				+ (payload[59] << 24);
+		lon = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LON_INDEX, AS_LITTLE_ENDIAN);
+		lat = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LAT_INDEX, AS_LITTLE_ENDIAN);
+		pDOP = (int16_t) get_two_bytes(payload, UBX_NAV_PVT_PDOP_INDEX, AS_LITTLE_ENDIAN);
+		sAcc = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_SACC_INDEX, AS_LITTLE_ENDIAN);
+		vnorth = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_NORTH_INDEX, AS_LITTLE_ENDIAN);
+		veast = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_EAST_INDEX, AS_LITTLE_ENDIAN);
+		vdown = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_DOWN_INDEX, AS_LITTLE_ENDIAN);
 
-		// Start by setting the clock if needed
+		// Set the clock if needed
 		if (!self->is_clock_set) {
 			self->set_rtc(self, (uint8_t*)payload);
 		}

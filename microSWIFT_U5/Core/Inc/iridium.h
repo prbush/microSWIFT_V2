@@ -36,7 +36,11 @@ typedef enum {
 } iridium_error_code_t;
 
 // Macros
-// TODO: define GPIO pins
+#ifdef DBUG
+#define IRIDIUM_CAP_CHARGE_TIME 25
+#else
+#define IRIDIUM_CAP_CHARGE_TIME 25000
+#endif
 #define MAX_RETRIES 10
 #define ACK_MESSAGE_SIZE 9
 #define DISABLE_FLOW_CTRL_SIZE 12
@@ -65,9 +69,6 @@ typedef enum {
 #define ONE_SECOND 1000
 #define ASCII_ZERO 48
 #define ASCII_FIVE 53
-// TODO: figure out a good value for this
-#define IRIDIUM_CAP_CHARGE_TIME 25000
-// number of mins to try to get a message off, starts at 0
 #define IRIDIUM_MAX_TRANSMIT_PERIOD 6 - 1
 #define MAX_SRAM4_MESSAGES 16384 / (IRIDIUM_MESSAGE_PAYLOAD_SIZE + 1)
 #define STORAGE_QUEUE_SIZE MAX_SRAM4_MESSAGES * (IRIDIUM_MESSAGE_PAYLOAD_SIZE  + 1)
@@ -115,8 +116,8 @@ typedef struct Iridium {
 	iridium_error_code_t (*transmit_message)(struct Iridium* self);
 	iridium_error_code_t (*transmit_error_message)(struct Iridium* self, char* error_message);
 	void                 (*set_location)(struct Iridium* self, float latitiude, float longitude);
-	void 				 (*sleep)(struct Iridium* self, bool on);
-	void				 (*on_off)(struct Iridium* self, bool on);
+	void 				 (*sleep)(struct Iridium* self, GPIO_PinState pin_state);
+	void				 (*on_off)(struct Iridium* self, GPIO_PinState pin_state);
 	iridium_error_code_t (*store_in_flash)(struct Iridium* self);
 	iridium_error_code_t (*reset_uart)(struct Iridium* self, uint16_t baud_rate);
 	iridium_error_code_t (*reset_timer)(struct Iridium* self, uint8_t timeout_in_minutes);
@@ -152,8 +153,8 @@ iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
 iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_message);
 void                 iridium_set_location(Iridium* self, float latitiude, float longitude);
-void				 iridium_sleep(Iridium* self, bool on);
-void				 iridium_on_off(Iridium* self, bool on);
+void				 iridium_sleep(Iridium* self, GPIO_PinState pin_state);
+void				 iridium_on_off(Iridium* self, GPIO_PinState pin_state);
 iridium_error_code_t iridium_store_in_flash(Iridium* self);
 iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rate);
 iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minutes);

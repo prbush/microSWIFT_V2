@@ -16,6 +16,7 @@
 #ifndef SRC_GPS_H_
 #define SRC_GPS_H_
 
+#include "byte_array.h"
 #include "app_threadx.h"
 #include "tx_api.h"
 #include "main.h"
@@ -74,8 +75,15 @@ typedef enum {
 #define UBX_NAV_PVT_SECONDS_INDEX 10
 #define UBX_NAV_PVT_VALID_FLAGS_INDEX 11
 #define UBX_NAV_PVT_TACC_INDEX 12
+#define UBX_NAV_PVT_LON_INDEX 24
+#define UBX_NAV_PVT_LAT_INDEX 28
+#define UBX_NAV_PVT_PDOP_INDEX 76
+#define UBX_NAV_PVT_SACC_INDEX 68
+#define UBX_NAV_PVT_V_NORTH_INDEX 48
+#define UBX_NAV_PVT_V_EAST_INDEX 52
+#define UBX_NAV_PVT_V_DOWN_INDEX 56
 
-
+// GNSS struct definition
 typedef struct GNSS {
 	// Our global configuration struct
 	microSWIFT_configuration* global_config;
@@ -120,7 +128,7 @@ typedef struct GNSS {
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
 	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self, bool put_to_sleep);
-	void			  (*on_off)(struct GNSS* self, bool on);
+	void			  (*on_off)(struct GNSS* self, GPIO_PinState pin_state);
 	gnss_error_code_t (*set_rtc)(struct GNSS* self, uint8_t* msg_payload);
 	gnss_error_code_t (*reset_gnss_uart)(struct GNSS* self, uint16_t baud_rate);
 } GNSS;
@@ -137,7 +145,7 @@ gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* long
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
 gnss_error_code_t gnss_process_message(GNSS* self);
 gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);
-void			  gnss_on_off(GNSS* self, bool on);
+void			  gnss_on_off(GNSS* self, GPIO_PinState pin_state);
 gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload);
 gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate);
 

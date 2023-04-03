@@ -102,7 +102,7 @@ typedef enum led_sequence_t{
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+#define DBUG
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

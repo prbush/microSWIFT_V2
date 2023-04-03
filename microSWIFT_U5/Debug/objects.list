@@ -9,6 +9,7 @@
 "./Core/Src/app_threadx.o"
 "./Core/Src/battery.o"
 "./Core/Src/bsearch.o"
+"./Core/Src/byte_array.o"
 "./Core/Src/ct_sensor.o"
 "./Core/Src/fft.o"
 "./Core/Src/gnss.o"

@@ -414,9 +414,9 @@ void startup_thread_entry(ULONG thread_input){
 	 * 			  	    warms up the GNSS receiver until it is getting good
 	 * 			  	    reception
 	 */
-	led_sequence(INITIAL_LED_SEQUENCE);
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+#ifndef DBUG
 	// Initialize GNSS struct
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
 			&thread_flags, &ubx_queue, device_handles->hrtc, GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
@@ -457,6 +457,7 @@ void startup_thread_entry(ULONG thread_input){
 		tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
 	}
 
+#endif
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
 	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
@@ -465,9 +466,6 @@ void startup_thread_entry(ULONG thread_input){
 			device_handles->hrtc,(uint8_t*)iridium_message,
 			(uint8_t*)iridium_error_message,
 			(uint8_t*)iridium_response_message);
-	// Turn on the Iridium FET and set the sleep pin to off
-	iridium->on_off(iridium, true);
-	iridium->sleep(iridium, false);
 	// See if we can get an ack message from the modem
 	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
 		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
@@ -491,6 +489,7 @@ void startup_thread_entry(ULONG thread_input){
 ////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
 #endif
 
+#ifndef DBUG
 #if CT_ENABLED
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
@@ -511,6 +510,7 @@ void startup_thread_entry(ULONG thread_input){
 		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
 	}
 
+#endif
 #endif
 	// We're done, suspend this thread
 	tx_thread_suspend(&startup_thread);
@@ -689,6 +689,27 @@ void iridium_thread_entry(ULONG thread_input){
 	// testing
 	iridium->current_lat = 47.655357637587834;
 	iridium->current_lon = -122.32135545762652;
+
+	RTC_DateTypeDef rtc_date;
+	RTC_TimeTypeDef rtc_time;
+
+	rtc_date.Date = 3;
+	rtc_date.Month = RTC_MONTH_APRIL;
+	rtc_date.Year = 23;
+	rtc_date.WeekDay = 1;
+
+	rtc_time.Hours = 15;
+	rtc_time.Minutes = 10;
+	rtc_time.Seconds = 15;
+	rtc_time.TimeFormat = RTC_HOURFORMAT_24;
+	rtc_time.SecondFraction = 0;
+
+	HAL_RTC_SetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BCD);
+	HAL_RTC_SetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BCD);
+
+	iridium->transmit_error_message(iridium, "Date should be: 4/3/2023 \r\n Time should be (roughly): 3:10:15 PM.");
+	while(1){HAL_Delay(1000);}
+	tx_thread_suspend(&startup_thread);
 
 	memcpy(iridium->message_buffer, test, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 	iridium->transmit_message(iridium);
@@ -875,12 +896,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  if (htim->Instance == TIM16) {
-    HAL_IncTick();
-  }
-  if (htim->Instance == TIM17) {
-	iridium->timer_timeout = true;
-  }
+	// Save the thread context
+	_tx_thread_context_save();
+
+	if (htim->Instance == TIM16) {
+		HAL_IncTick();
+	}
+	if (htim->Instance == TIM17) {
+		iridium->timer_timeout = true;
+	}
+
+	// Restore the thread context
+	_tx_thread_context_restore();
 }
 
 /**
