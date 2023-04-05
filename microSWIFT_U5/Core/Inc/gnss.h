@@ -64,7 +64,7 @@ typedef enum {
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 #define GNSS_DEFAULT_BAUD_RATE 9600
 #define MAX_THREADX_WAIT_TICKS_FOR_CONFIG 6
-
+#define ONE_SECOND 1000
 // UBX message definitions
 #define FULLY_RESOLVED_AND_VALID_TIME_MASK 0x9
 #define UBX_NAV_PVT_YEAR_INDEX 4
@@ -97,9 +97,9 @@ typedef struct GNSS {
 	// UBX message queue filled from DMA ISR
 	TX_QUEUE* message_queue;
 	// Velocity sample array pointers
-	int16_t* GNSS_N_Array;
-	int16_t* GNSS_E_Array;
-	int16_t* GNSS_D_Array;
+	float* GNSS_N_Array;
+	float* GNSS_E_Array;
+	float* GNSS_D_Array;
 	// Number of messages processed in a given buffer
 	int16_t messages_processed;
 	// Keep a running track of sum -- to be used in getRunningAverage
@@ -137,8 +137,8 @@ typedef struct GNSS {
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
 		TX_EVENT_FLAGS_GROUP* event_flags, TX_QUEUE* message_queue,
-		RTC_HandleTypeDef* rtc_handle, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
-		int16_t* GNSS_D_Array);
+		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
+		float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
 gnss_error_code_t gnss_self_test(GNSS* self);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);

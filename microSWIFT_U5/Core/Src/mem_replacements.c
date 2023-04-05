@@ -16,6 +16,11 @@ int memory_pool_init(VOID* pool_start, size_t pool_size)
 	return (ret == TX_SUCCESS) ? 0 : -1;
 }
 
+float* get_waves_float_array(microSWIFT_configuration* config)
+{
+	return (float*) calloc_replacement(config->samples_per_window, sizeof(float));
+}
+
 void* malloc_replacement(size_t size)
 {
 	CHAR *pointer = TX_NULL;
@@ -94,15 +99,10 @@ emxArray_real32_T *argInit_1xUnbounded_real32_T_north_east(void)
 }
 
 
-emxArray_real32_T *argInit_1xUnbounded_real32_T(float* data)
+emxArray_real32_T *argInit_1xUnbounded_real32_T(microSWIFT_configuration* config)
 {
 	emxArray_real32_T *result;
-	int idx0;
-	int idx1;
-	/* Set the size of the array.
-	Change this size to the value that the application requires. */
-	result = emxCreate_real32_T(1, NUM_SAMPLES);
-	result->data = data;
+	result = emxCreate_real32_T(1, config->samples_per_window);
 	return result;
 }
 

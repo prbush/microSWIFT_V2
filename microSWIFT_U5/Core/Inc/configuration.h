@@ -9,6 +9,7 @@
 #define INC_CONFIGURATION_H_
 
 #include "stdbool.h"
+#include "stdint.h"
 
 // Time in minutes representing a sample period. Any time left after sampling
 // and transmission will be spent in sleep mode

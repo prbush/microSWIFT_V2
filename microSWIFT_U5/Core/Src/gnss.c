@@ -34,8 +34,8 @@ static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
 		TX_EVENT_FLAGS_GROUP* event_flags, TX_QUEUE* message_queue,
-		RTC_HandleTypeDef* rtc_handle, int16_t* GNSS_N_Array, int16_t* GNSS_E_Array,
-		int16_t* GNSS_D_Array)
+		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
+		float* GNSS_D_Array)
 {
 	// initialize everything
 	self->global_config = global_config;
@@ -140,16 +140,19 @@ gnss_error_code_t gnss_self_test(GNSS* self)
 	while (fail_counter++ < 120) {
 		// Grab 5 UBX_NAV_PVT messages
 		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
-				sizeof(msg_buf));
-		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+		HAL_UART_Receive(self->gnss_uart_handle, &(msg_buf[0]),
+				sizeof(msg_buf), ONE_SECOND * 2);
 
-		if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-				&actual_flags, MAX_THREADX_WAIT_TICKS_FOR_CONFIG) != TX_SUCCESS) {
-			// Insert a prime number delay to sync up UART reception
-			HAL_Delay(13);
-			continue;
-		}
+//		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
+//				sizeof(msg_buf));
+//		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+
+//		if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+//				&actual_flags, MAX_THREADX_WAIT_TICKS_FOR_CONFIG) != TX_SUCCESS) {
+//			// Insert a prime number delay to sync up UART reception
+//			HAL_Delay(13);
+//			continue;
+//		}
 
 		process_self_test_messages(self, msg_buf);
 
@@ -162,6 +165,9 @@ gnss_error_code_t gnss_self_test(GNSS* self)
 			return_code = GNSS_SUCCESS;
 			self->set_rtc(self, msg_buf);
 			break;
+		} else {
+			// Insert a short, prime number delay to get sync'd up
+			HAL_Delay(13);
 		}
 	}
 
@@ -442,22 +448,27 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		// Start with a blank msg_buf -- this will short cycle the for loop
 		// below if a message was not received in 10 tries
 		memset(&(msg_buf[0]),0,sizeof(msg_buf));
+		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		// Send over the configuration settings
-		HAL_UART_Transmit(self->gnss_uart_handle, &(config_array[0]),
-				message_size, 1000);
+		HAL_USART_Transmit(self->gnss_uart_handle, &(config_array[0]),
+				message_size, ONE_SECOND);
 		// Grab the acknowledgment message
-		receive_fail_counter = 0;
-		do {
-			HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
-				sizeof(msg_buf));
-			__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
-			if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-					&actual_flags, TX_TIMER_TICKS_PER_SECOND + 2) == TX_SUCCESS) {
-				break;
-			}
-		} while (receive_fail_counter++ < 2);
-
-
+		HAL_USART_Receive(self->gnss_uart_handle, &(msg_buf[0]), sizeof(msg_buf), ONE_SECOND * 2);
+//		receive_fail_counter = 0;
+//		do {
+//			HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
+//				sizeof(msg_buf));
+//			__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+//			HAL_Delay(1250);
+//			if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+//					&actual_flags, TX_NO_WAIT) == TX_SUCCESS) {
+//				break;
+//			}
+//		} while (receive_fail_counter++ < 2);
+//
+//		if (receive_fail_counter > 2) {
+//			continue;
+//		}
 		/* The ack/nak message is guaranteed to be sent within one second, but
 		 * we may receive a few navigation messages before the ack is received,
 		 * so we have to sift through at least one second worth of messages */

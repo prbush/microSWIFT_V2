@@ -79,18 +79,20 @@ TX_QUEUE ubx_queue;
 TX_QUEUE ct_queue;
 // We'll use flags to signal other threads to run/shutdown
 TX_EVENT_FLAGS_GROUP thread_flags;
-// All our data to store/ process
-int16_t* GNSS_N_Array;
-int16_t* GNSS_E_Array;
-int16_t* GNSS_D_Array;
-volatile float* waves_N_Array;
-volatile float* waves_E_Array;
-volatile float* waves_D_Array;
-CHAR ubx_DMA_message_buf[UBX_BUFFER_SIZE];
+// The data structures for Waves
+float* down;
+float* east;
+float* north;
+// The primary DMA buffer for GNSS UBX messages
+//uint8_t ubx_DMA_message_buf[UBX_BUFFER_SIZE];
+uint8_t* ubx_DMA_message_buf;
 // queue messages to hold gnss data
-char queue_message_1[UBX_BUFFER_SIZE];
-char queue_message_2[UBX_BUFFER_SIZE];
-char queue_message_3[UBX_BUFFER_SIZE];
+//uint8_t queue_message_1[UBX_BUFFER_SIZE];
+//uint8_t queue_message_2[UBX_BUFFER_SIZE];
+//uint8_t queue_message_3[UBX_BUFFER_SIZE];
+uint8_t* queue_message_1;
+uint8_t* queue_message_2;
+uint8_t* queue_message_3;
 // Iridium buffers
 uint8_t* iridium_message;
 uint8_t* iridium_response_message;
@@ -148,13 +150,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Allocate stack for the startup thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Create the startup thread. HIGHEST priority level and no preemption possible
 	ret = tx_thread_create(&startup_thread, "startup thread", startup_thread_entry, 0, pointer,
-			THREAD_LARGE_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -218,40 +220,19 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS) {
 		return ret;
 	}
-	//
-	// create a memory pool for waves algorithm
-	ret = memory_pool_init(pointer, 0x927C0); // 600,000 bytes (32 byte aligned)
-	if (ret == -1) {
-		return ret;
-	}
-	//
 	// Allocate bytes for the sensor derived arrays
-	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_N_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_E_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_D_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	//
-	// Allocate bytes for the GPSWaves processing arrays
-	ret = tx_byte_allocate(byte_pool, (VOID**) &waves_N_Array, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &waves_E_Array, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	ret = tx_byte_allocate(byte_pool, (VOID**) &waves_D_Array, WAVES_ARRAY_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_N_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_E_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &GNSS_D_Array, SENSOR_DATA_ARRAY_SIZE, TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
 	//
 	// The UBX message array
 	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, UBX_BUFFER_SIZE, TX_NO_WAIT);
@@ -358,6 +339,22 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
+
+	//
+	// Create a memory pool for waves algorithm
+	ret = memory_pool_init(pointer, 0x927C0); // 600,000 bytes
+	if (ret == -1) {
+		return ret;
+	}
+
+	north = get_waves_float_array(&configuration);
+	east = get_waves_float_array(&configuration);
+	down = get_waves_float_array(&configuration);
+	// Create the Waves data structures -- these will be placed in the memory pool
+	// that was just created above
+//	north = argInit_1xUnbounded_real32_T(&configuration);
+//	east = argInit_1xUnbounded_real32_T(&configuration);
+//	down = argInit_1xUnbounded_real32_T(&configuration);
 #endif
   /* USER CODE END App_ThreadX_MEM_POOL */
 
@@ -416,10 +413,10 @@ void startup_thread_entry(ULONG thread_input){
 	 */
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-#ifndef DBUG
 	// Initialize GNSS struct
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-			&thread_flags, &ubx_queue, device_handles->hrtc, GNSS_N_Array, GNSS_E_Array, GNSS_D_Array);
+			&thread_flags, &ubx_queue, device_handles->hrtc, north, east,
+			down);
 	// turn on the GNSS FET
 	gnss->on_off(gnss, true);
 	// Send the configuration commands to the GNSS unit.
@@ -456,8 +453,6 @@ void startup_thread_entry(ULONG thread_input){
 		HAL_Delay(10);
 		tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
 	}
-
-#endif
 ///////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
 	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
@@ -489,7 +484,7 @@ void startup_thread_entry(ULONG thread_input){
 ////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
 #endif
 
-#ifndef DBUG
+//#ifndef DBUG
 #if CT_ENABLED
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
@@ -511,7 +506,7 @@ void startup_thread_entry(ULONG thread_input){
 	}
 
 #endif
-#endif
+//#endif
 	// We're done, suspend this thread
 	tx_thread_suspend(&startup_thread);
 }
@@ -598,9 +593,6 @@ void waves_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	emxArray_real32_T *down;
-	emxArray_real32_T *east;
-	emxArray_real32_T *north;
 	real16_T E[42];
 	real16_T Dp;
 	real16_T Hs;
@@ -612,23 +604,13 @@ void waves_thread_entry(ULONG thread_input){
 	signed char b1[42];
 	signed char b2[42];
 	unsigned char check[42];
-	/* Initialize function 'NEDwaves_memlight' input arguments. */
 
-	/* TODO: remove the testing functions below and replace with the
-	 * init functions with real data -- example below
-	 *
-	 * north = argInit_1xUnbounded_real32_t(GNSS_N_Array);
-	 * */
-
-	/* Initialize function input argument 'north'. */
-	north = argInit_1xUnbounded_real32_T_down();
-	/* Initialize function input argument 'east'. */
-	east = argInit_1xUnbounded_real32_T_north_east();
-	/* Initialize function input argument 'down'. */
-	down = argInit_1xUnbounded_real32_T_north_east();
 	/* Call the entry-point 'NEDwaves_memlight'. */
 	NEDwaves_memlight(north, east, down, argInit_real_T(), &Hs, &Tp, &Dp, E,
 					&b_fmin, &b_fmax, a1, b1, a2, b2, check);
+	// TODO: create a function to assemble the Iridium payload here, to include
+	//       changing the endianess of array E
+
 	emxDestroyArray_real32_T(down);
 	emxDestroyArray_real32_T(east);
 	emxDestroyArray_real32_T(north);
@@ -661,6 +643,8 @@ void iridium_thread_entry(ULONG thread_input){
 		iridium->transmit_error_message(iridium, "Sample error message");
 	}
 
+	// !!!!!!!!!!!!!!!!!!!
+	// testing
 	uint8_t test[327] =
 		   {0x37,0x34,0x06,0x47,0x01,0xBB,0x40,0x4D,0x44,0x63,0x50,0x07,0x2D,0x7B,0x39,0x38,
 			0x41,0x53,0x43,0x56,0x43,0xEC,0x44,0xDA,0x44,0x44,0x41,0xD1,0x40,0x2E,0x40,0xC6,
@@ -684,9 +668,6 @@ void iridium_thread_entry(ULONG thread_input){
 			0x12,0x13,0x0E,0x07,0x0D,0xF6,0x0B,0xDB,0x41,0xA5,0x11,0xAA,0xC2,0x00,0x00,0x00,
 			0x00,0x00,0x00,0x1D,0x64,0xC6,0x4E};
 
-
-	// !!!!!!!!!!!!!!!!!!!
-	// testing
 	iridium->current_lat = 47.655357637587834;
 	iridium->current_lon = -122.32135545762652;
 
