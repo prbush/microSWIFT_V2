@@ -22,6 +22,7 @@
 #define WARMUP_TIME 20000
 #define REQUIRED_CT_SAMPLES 10
 #define CT_DATA_ARRAY_SIZE 291
+#define CT_DEFAULT_BAUD_RATE 9600
 
 typedef enum {
 	CT_SUCCESS = 0,

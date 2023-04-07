@@ -155,7 +155,7 @@ ct_error_code_t ct_self_test(CT* self)
 				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS)
 		{
 			HAL_UART_DMAStop(self->ct_uart_handle);
-//			reset_ct_uart(self, 9600);
+			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 			HAL_UART_Receive_DMA(self->ct_uart_handle,
 				(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
 			__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);

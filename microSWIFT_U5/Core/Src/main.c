@@ -45,12 +45,18 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
+
 DCACHE_HandleTypeDef hdcache1;
+
 I2C_HandleTypeDef hi2c1;
+
 OSPI_HandleTypeDef hospi1;
+
 RTC_HandleTypeDef hrtc;
+
 TIM_HandleTypeDef htim15;
 TIM_HandleTypeDef htim17;
+
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
 UART_HandleTypeDef huart1;
@@ -59,6 +65,7 @@ DMA_HandleTypeDef handle_GPDMA1_Channel1;
 DMA_HandleTypeDef handle_GPDMA1_Channel3;
 DMA_HandleTypeDef handle_GPDMA1_Channel2;
 DMA_HandleTypeDef handle_GPDMA1_Channel0;
+
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
@@ -157,7 +164,6 @@ int main(void)
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
-
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -537,7 +543,7 @@ static void MX_RTC_Init(void)
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_12;
   hrtc.Init.AsynchPrediv = 127;
   hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
@@ -1030,6 +1036,7 @@ static void initialize_gpio(void)
 
 }
 /* USER CODE END 4 */
+
 
 /**
   * @brief  This function is executed in case of error occurrence.

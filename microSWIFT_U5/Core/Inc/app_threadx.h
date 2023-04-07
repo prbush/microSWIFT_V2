@@ -112,7 +112,9 @@ typedef enum led_sequence_t{
 // Sensor data arrays -> 2bytes * 8192 samples = 16384 bytes, which is 32 byte aligned.
 #define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
 // Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
-#define WAVES_ARRAY_SIZE 32768
+#define WAVES_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(float))
+// The max times we'll try to get a single peripheral up before sending reset vector
+#define MAX_SELF_TEST_RETRIES 10
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

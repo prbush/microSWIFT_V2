@@ -9,11 +9,12 @@
 
 static TX_BYTE_POOL memory_pool = {0};
 
-int memory_pool_init(VOID* pool_start, size_t pool_size)
+int memory_pool_init(TX_BYTE_POOL* pool, VOID* pool_start, size_t pool_size)
 {
+	memory_pool = *pool;
 	UINT ret = tx_byte_pool_create(&memory_pool, "waves mem pool", pool_start, pool_size);
 
-	return (ret == TX_SUCCESS) ? 0 : -1;
+	return ret;
 }
 
 float* get_waves_float_array(microSWIFT_configuration* config)
