@@ -19,6 +19,7 @@
 #include "byte_array.h"
 #include "app_threadx.h"
 #include "tx_api.h"
+#include "tx_user.h"
 #include "main.h"
 #include "stdint.h"
 #include "string.h"
@@ -44,10 +45,13 @@ typedef enum {
 	GNSS_CONFIG_ERROR = -9,
 	GNSS_SELF_TEST_FAILED = -10,
 	GNSS_MESSAGE_PROCESS_ERROR = -11,
-	GNSS_RTC_ERROR = -12
+	GNSS_RTC_ERROR = -12,
+	GNSS_TIMER_ERROR = -13,
+	GNSS_TIME_RESOLUTION_ERROR = -14
 } gnss_error_code_t;
 
 // Macros
+#define GNSS_TIMER_INSTANCE TIM15
 #define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
@@ -65,9 +69,10 @@ typedef enum {
 #define GNSS_DEFAULT_BAUD_RATE 9600
 #define MAX_THREADX_WAIT_TICKS_FOR_CONFIG 6
 #define ONE_SECOND 1000
+#define MILLISECONDS_PER_MINUTE 60000
 #define MM_PER_METER 1000.0
 #define MIN_SATELLITES_TO_PASS_TEST 4
-#define MAX_SAMPLES_WITHOUT_RESOLVED_TIME 3000 // 300 simples per min
+#define LOWER_4_BITS_MASK 0xF
 // UBX message definitions
 #define FULLY_RESOLVED_AND_VALID_TIME 0x7
 #define UBX_NAV_PVT_YEAR_INDEX 4

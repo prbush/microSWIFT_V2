@@ -119,10 +119,9 @@ typedef enum led_sequence_t{
 
 /* Exported functions prototypes ---------------------------------------------*/
 UINT App_ThreadX_Init(VOID *memory_ptr);
-void MX_ThreadX_Init(device_handles_t *handles);
 
 /* USER CODE BEGIN EFP */
-
+void MX_ThreadX_Init(device_handles_t *handles);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

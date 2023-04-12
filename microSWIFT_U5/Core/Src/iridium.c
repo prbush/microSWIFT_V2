@@ -280,11 +280,13 @@ iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minut
 	self->timer->Init.CounterMode = TIM_COUNTERMODE_UP;
 	self->timer->Init.Period = 59999;
 	self->timer->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	self->timer->Init.RepetitionCounter = timeout_in_minutes;
+	self->timer->Init.RepetitionCounter = timeout_in_minutes - 1;
 	self->timer->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 	if (HAL_TIM_Base_Init(self->timer) != HAL_OK) {
 		return IRIDIUM_TIMER_ERROR;
 	}
+
+	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
 	return IRIDIUM_SUCCESS;
 }
@@ -473,9 +475,8 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	}
 
 	// reset the timer and clear the interrupt flag
-	self->reset_timer(self, IRIDIUM_MAX_TRANSMIT_PERIOD);
 	self->timer_timeout = false;
-	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+	self->reset_timer(self, self->global_config->iridium_max_transmit_time);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated
@@ -697,8 +698,7 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
 			sizeof(float));
 
 	// reset the timer and clear the interrupt flag
-	self->reset_timer(self, IRIDIUM_MAX_TRANSMIT_PERIOD);
-	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+	self->reset_timer(self, self->global_config->iridium_max_transmit_time);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated

@@ -25,6 +25,8 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf);
 static void process_self_test_messages(GNSS* self, uint8_t* process_buf);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes);
+static uint32_t get_timestamp(GNSS* self);
+static void reset_struct_fields(GNSS* self);
 
 /**
  * Initialize the GNSS struct
@@ -33,7 +35,7 @@ static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
  */
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, TX_QUEUE* message_queue,
+	    TX_EVENT_FLAGS_GROUP* event_flags, TX_QUEUE* message_queue,
 		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
 		float* GNSS_D_Array)
 {
@@ -45,21 +47,7 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 	self->GNSS_N_Array = GNSS_N_Array;
 	self->GNSS_E_Array = GNSS_E_Array;
 	self->GNSS_D_Array = GNSS_D_Array;
-	self->messages_processed = 0;
-	self->v_north_sum = 0;
-	self->v_east_sum = 0;
-	self->v_down_sum = 0;
-	self->current_latitude = 0;
-	self->current_longitude = 0;
-	self->sample_window_start_timestamp = 0;
-	self->total_samples = 0;
-	self->total_samples_averaged = 0;
-	self->number_cycles_without_data = 0;
-	self->is_configured = false;
-	self->is_location_valid = false;
-	self->is_velocity_valid = false;
-	self->is_clock_set = false;
-	self->rtc_error = false;
+	reset_struct_fields(self);
 	self->event_flags = event_flags;
 	self->message_queue = message_queue;
 	self->config = gnss_config;
@@ -165,25 +153,12 @@ gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS
 				self->total_samples == 5)
 		{
 			return_code = GNSS_SUCCESS;
-			self->set_rtc(self, msg_buf);
 			break;
 		}
 	}
 
 	// Just to be overly sure we're starting the sampling window from a fresh slate
-	self->messages_processed = 0;
-	self->v_north_sum = 0;
-	self->v_east_sum = 0;
-	self->v_down_sum = 0;
-	self->current_latitude = 0;
-	self->current_longitude = 0;
-	self->sample_window_start_timestamp = 0;
-	self->total_samples = 0;
-	self->total_samples_averaged = 0;
-	self->number_cycles_without_data = 0;
-	self->is_location_valid = false;
-	self->is_velocity_valid = false;
-	self->is_configured = true;
+	reset_struct_fields(self);
 	tx_queue_flush(self->message_queue);
 
 	HAL_UART_DMAStop(self->gnss_uart_handle);
@@ -211,42 +186,57 @@ gnss_error_code_t gnss_resolve_time(GNSS* self)
 	uint8_t *message;
 	uint8_t **msg_ptr = &message;
 	gnss_error_code_t return_code = GNSS_SUCCESS;
+	uint32_t start_time = 0, elapsed_time = 0;
+	uint32_t timeout = self->global_config->gnss_max_acquisition_wait_time *
+			MILLISECONDS_PER_MINUTE;
+	uint32_t max_ticks_to_receive_queue_message =
+			(((UBX_BUFFER_SIZE / UBX_NAV_PVT_MESSAGE_LENGTH) /
+			(self->global_config->gnss_sampling_rate)) * TX_TIMER_TICKS_PER_SECOND) + 1;
 
-	do {
-	    // Grab a message -- this will block until a message is on the queue
-	    tx_queue_receive(self->message_queue, (VOID*)msg_ptr, TX_WAIT_FOREVER);
+	self->is_clock_set = false;
+	self->messages_processed = 0;
+	start_time = HAL_GetTick();
 
-	    // Process the contents
-	    internal_process_messages(self, message);
-	    // If the clock is set, time has been resolved
-		if (!self->is_clock_set || self->rtc_error) {
-			return_code = GNSS_RTC_ERROR;
-		} else {
-			// We were able to resolve time, so reset everything so we can start
-			// the sampling window
-			self->messages_processed = 0;
-			self->v_north_sum = 0;
-			self->v_east_sum = 0;
-			self->v_down_sum = 0;
-			self->current_latitude = 0;
-			self->current_longitude = 0;
-			self->sample_window_start_timestamp = 0;
-			self->total_samples = 0;
-			self->total_samples_averaged = 0;
-			self->number_cycles_without_data = 0;
-			self->is_location_valid = false;
-			self->is_velocity_valid = false;
-			// Flush out any remaining messages
-			tx_queue_flush(self->message_queue);
+	while ((elapsed_time < timeout) && !self->is_clock_set)
+	{
+		do {
+			// Grab a message -- this will block until a message is on the queue
+			tx_queue_receive(self->message_queue, (VOID*)msg_ptr,
+					max_ticks_to_receive_queue_message);
 
-			return_code = GNSS_SUCCESS;
-			break;
-		}
-		// How many messages are on the queue?
-		tx_queue_info_get(self->message_queue, TX_NULL, &num_msgs_enqueued,
-							&available_space, TX_NULL, TX_NULL, TX_NULL);
-	// If there are any more messages that need processed, we'll do it now
-	} while (num_msgs_enqueued > 0);
+			// Process the contents
+			internal_process_messages(self, message);
+			// If the clock is set, time has been resolved
+			if (self->is_clock_set) {
+				reset_struct_fields(self);
+				self->is_clock_set = true;
+				// Flush out any remaining messages
+				tx_queue_flush(self->message_queue);
+
+				break;
+			}
+			elapsed_time = HAL_GetTick() - start_time;
+			// How many messages are on the queue?
+			tx_queue_info_get(self->message_queue, TX_NULL, &num_msgs_enqueued,
+								&available_space, TX_NULL, TX_NULL, TX_NULL);
+		// If there are any more messages that need processed, we'll do it now
+		} while (num_msgs_enqueued > 0 && (elapsed_time < timeout));
+	}
+
+
+	// Figure out the return code
+	if (self->is_clock_set && !self->rtc_error)
+	{
+		return_code = GNSS_SUCCESS;
+	}
+	else if (self->rtc_error)
+	{
+		return_code = GNSS_RTC_ERROR;
+	}
+	else if (!self->is_clock_set)
+	{
+		return_code = GNSS_TIME_RESOLUTION_ERROR;
+	}
 
     return return_code;
 }
@@ -263,10 +253,13 @@ gnss_error_code_t gnss_process_message(GNSS* self)
 	uint8_t **msg_ptr = &message;
 	gnss_error_code_t return_code = GNSS_SUCCESS;
 	int total_samples = self->total_samples;
+	uint32_t max_ticks_to_receive_queue_message =
+			(((UBX_BUFFER_SIZE / UBX_NAV_PVT_MESSAGE_LENGTH) /
+			(self->global_config->gnss_sampling_rate)) * TX_TIMER_TICKS_PER_SECOND) + 1;
 
 	do {
 	    // Grab a message -- this will block until a message is on the queue
-	    tx_queue_receive(self->message_queue, (VOID*)msg_ptr, TX_WAIT_FOREVER);
+	    tx_queue_receive(self->message_queue, (VOID*)msg_ptr, max_ticks_to_receive_queue_message);
 
 	    // Process the contents
 	    internal_process_messages(self, message);
@@ -402,7 +395,7 @@ gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate)
 	if (HAL_UART_DeInit(self->gnss_uart_handle) != HAL_OK) {
 		return GNSS_UART_ERROR;
 	}
-	self->gnss_uart_handle->Instance = USART3;
+	self->gnss_uart_handle->Instance = self->gnss_uart_handle->Instance;
 	self->gnss_uart_handle->Init.BaudRate = baud_rate;
 	self->gnss_uart_handle->Init.WordLength = UART_WORDLENGTH_8B;
 	self->gnss_uart_handle->Init.StopBits = UART_STOPBITS_1;
@@ -454,19 +447,15 @@ gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
 	RTC_DateTypeDef rtc_date;
 	RTC_TimeTypeDef rtc_time;
 
-	int32_t tAcc = msg_payload[UBX_NAV_PVT_TACC_INDEX] +
-			(msg_payload[UBX_NAV_PVT_TACC_INDEX + 1]<<8) +
-			(msg_payload[UBX_NAV_PVT_TACC_INDEX + 2]<<16) +
-			(msg_payload[UBX_NAV_PVT_TACC_INDEX + 3]<<24);
-	uint16_t year = msg_payload[UBX_NAV_PVT_YEAR_INDEX] +
-			(msg_payload[UBX_NAV_PVT_YEAR_INDEX + 1]<<8);
+	uint16_t year = (int16_t) get_two_bytes(msg_payload, UBX_NAV_PVT_YEAR_INDEX,
+			AS_LITTLE_ENDIAN);
 	uint8_t month = msg_payload[UBX_NAV_PVT_MONTH_INDEX];
 	uint8_t day = msg_payload[UBX_NAV_PVT_DAY_INDEX];
 	uint8_t hour = msg_payload[UBX_NAV_PVT_HOUR_INDEX];
 	uint8_t min = msg_payload[UBX_NAV_PVT_MINUTE_INDEX];
 	uint8_t sec = msg_payload[UBX_NAV_PVT_SECONDS_INDEX];
 	uint8_t time_flags = msg_payload[UBX_NAV_PVT_VALID_FLAGS_INDEX];
-
+	time_flags &= LOWER_4_BITS_MASK;
 	// Set the date
 	rtc_date.Date = day;
 	rtc_date.Month = month;
@@ -530,18 +519,20 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		memset(&(msg_buf[0]),0,sizeof(msg_buf));
 		// Send over the configuration settings
 		HAL_UART_Transmit(self->gnss_uart_handle, &(config_array[0]),
-				message_size, 1000);
+				message_size, ONE_SECOND);
+
+		// Testing
+
 		// Grab the acknowledgment message
-		receive_fail_counter = 0;
-		do {
-			HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
-				sizeof(msg_buf));
-			__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
-			if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-					&actual_flags, TX_TIMER_TICKS_PER_SECOND + 2) == TX_SUCCESS) {
-				break;
-			}
-		} while (receive_fail_counter++ < 2);
+		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
+			sizeof(msg_buf));
+		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+		if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+				&actual_flags, TX_TIMER_TICKS_PER_SECOND + 2) != TX_SUCCESS) {
+			HAL_UART_DMAStop(self->gnss_uart_handle);
+			self->reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+			continue;
+		}
 
 
 		/* The ack/nak message is guaranteed to be sent within one second, but
@@ -562,7 +553,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 
 				if (message_id == 0x01) {
 					// This is an ACK message, we're good
-					reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+					self->reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 					return GNSS_SUCCESS;
 				}
 			}
@@ -631,8 +622,6 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 	int32_t num_payload_bytes = 0;
 	int32_t lat, lon, vAcc, hAcc, vnorth, veast, vdown;
 	int16_t pDOP;
-	// Reset the valid message processed counter
-	self->messages_processed = 0;
 
 	// Really gross for loop that processes msgs in each iteration
 	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
@@ -643,9 +632,10 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 	{
 		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01,
 		// message ID is 0x07
-		if (num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH ||
+		if ((num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH ||
 				message_class != UBX_NAV_PVT_MESSAGE_CLASS  ||
-				message_id    != UBX_NAV_PVT_MESSAGE_ID)
+				message_id    != UBX_NAV_PVT_MESSAGE_ID) &&
+				(self->total_samples > 0))
 		{
 			self->get_running_average_velocities(self);
 			self->number_cycles_without_data++;
@@ -657,14 +647,14 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 		// Even if we don't end up using the values, we did get a valid message
 		self->messages_processed++;
 		// Grab a bunch of things from the message
-		lon = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LON_INDEX, AS_LITTLE_ENDIAN);
-		lat = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LAT_INDEX, AS_LITTLE_ENDIAN);
-		pDOP = (int16_t) get_two_bytes(payload, UBX_NAV_PVT_PDOP_INDEX, AS_LITTLE_ENDIAN);
-		vAcc = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_VACC_INDEX, AS_LITTLE_ENDIAN);
-		hAcc = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_HACC_INDEX, AS_LITTLE_ENDIAN);
-		vnorth = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_NORTH_INDEX, AS_LITTLE_ENDIAN);
-		veast = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_EAST_INDEX, AS_LITTLE_ENDIAN);
-		vdown = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_DOWN_INDEX, AS_LITTLE_ENDIAN);
+		lon 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LON_INDEX, AS_LITTLE_ENDIAN);
+		lat 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LAT_INDEX, AS_LITTLE_ENDIAN);
+		pDOP 	= (int16_t) get_two_bytes(payload, UBX_NAV_PVT_PDOP_INDEX, AS_LITTLE_ENDIAN);
+		vAcc 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_VACC_INDEX, AS_LITTLE_ENDIAN);
+		hAcc 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_HACC_INDEX, AS_LITTLE_ENDIAN);
+		vnorth 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_NORTH_INDEX, AS_LITTLE_ENDIAN);
+		veast 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_EAST_INDEX, AS_LITTLE_ENDIAN);
+		vdown 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_DOWN_INDEX, AS_LITTLE_ENDIAN);
 
 		// This allows us to make sure we're not in the sampling window if time has not been resolved
 		if (!self->is_clock_set) {
@@ -724,6 +714,12 @@ static void internal_process_messages(GNSS* self, uint8_t* process_buf)
 	}
 }
 
+/**
+ *
+ *
+ * @param self- GNSS struct
+ * @param
+ */
 static void process_self_test_messages(GNSS* self, uint8_t* process_buf)
 {
 	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
@@ -796,4 +792,120 @@ static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		*ck_a = *ck_a + buffer[i];
 		*ck_b = *ck_b + *ck_a;
 	}
+}
+
+/**
+ * Helper method to generate a timestamp from the RTC.
+ *
+ * @param self - GNSS struct
+ * @return timestamp as uint32_t
+ */
+static uint32_t get_timestamp(GNSS* self)
+{
+	uint32_t timestamp = 0;
+	bool is_leap_year = false;
+	uint8_t num_leap_years_since_2000 = 0;
+	uint16_t julian_date_first_of_month = 0;
+	RTC_DateTypeDef rtc_date;
+	RTC_TimeTypeDef rtc_time;
+
+	// Get the date and time
+	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD);
+	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD);
+
+	// Let's make a timestamp (yay...)
+	// Years first
+	timestamp += SECONDS_1970_TO_2000;
+	timestamp += rtc_date.Year * SECONDS_IN_YEAR;
+	num_leap_years_since_2000 = rtc_date.Year / 4;
+	timestamp += num_leap_years_since_2000 * SECONDS_IN_DAY;
+
+	// Years are only represented with 2 digits. We'll set 0 as the year 2000, so anything
+	// evenly divisible by 4 is a leap year (2000, 2004, 2008, etc)
+	is_leap_year = rtc_date.Year % 4 == 0;
+
+	switch (rtc_date.Month) {
+		case RTC_MONTH_JANUARY:
+			// No months to account for!!!
+			break;
+
+		case RTC_MONTH_FEBRUARY:
+			julian_date_first_of_month = 32;
+			break;
+
+		case RTC_MONTH_MARCH:
+			julian_date_first_of_month = (is_leap_year) ? 61 : 60;
+			break;
+
+		case RTC_MONTH_APRIL:
+			julian_date_first_of_month = (is_leap_year) ? 92 : 91;
+			break;
+
+		case RTC_MONTH_MAY:
+			julian_date_first_of_month = (is_leap_year) ? 122 : 121;
+			break;
+
+		case RTC_MONTH_JUNE:
+			julian_date_first_of_month = (is_leap_year) ? 153 : 152;
+			break;
+
+		case RTC_MONTH_JULY:
+			julian_date_first_of_month = (is_leap_year) ? 183 : 182;
+			break;
+
+		case RTC_MONTH_AUGUST:
+			julian_date_first_of_month = (is_leap_year) ? 214 : 213;
+			break;
+
+		case RTC_MONTH_SEPTEMBER:
+			julian_date_first_of_month = (is_leap_year) ? 245 : 244;
+			break;
+
+		case RTC_MONTH_OCTOBER:
+			julian_date_first_of_month = (is_leap_year) ? 275 : 274;
+			break;
+
+		case RTC_MONTH_NOVEMBER:
+			julian_date_first_of_month = (is_leap_year) ? 306 : 305;
+			break;
+
+		case RTC_MONTH_DECEMBER:
+			julian_date_first_of_month = (is_leap_year) ? 336 : 335;
+			break;
+
+		default:
+			break;
+	}
+	timestamp += julian_date_first_of_month * SECONDS_IN_DAY;
+	timestamp += (rtc_date.Date - 1) * SECONDS_IN_DAY;
+	timestamp += rtc_time.Hours * SECONDS_IN_HOUR;
+	timestamp += rtc_time.Minutes * SECONDS_IN_MIN;
+	timestamp += rtc_time.Seconds;
+	// Not including fractions of a second
+	return timestamp;
+}
+
+/**
+ *
+ *
+ * @param self- GNSS struct
+ * @param
+ */
+static void reset_struct_fields(GNSS* self)
+{
+	self->messages_processed = 0;
+	self->v_north_sum = 0;
+	self->v_east_sum = 0;
+	self->v_down_sum = 0;
+	self->current_latitude = 0;
+	self->current_longitude = 0;
+	self->sample_window_start_timestamp = 0;
+	self->total_samples = 0;
+	self->total_samples_averaged = 0;
+	self->number_cycles_without_data = 0;
+	self->is_configured = false;
+	self->is_location_valid = false;
+	self->is_velocity_valid = false;
+	self->is_clock_set = false;
+	self->rtc_error = false;
 }

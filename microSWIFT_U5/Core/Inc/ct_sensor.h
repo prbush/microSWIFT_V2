@@ -41,8 +41,6 @@ typedef struct CT{
 	// The UART and DMA handle for the GNSS interface
 	UART_HandleTypeDef* ct_uart_handle;
 	DMA_HandleTypeDef* ct_dma_handle;
-	// Handle for the millisecond timer
-	TIM_HandleTypeDef* millis_timer;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
 	// The buffer written to by CT sensor
@@ -61,7 +59,7 @@ typedef struct CT{
 } CT;
 
 void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct_dma_handle,
-		TIM_HandleTypeDef* millis_timer, TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf);
+		TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf);
 ct_error_code_t ct_parse_sample(CT* self);
 ct_error_code_t ct_get_averages(CT* self);
 void            ct_on_off(CT* self, bool on);

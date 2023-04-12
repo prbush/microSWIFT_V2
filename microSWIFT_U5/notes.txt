@@ -4,7 +4,7 @@ main.c
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   
 app_azure_rtos_config.h
-#define TX_APP_MEM_POOL_SIZE                     753248 // max possible 757592
+#define TX_APP_MEM_POOL_SIZE                     752224
 
 
 app_threadx.c
@@ -26,6 +26,80 @@ void MX_ThreadX_Init(device_handles_t *handles)
 tx_user.h
 #define TX_TIMER_TICKS_PER_SECOND                5 <or whatever>
 
+app_azure_rtos.c
+/* Private variables ---------------------------------------------------------*/
+/* USER CODE BEGIN PV */
+#define WAVES_MEM_POOL_SIZE 600000
+/* USER CODE END PV */
+
+#if (USE_STATIC_ALLOCATION == 1)
+
+/* USER CODE BEGIN TX_Pool_Buffer */
+/* USER CODE END TX_Pool_Buffer */
+#if defined ( __ICCARM__ )
+#pragma data_alignment=4
+#endif
+__ALIGN_BEGIN static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE - WAVES_MEM_POOL_SIZE] __ALIGN_END;
+__ALIGN_BEGIN static UCHAR waves_byte_pool_buffer[WAVES_MEM_POOL_SIZE] __ALIGN_END;
+static TX_BYTE_POOL tx_app_byte_pool;
+static TX_BYTE_POOL waves_byte_pool;
+
+#endif
+
+/* Private function prototypes -----------------------------------------------*/
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+  /**
+  * @brief  Define the initial system.
+  * @param  first_unused_memory : Pointer to the first unused memory
+  * @retval None
+  */
+VOID tx_application_define(VOID *first_unused_memory)
+{
+  /* USER CODE BEGIN  tx_application_define_1*/
+
+  /* USER CODE END  tx_application_define_1 */
+#if (USE_STATIC_ALLOCATION == 1)
+  UINT status = TX_SUCCESS;
+  VOID *memory_ptr;
+
+  if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE - 600000) != TX_SUCCESS)
+  {
+    /* USER CODE BEGIN TX_Byte_Pool_Error */
+	  HAL_NVIC_SystemReset();
+    /* USER CODE END TX_Byte_Pool_Error */
+  }
+  else if (memory_pool_init(&waves_byte_pool, waves_byte_pool_buffer, WAVES_MEM_POOL_SIZE) != TX_SUCCESS)
+  {
+    /* USER CODE BEGIN TX_Byte_Pool_Error */
+	  HAL_NVIC_SystemReset();
+    /* USER CODE END TX_Byte_Pool_Error */
+  }
+  else
+  {
+    /* USER CODE BEGIN TX_Byte_Pool_Success */
+
+    /* USER CODE END TX_Byte_Pool_Success */
+
+    memory_ptr = (VOID *)&tx_app_byte_pool;
+    status = App_ThreadX_Init(memory_ptr);
+    if (status != TX_SUCCESS)
+    {
+      /* USER CODE BEGIN  App_ThreadX_Init_Error */
+      // Something went wrong along the way, reset and try again
+    	HAL_NVIC_SystemReset();
+      /* USER CODE END  App_ThreadX_Init_Error */
+    }
+    /* USER CODE BEGIN  App_ThreadX_Init_Success */
+
+    /* USER CODE END  App_ThreadX_Init_Success */
+
+  }
+
+#else
+
 !!!!!!!!!!!!!!!!!!!!!!
 Lengthy list of TODOs:
 	* Go through all files and satisfy any remaining TODOs
@@ -39,4 +113,4 @@ Lengthy list of TODOs:
 	* Figure out sleep between windows
 	* Figure out configuration header file and associated config struct
 	* Figure out error message (Type 99) reporting
-	* 
+	* Handle queue full condition

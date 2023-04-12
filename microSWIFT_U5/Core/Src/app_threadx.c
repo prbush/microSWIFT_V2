@@ -344,11 +344,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   */
 void MX_ThreadX_Init(device_handles_t *handles)
 {
-  /* USER CODE BEGIN  Before_Kernel_Start */
   device_handles = handles;
   configuration.duty_cycle = DUTY_CYCLE;
   configuration.samples_per_window = TOTAL_SAMPLES_PER_WINDOW;
   configuration.iridium_max_transmit_time = IRIDIUM_MAX_TRANSMIT_TIME;
+  configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
   configuration.gnss_sampling_rate = GNSS_SAMPLING_RATE;
   /* USER CODE END  Before_Kernel_Start */
 
@@ -388,8 +388,7 @@ void startup_thread_entry(ULONG thread_input){
 /////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
 	// Initialize GNSS struct
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-			&thread_flags, &ubx_queue, device_handles->hrtc, north, east,
-			down);
+			&thread_flags, &ubx_queue, device_handles->hrtc, north, east, down);
 	// turn on the GNSS FET
 	gnss->on_off(gnss, GPIO_PIN_SET);
 	// Send the configuration commands to the GNSS unit.
@@ -467,8 +466,7 @@ void startup_thread_entry(ULONG thread_input){
 #if CT_ENABLED
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
-	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle,
-			device_handles->millis_timer, &thread_flags, ct_data);
+	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, &thread_flags, ct_data);
 	// Turn on the CT FET
 	ct->on_off(ct, true);
 	// Make sure we get good data from the CT sensor
@@ -503,14 +501,19 @@ void gnss_thread_entry(ULONG thread_input){
 	// Wait until we get the ready flag
 	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	while (gnss->total_samples < MAX_SAMPLES_WITHOUT_RESOLVED_TIME) {
-		return_code = gnss->resolve_time(gnss);
-		if (return_code == GNSS_SUCCESS) {
+	return_code = gnss->resolve_time(gnss);
+
+	switch(return_code){
+		case GNSS_SUCCESS:
 			break;
-		}
-	}
-	if (gnss->total_samples >= MAX_SAMPLES_WITHOUT_RESOLVED_TIME) {
-		//TODO: sleep!!!
+		case GNSS_RTC_ERROR:
+			// TODO: sleep, then reset???
+			break;
+		case GNSS_TIME_RESOLUTION_ERROR:
+			// TODO: sleep
+			break;
+		default: // Something went terribly wrong, reset and hope for the best
+			HAL_NVIC_SystemReset();
 	}
 
 	while(gnss->total_samples < TOTAL_SAMPLES_PER_WINDOW){
@@ -779,17 +782,14 @@ void teardown_thread_entry(ULONG thread_input){
   * @retval void
   */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-	// Save the thread context
-	_tx_thread_context_save();
 	static uint32_t msg_counter = 0;
 	// Need to make sure this is being called by USART3 (the GNSS UART port)
-	if (huart->Instance == USART3) {
+	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
 		if (!gnss->is_configured) {
 			// Set the CONFIG_RECEIVED flag
 			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
 			// GNSS has not yet been configured, the last DMA receive was for
 			// the acknowledgment message, no need to restart DMA transfer
-			_tx_thread_context_restore();
 			return;
 		} else {
 			HAL_StatusTypeDef HAL_return;
@@ -797,12 +797,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			// get info on the number of enqueued messages and available space
 			tx_queue_info_get(&ubx_queue, TX_NULL, &num_msgs_enqueued,
 					&available_space, TX_NULL, TX_NULL, TX_NULL);
-			if (num_msgs_enqueued == 3) {
-				// Queue is full, need to signal this condition and exit
-				tx_event_flags_set(&thread_flags, UBX_QUEUE_FULL, TX_OR);
-				_tx_thread_context_restore();
-				return;
-			}
+//			if (num_msgs_enqueued == 3) {
+//				// Queue is full, need to signal this condition and exit
+//				tx_event_flags_set(&thread_flags, UBX_QUEUE_FULL, TX_OR);
+//				_tx_thread_context_restore();
+//				return;
+//			}
 
 			CHAR* current_msg;
 			msg_counter = msg_counter % 3;
@@ -834,6 +834,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 				tx_event_flags_set(&thread_flags, UART_ERROR, TX_OR);
 			}
 			LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
+
 			HAL_return = HAL_UART_Receive_DMA(gnss->gnss_uart_handle,
 					(uint8_t*)&(ubx_DMA_message_buf[0]), UBX_BUFFER_SIZE);
 			if (HAL_return != HAL_OK) {
@@ -844,16 +845,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	}
 
 	// CT sensor
-	else if (huart->Instance == UART4) {
+	else if (huart->Instance == ct->ct_uart_handle->Instance) {
 		tx_event_flags_set(&thread_flags, CT_MSG_RECVD, TX_OR);
 	}
 
 	// Iridium modem
-	else if (huart->Instance == UART5) {
+	else if (huart->Instance == iridium->iridium_uart_handle->Instance) {
 		tx_event_flags_set(&thread_flags, IRIDIUM_MSG_RECVD, TX_OR);
 	}
-	// Restore the thread context
-	_tx_thread_context_restore();
 }
 
 /**
@@ -866,18 +865,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	// Save the thread context
-	_tx_thread_context_save();
+	// High frequency, low overhead ISR, no need to save/restore context
+//	_tx_thread_context_save();
 
 	if (htim->Instance == TIM16) {
 		HAL_IncTick();
 	}
-	if (htim->Instance == TIM17) {
+	else if (htim->Instance == TIM17) {
 		iridium->timer_timeout = true;
 	}
 
-	// Restore the thread context
-	_tx_thread_context_restore();
+//	_tx_thread_context_restore();
 }
 
 /**

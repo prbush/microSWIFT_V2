@@ -44,7 +44,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+#define WAVES_MEM_POOL_SIZE 600000
 /* USER CODE END PV */
 
 #if (USE_STATIC_ALLOCATION == 1)
@@ -54,8 +54,8 @@
 #if defined ( __ICCARM__ )
 #pragma data_alignment=4
 #endif
-__ALIGN_BEGIN static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE - 600000] __ALIGN_END;
-__ALIGN_BEGIN static UCHAR waves_byte_pool_buffer[600000] __ALIGN_END;
+__ALIGN_BEGIN static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE - WAVES_MEM_POOL_SIZE] __ALIGN_END;
+__ALIGN_BEGIN static UCHAR waves_byte_pool_buffer[WAVES_MEM_POOL_SIZE] __ALIGN_END;
 static TX_BYTE_POOL tx_app_byte_pool;
 static TX_BYTE_POOL waves_byte_pool;
 
@@ -86,7 +86,7 @@ VOID tx_application_define(VOID *first_unused_memory)
 	  HAL_NVIC_SystemReset();
     /* USER CODE END TX_Byte_Pool_Error */
   }
-  if (memory_pool_init(&waves_byte_pool, waves_byte_pool_buffer, 600000) != TX_SUCCESS)
+  else if (memory_pool_init(&waves_byte_pool, waves_byte_pool_buffer, WAVES_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN TX_Byte_Pool_Error */
 	  HAL_NVIC_SystemReset();

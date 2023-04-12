@@ -93,7 +93,7 @@ typedef struct Iridium {
 	UART_HandleTypeDef* iridium_uart_handle;
 	DMA_HandleTypeDef* iridium_rx_dma_handle;
 	DMA_HandleTypeDef* iridium_tx_dma_handle;
-	// ThreadX timer (tick-based granularity is fine for this)
+	// Pointer to hardware timer handle
 	TIM_HandleTypeDef* timer;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;

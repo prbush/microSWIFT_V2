@@ -14,7 +14,7 @@
  * @return void
  */
 void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct_dma_handle,
-		TIM_HandleTypeDef* millis_timer, TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf)
+		TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf)
 {
 	for (int i = 0; i < REQUIRED_CT_SAMPLES; i++) {
 		self->samples_buf[i].conductivity = 0.0;
@@ -25,7 +25,6 @@ void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct
 	self->total_samples = 0;
 	self->ct_uart_handle = ct_uart_handle;
 	self->ct_dma_handle = ct_dma_handle;
-	self->millis_timer = millis_timer;
 	self->event_flags = event_flags;
 	self->data_buf = data_buf;
 	self->parse_sample = ct_parse_sample;
@@ -142,29 +141,30 @@ ct_error_code_t ct_self_test(CT* self)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_SELF_TEST_FAIL;
-	uint32_t elapsed_time;
+	uint32_t elapsed_time, start_time;
 	bool add_warm_up_time = true;
 
-	HAL_TIM_Base_Start(self->millis_timer);
+	self->reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+
+	start_time = HAL_GetTick();
 	// The first round is a guaranteed fail since the message hasn't
 	// been requested yet, so start at -1 to account for that
 	int fail_counter = -1;
 	while(fail_counter++ < 10) {
-		// See if we got the message, otherwise retry
+
+		if (HAL_UART_Receive_DMA(self->ct_uart_handle,
+			(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE) != HAL_OK) {
+			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+			HAL_Delay(100);
+			continue;
+
+		}
+
 		if (tx_event_flags_get(self->event_flags, CT_MSG_RECVD, TX_OR_CLEAR,
-				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS)
-		{
+				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS) {
 			HAL_UART_DMAStop(self->ct_uart_handle);
 			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
-			HAL_UART_Receive_DMA(self->ct_uart_handle,
-				(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
-			__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
-			// Check the elapsed time
-			elapsed_time = __HAL_TIM_GET_COUNTER(self->millis_timer);
-			if (elapsed_time > WARMUP_TIME) {
-				add_warm_up_time = false;
-			}
-
+			HAL_Delay(100);
 			continue;
 		}
 
@@ -192,20 +192,16 @@ ct_error_code_t ct_self_test(CT* self)
 		}
 
 		// Handle the warmup delay
-		if (add_warm_up_time) {
-			int32_t required_delay = WARMUP_TIME -
-					__HAL_TIM_GET_COUNTER(self->millis_timer);
-			if (required_delay > 0) {
-				HAL_Delay(required_delay);
-			}
+		elapsed_time = HAL_GetTick() - start_time;
+		int32_t required_delay = WARMUP_TIME - elapsed_time;
+		if (required_delay > 0) {
+			HAL_Delay(required_delay);
 		}
 
 		return_code = CT_SUCCESS;
 
 		break;
 	}
-
-	HAL_TIM_Base_Stop(self->millis_timer);
 
 	return return_code;
 }
@@ -223,7 +219,7 @@ ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
 		return CT_UART_ERROR;
 	}
 
-	self->ct_uart_handle->Instance = UART4;
+	self->ct_uart_handle->Instance = self->ct_uart_handle->Instance;
 	self->ct_uart_handle->Init.BaudRate = baud_rate;
 	self->ct_uart_handle->Init.WordLength = UART_WORDLENGTH_8B;
 	self->ct_uart_handle->Init.StopBits = UART_STOPBITS_1;
