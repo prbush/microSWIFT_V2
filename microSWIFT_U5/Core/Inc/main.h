@@ -38,7 +38,6 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 typedef struct {
-	OSPI_HandleTypeDef* hospi1;
 	RTC_HandleTypeDef* hrtc;
 	UART_HandleTypeDef* CT_uart;
 	UART_HandleTypeDef* Iridium_uart;
@@ -47,8 +46,6 @@ typedef struct {
 	DMA_HandleTypeDef* GNSS_dma_handle;
 	DMA_HandleTypeDef* Iridium_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
-//	TIM_HandleTypeDef* millis_timer;
-//	TIM_HandleTypeDef* gnss_timer;
 	TIM_HandleTypeDef* iridium_timer;
 } device_handles_t;
 /* USER CODE END ET */
@@ -77,30 +74,10 @@ void Error_Handler(void);
 #define EXT_LED_RED_GPIO_Port GPIOF
 #define EXT_LED_GREEN_Pin GPIO_PIN_1
 #define EXT_LED_GREEN_GPIO_Port GPIOF
-#define EXT_RAM_CHIP1_IO_Pin GPIO_PIN_6
-#define EXT_RAM_CHIP1_IO_GPIO_Port GPIOF
-#define EXT_RAM_CHIP1_IOF7_Pin GPIO_PIN_7
-#define EXT_RAM_CHIP1_IOF7_GPIO_Port GPIOF
-#define EXT_RAM_CHIP1_IOF8_Pin GPIO_PIN_8
-#define EXT_RAM_CHIP1_IOF8_GPIO_Port GPIOF
-#define EXT_RAM_CHIP1_IOF9_Pin GPIO_PIN_9
-#define EXT_RAM_CHIP1_IOF9_GPIO_Port GPIOF
-#define EXT_RAM_CLK_Pin GPIO_PIN_10
-#define EXT_RAM_CLK_GPIO_Port GPIOF
-#define EXT_RAM_CHIP2_IO_Pin GPIO_PIN_0
-#define EXT_RAM_CHIP2_IO_GPIO_Port GPIOC
-#define EXT_RAM_CHIP2_IOC1_Pin GPIO_PIN_1
-#define EXT_RAM_CHIP2_IOC1_GPIO_Port GPIOC
-#define EXT_RAM_CHIP2_IOC2_Pin GPIO_PIN_2
-#define EXT_RAM_CHIP2_IOC2_GPIO_Port GPIOC
-#define EXT_RAM_CHIP2_IOC3_Pin GPIO_PIN_3
-#define EXT_RAM_CHIP2_IOC3_GPIO_Port GPIOC
 #define GNSS_UART_TX_Pin GPIO_PIN_2
 #define GNSS_UART_TX_GPIO_Port GPIOA
 #define GNSS_UART_RX_Pin GPIO_PIN_3
 #define GNSS_UART_RX_GPIO_Port GPIOA
-#define EXT_RAM_CS_Pin GPIO_PIN_11
-#define EXT_RAM_CS_GPIO_Port GPIOE
 #define UCPD_FLT_Pin GPIO_PIN_14
 #define UCPD_FLT_GPIO_Port GPIOB
 #define UCPD1_CC2_Pin GPIO_PIN_15

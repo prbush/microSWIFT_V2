@@ -46,6 +46,7 @@
 #include "math.h"
 #include "mem_replacements.h"
 #include "configuration.h"
+#include "linked_list.h"
 
 // Waves files
 #include "NEDwaves_memlight.h"
@@ -86,7 +87,7 @@
  	UART_ERROR = 1 << 20,
 	RTC_ERROR = 1 << 21,
 	// Misc
-	GNSS_CONFIG_RECVD = 1 << 22,
+	GNSS_INIT_STAGES_RECVD = 1 << 22,
 	CT_MSG_RECVD = 1 << 23,
 	IRIDIUM_MSG_RECVD = 1 << 24,
 	UBX_QUEUE_FULL = 1 << 25
@@ -114,7 +115,7 @@ typedef enum led_sequence_t{
 // Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
 #define WAVES_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(float))
 // The max times we'll try to get a single peripheral up before sending reset vector
-#define MAX_SELF_TEST_RETRIES 10
+#define MAX_SELF_TEST_RETRIES 3
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

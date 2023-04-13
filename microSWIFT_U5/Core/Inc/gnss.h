@@ -51,14 +51,14 @@ typedef enum {
 } gnss_error_code_t;
 
 // Macros
-#define GNSS_TIMER_INSTANCE TIM15
+#define CONFIG_BUFFER_SIZE 600
 #define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 100
 #define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
 #define UBX_BUFFER_SIZE (10 * UBX_MESSAGE_SIZE)
-#define SELF_TEST_BUFFER_SIZE 500
+#define INITIAL_STAGES_BUFFER_SIZE 500
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
@@ -105,8 +105,8 @@ typedef struct GNSS {
 	RTC_HandleTypeDef* rtc_handle;
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* event_flags;
-	// UBX message queue filled from DMA ISR
-	TX_QUEUE* message_queue;
+	// UBX message process buffer filled from DMA ISR
+	uint8_t* ubx_process_buf;
 	// Velocity sample array pointers
 	float* GNSS_N_Array;
 	float* GNSS_E_Array;
@@ -122,6 +122,8 @@ typedef struct GNSS {
 	int32_t current_longitude;
 	// The start time for the sampling window
 	uint32_t sample_window_start_timestamp;
+	// The start time of trying to resolve time and get a good first sample
+	uint32_t resolution_stage_start_time;
 	// Increment with each sample or running average
 	uint16_t total_samples;
 	// We'll keep track of how many times we had to sub in a running average
@@ -129,40 +131,44 @@ typedef struct GNSS {
 	// How many times we've had to skip a sample - gets reset with valid data
 	uint16_t number_cycles_without_data;
 	// Flags
-	bool is_configured;
+	bool all_resolution_stages_complete;
 	bool is_location_valid;
 	bool is_velocity_valid;
 	bool is_clock_set;
+	bool is_time_resolved;
 	bool rtc_error;
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
-	gnss_error_code_t (*self_test)(struct GNSS* self,
-			gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
-			uint8_t* buffer, size_t buf_size);
+	gnss_error_code_t (*self_test)(struct GNSS* self);
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
 	gnss_error_code_t (*resolve_time)(struct GNSS* self);
-	gnss_error_code_t (*gnss_process_message)(struct GNSS* self);
+	gnss_error_code_t (*get_valid_first_sample)(struct GNSS* self,
+			gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
+			uint8_t* buffer, size_t buf_size);
+	gnss_error_code_t (*process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self, bool put_to_sleep);
 	void			  (*on_off)(struct GNSS* self, GPIO_PinState pin_state);
 	void			  (*cycle_power)(struct GNSS* self);
 	gnss_error_code_t (*set_rtc)(struct GNSS* self, uint8_t* msg_payload);
-	gnss_error_code_t (*reset_gnss_uart)(struct GNSS* self, uint16_t baud_rate);
+	gnss_error_code_t (*reset_uart)(struct GNSS* self, uint16_t baud_rate);
 } GNSS;
 
 /* Function declarations */
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, TX_QUEUE* message_queue,
+		TX_EVENT_FLAGS_GROUP* event_flags, uint8_t* ubx_process_buf,
 		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
 		float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
-gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),\
-		uint8_t* buffer, size_t buf_size);
+gnss_error_code_t gnss_self_test(GNSS* self);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
 gnss_error_code_t gnss_resolve_time(GNSS* self);
+gnss_error_code_t gnss_get_valid_first_sample(GNSS* self,
+		gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
+		uint8_t* buffer, size_t buf_size);
 gnss_error_code_t gnss_process_message(GNSS* self);
 gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);
 void			  gnss_on_off(GNSS* self, GPIO_PinState pin_state);
