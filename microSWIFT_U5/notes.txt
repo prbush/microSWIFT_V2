@@ -65,7 +65,8 @@ VOID tx_application_define(VOID *first_unused_memory)
   UINT status = TX_SUCCESS;
   VOID *memory_ptr;
 
-  if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE - 600000) != TX_SUCCESS)
+  if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, 
+		  TX_APP_MEM_POOL_SIZE - WAVES_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN TX_Byte_Pool_Error */
 	  HAL_NVIC_SystemReset();

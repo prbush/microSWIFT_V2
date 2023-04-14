@@ -31,7 +31,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -206,8 +205,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS) {
 	  return ret;
 	}
-	//
-	// The UBX message array
+//	//
+//	// The UBX message array
 	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, UBX_MESSAGE_SIZE * 2, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
@@ -325,12 +324,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   /* USER CODE BEGIN  Before_Kernel_Start */
 void MX_ThreadX_Init(device_handles_t *handles)
 {
-	  device_handles = handles;
-	  configuration.duty_cycle = DUTY_CYCLE;
-	  configuration.samples_per_window = TOTAL_SAMPLES_PER_WINDOW;
-	  configuration.iridium_max_transmit_time = IRIDIUM_MAX_TRANSMIT_TIME;
-	  configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
-	  configuration.gnss_sampling_rate = GNSS_SAMPLING_RATE;
+  device_handles = handles;
+  configuration.duty_cycle = DUTY_CYCLE;
+  configuration.samples_per_window = TOTAL_SAMPLES_PER_WINDOW;
+  configuration.iridium_max_transmit_time = IRIDIUM_MAX_TRANSMIT_TIME;
+  configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
+  configuration.gnss_sampling_rate = GNSS_SAMPLING_RATE;
   /* USER CODE END  Before_Kernel_Start */
 
   tx_kernel_enter();
@@ -392,11 +391,13 @@ void startup_thread_entry(ULONG thread_input){
 	// tracking a good number of satellites before moving on
 	fail_counter = 0;
 	while (fail_counter < MAX_SELF_TEST_RETRIES) {
-		if (gnss->self_test(gnss) != GNSS_SUCCESS) {
+		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+				!= GNSS_SUCCESS) {
 			// self_test failed, cycle power and try again
 			gnss->cycle_power(gnss);
 			fail_counter++;
 		} else {
+			gnss->is_configured = true;
 			break;
 		}
 
@@ -478,46 +479,59 @@ void gnss_thread_entry(ULONG thread_input){
 	UINT threadx_return;
 	ULONG actual_flags;
 	gnss_error_code_t return_code;
+	uint32_t timeout_start = 0, elapsed_time = 0;
+	uint32_t timeout = configuration.gnss_max_acquisition_wait_time * MILLISECONDS_PER_MINUTE;
 	// Wait until we get the ready flag
 	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	return_code = gnss->resolve_time(gnss);
+//	return_code = gnss->resolve_time(gnss);
 
-	switch(return_code) {
-		case GNSS_SUCCESS:
-			break;
-		case GNSS_RTC_ERROR:
-			// TODO: sleep, then reset???
-			break;
-		case GNSS_TIME_RESOLUTION_ERROR:
-			// TODO: sleep
-			break;
-		default: // Something went terribly wrong, reset and hope for the best
-			HAL_NVIC_SystemReset();
+	timeout_start = HAL_GetTick();
+
+	while (elapsed_time < timeout) {
+		elapsed_time = HAL_GetTick() - timeout_start;
 	}
 
-	return_code = gnss->get_valid_first_sample(gnss, );
-
-	switch(return_code) {
-		case GNSS_SUCCESS:
-			break;
-		case GNSS_RTC_ERROR:
-			// TODO: sleep, then reset???
-			break;
-		case GNSS_TIME_RESOLUTION_ERROR:
-			// TODO: sleep
-			break;
-		default: // Something went terribly wrong, reset and hope for the best
-			HAL_NVIC_SystemReset();
+	if (!gnss->all_resolution_stages_complete) {
+		// TODO: sleep for 1 hour by RTC
+		HAL_Delay(100);
 	}
 
-	while(gnss->total_samples < TOTAL_SAMPLES_PER_WINDOW){
+//	switch(return_code) {
+//		case GNSS_SUCCESS:
+//			break;
+//		case GNSS_RTC_ERROR:
+//			// TODO: sleep, then reset???
+//			break;
+//		case GNSS_TIME_RESOLUTION_ERROR:
+//			// TODO: sleep
+//			break;
+//		default: // Something went terribly wrong, reset and hope for the best
+//			HAL_NVIC_SystemReset();
+//	}
+//
+//	return_code = gnss->get_valid_first_sample(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
+//
+//	switch(return_code) {
+//		case GNSS_SUCCESS:
+//			break;
+//		case GNSS_UART_ERROR:
+//			HAL_NVIC_SystemReset();
+//			break;
+//		case GNSS_FIRST_SAMPLE_RESOLUTION_ERROR:
+//			// TODO: sleep
+//			break;
+//		default: // Something went terribly wrong, reset and hope for the best
+//			HAL_NVIC_SystemReset();
+//	}
+
+	tx_event_flags_get(&thread_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 		// TODO: add a synchronization step in here that checks that we
 		//       processed 10 messages in the last go. A simple prime number
 		//       delay will do it
 		// TODO: check queue full flag and do something?
-		gnss->gnss_process_message(gnss);
-	}
+	HAL_Delay(10);
+
 }
 
 #if IMU_ENABLED
@@ -778,19 +792,16 @@ void teardown_thread_entry(ULONG thread_input){
   * @retval void
   */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+//	static uint8_t* read_ptr = &(gnss->ubx_process_buf[0]);
+//	static write_ptr = &(gnss->ubx_process_buf[0]);
+	HAL_StatusTypeDef HAL_return;
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
-		if (!gnss->all_resolution_stages_complete) {
-			// Set the CONFIG_RECEIVED flag
-			tx_event_flags_set(&thread_flags, GNSS_INIT_STAGES_RECVD, TX_NO_WAIT);
-			// GNSS has not yet been configured, the last DMA receive was for
-			// the acknowledgment message, no need to restart DMA transfer
-			return;
+		if (!gnss->is_configured) {
+
+			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
+
 		} else {
-			HAL_StatusTypeDef HAL_return;
-
-			memcpy(&(ubx_message_process_buf[0]), &(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
-
-			gnss->gnss_process_message(gnss);
+			gnss->process_message(gnss);
 		}
 	}
 
@@ -901,36 +912,23 @@ static void led_sequence(led_sequence_t sequence)
   * @retval GNSS_SUCCESS or
   * 	    GNS_UART_ERROR
   */
-gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size)
+gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t msg_size)
 {
 	gnss_error_code_t return_code = GNSS_SUCCESS;
+	HAL_StatusTypeDef hal_return_code;
 
-	HAL_UART_DMAStop(gnss_struct_ptr->gnss_uart_handle);
-	gnss_struct_ptr->reset_gnss_uart(gnss_struct_ptr, GNSS_DEFAULT_BAUD_RATE);
+	gnss->reset_uart(gnss, GNSS_DEFAULT_BAUD_RATE);
 
-	gnss_struct_ptr->gnss_dma_handle->Instance = GPDMA1_Channel0;
-	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.Priority = DMA_LOW_PRIORITY_HIGH_WEIGHT;
-	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.LinkStepMode = DMA_LSM_FULL_EXECUTION;
-	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.LinkAllocatedPort = DMA_LINK_ALLOCATED_PORT0;
-	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.TransferEventMode = DMA_TCEM_LAST_LL_ITEM_TRANSFER;
-	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.LinkedListMode = DMA_LINKEDLIST_CIRCULAR;
+	memset(&(buffer[0]), 0, UBX_MESSAGE_SIZE * 2);
 
-	if (HAL_DMAEx_List_Init(gnss_struct_ptr->gnss_dma_handle) != HAL_OK)
-	{
-		return GNSS_UART_ERROR;
-	}
-	if (HAL_DMA_ConfigChannelAttributes(gnss_struct_ptr->gnss_dma_handle, DMA_CHANNEL_NPRIV) != HAL_OK)
-	{
-		return GNSS_UART_ERROR;
-	}
-
-	MX_List_GPDMA1_Channel0_Config();
-
-	HAL_UARTEx_ReceiveToIdle_DMA(gnss_struct_ptr->gnss_uart_handle,
-			(uint8_t*)&(buffer[0]), buffer_size);
+	hal_return_code = HAL_UART_Receive_DMA(gnss_struct_ptr->gnss_uart_handle,
+			(uint8_t*)&(buffer[0]), msg_size);
 		//  No need for the half-transfer complete interrupt, so disable it
-
 	__HAL_DMA_DISABLE_IT(gnss->gnss_dma_handle, DMA_IT_HT);
+
+	if (hal_return_code != HAL_OK) {
+		return_code = GNSS_UART_ERROR;
+	}
 
 	return return_code;
 }

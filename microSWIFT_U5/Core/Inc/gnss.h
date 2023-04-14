@@ -47,7 +47,8 @@ typedef enum {
 	GNSS_MESSAGE_PROCESS_ERROR = -11,
 	GNSS_RTC_ERROR = -12,
 	GNSS_TIMER_ERROR = -13,
-	GNSS_TIME_RESOLUTION_ERROR = -14
+	GNSS_TIME_RESOLUTION_ERROR = -14,
+	GNSS_FIRST_SAMPLE_RESOLUTION_ERROR = -15
 } gnss_error_code_t;
 
 // Macros
@@ -62,12 +63,12 @@ typedef enum {
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
-#define MAX_ACCEPTABLE_SACC 100 // need to confirm with Jim what this should be
+#define MAX_ACCEPTABLE_SACC 250 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 #define GNSS_DEFAULT_BAUD_RATE 9600
-#define MAX_THREADX_WAIT_TICKS_FOR_CONFIG 6
+#define MAX_THREADX_WAIT_TICKS_FOR_CONFIG 7
 #define ONE_SECOND 1000
 #define MILLISECONDS_PER_MINUTE 60000
 #define MM_PER_METER 1000.0
@@ -92,6 +93,7 @@ typedef enum {
 #define UBX_NAV_PVT_V_NORTH_INDEX 48
 #define UBX_NAV_PVT_V_EAST_INDEX 52
 #define UBX_NAV_PVT_V_DOWN_INDEX 56
+#define UBX_NAV_PVT_SACC_INDEX 68
 #define UBX_NAV_PVT_PDOP_INDEX 76
 
 // GNSS struct definition -- packed for good organization, not memory efficiency
@@ -132,14 +134,18 @@ typedef struct GNSS {
 	uint16_t number_cycles_without_data;
 	// Flags
 	bool all_resolution_stages_complete;
+	bool is_configured;
 	bool is_location_valid;
 	bool is_velocity_valid;
 	bool is_clock_set;
 	bool is_time_resolved;
 	bool rtc_error;
+	bool all_samples_processed;
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
-	gnss_error_code_t (*self_test)(struct GNSS* self);
+	gnss_error_code_t (*self_test)(struct GNSS* self,
+				gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
+				uint8_t* buffer, size_t msg_size);
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
@@ -162,7 +168,8 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
 		float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
-gnss_error_code_t gnss_self_test(GNSS* self);
+gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),\
+		uint8_t* buffer, size_t msg_size);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
 gnss_error_code_t gnss_resolve_time(GNSS* self);
