@@ -7,33 +7,37 @@
 
 #include "ct_sensor.h"
 
+static void reset_ct_struct_fields(CT* self);
+
 
 /**
  * Initialize the CT struct
  *
  * @return void
  */
-void ct_init(CT* self, UART_HandleTypeDef* ct_uart_handle, DMA_HandleTypeDef* ct_dma_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf)
+void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeDef* ct_uart_handle,
+		DMA_HandleTypeDef* ct_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf,
+		ct_samples* samples_buf)
 {
-	for (int i = 0; i < REQUIRED_CT_SAMPLES; i++) {
-		self->samples_buf[i].conductivity = 0.0;
-		self->samples_buf[i].temp = 0.0;
-	}
-	self->averages.conductivity = 0.0;
-	self->averages.temp = 0.0;
-	self->total_samples = 0;
+//	for (int i = 0; i < global_config->total_ct_samples; i++) {
+//		self->samples_buf[i].conductivity = 0.0;
+//		self->samples_buf[i].temp = 0.0;
+//	}
+	reset_ct_struct_fields(self);
+	self->global_config = global_config;
 	self->ct_uart_handle = ct_uart_handle;
 	self->ct_dma_handle = ct_dma_handle;
 	self->event_flags = event_flags;
 	self->data_buf = data_buf;
+	self->samples_buf = samples_buf;
 	self->parse_sample = ct_parse_sample;
 	self->get_averages = ct_get_averages;
 	self->on_off = ct_on_off;
 	self->self_test = ct_self_test;
 	self->reset_ct_uart = reset_ct_uart;
 	// zero out the buffer
-	memset(&(self->data_buf[0]),0,CT_DATA_ARRAY_SIZE);
+	memset(&(self->data_buf[0]), 0, CT_DATA_ARRAY_SIZE);
+	memset(&(self->samples_buf[0]), 0, self->global_config->total_ct_samples * sizeof(ct_samples));
 }
 
 /**
@@ -45,19 +49,29 @@ ct_error_code_t ct_parse_sample(CT* self)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_PARSING_ERROR;
-	// The first round is a guaranteed fail since the message hasn't
-	// been requested yet, so start at -1 to account for that
-	int fail_counter = -1;
-	reset_ct_uart(self, 9600);
+	int fail_counter = 0;
+	// Sensor sends a message every 2 seconds @ 9600 baud, takes 0.245 seconds to get it out
+	int required_ticks_to_get_message = (TX_TIMER_TICKS_PER_SECOND * 2) + 3;
+
+	// Samples array overflow safety check
+	if (self->total_samples >= self->global_config->total_ct_samples) {
+		return_code = CT_DONE_SAMPLING;
+		return return_code;
+	}
+
+	reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+	HAL_Delay(1);
 	HAL_UART_Receive_DMA(self->ct_uart_handle,
 		(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
+	__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
 
 	while(++fail_counter < 10) {
 		// See if we got the message, otherwise retry
 		if (tx_event_flags_get(self->event_flags, CT_MSG_RECVD, TX_OR_CLEAR,
-				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS) {
+				&actual_flags, required_ticks_to_get_message) != TX_SUCCESS)
+		{
 			HAL_UART_DMAStop(self->ct_uart_handle);
-			reset_ct_uart(self, 9600);
+			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 			HAL_UART_Receive_DMA(self->ct_uart_handle,
 				(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
 			__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
@@ -69,7 +83,7 @@ ct_error_code_t ct_parse_sample(CT* self)
 			continue;
 		}
 
-		index += 7;
+		index += 7; // skip ahead 7 chars
 		double conductivity = atof(index);
 
 		if (conductivity == 0.0){
@@ -80,7 +94,8 @@ ct_error_code_t ct_parse_sample(CT* self)
 		if (index == NULL){
 			continue;
 		}
-		index += 6;
+
+		index += 6; // skip ahead 6 chars
 		double temperature = atof(index);
 
 		if (temperature == 0.0){
@@ -90,9 +105,9 @@ ct_error_code_t ct_parse_sample(CT* self)
 		self->samples_buf[self->total_samples].conductivity = conductivity;
 		self->samples_buf[self->total_samples].temp = temperature;
 		self->total_samples++;
+
 		return_code = CT_SUCCESS;
 		break;
-
 	}
 
 	return return_code;
@@ -106,18 +121,20 @@ ct_error_code_t ct_parse_sample(CT* self)
  */
 ct_error_code_t ct_get_averages(CT* self)
 {
-	if (self->total_samples < REQUIRED_CT_SAMPLES) {
-		return CT_NOT_ENOUGH_SAMPLES;
-	}
 	double temp_sum = 0.0;
 	double conductivity_sum = 0.0;
+
+	if (self->total_samples < self->global_config->total_ct_samples) {
+		return CT_NOT_ENOUGH_SAMPLES;
+	}
+
 	for (int i = 0; i < self->total_samples; i++) {
 		temp_sum += self->samples_buf[i].temp;
 		conductivity_sum += self->samples_buf[i].conductivity;
 	}
 
-	self->averages.temp = temp_sum / self->total_samples;
-	self->averages.conductivity = conductivity_sum / self->total_samples;
+	self->averages.temp = temp_sum / ((double)self->total_samples);
+	self->averages.conductivity = conductivity_sum / ((double)self->total_samples);
 
 	return CT_SUCCESS;
 }
@@ -142,8 +159,8 @@ ct_error_code_t ct_self_test(CT* self)
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_SELF_TEST_FAIL;
 	uint32_t elapsed_time, start_time;
-	bool add_warm_up_time = true;
 
+	self->on_off(self, GPIO_PIN_SET);
 	self->reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 
 	start_time = HAL_GetTick();
@@ -173,7 +190,7 @@ ct_error_code_t ct_self_test(CT* self)
 			continue;
 		}
 
-		index += 7;
+		index += 7; // skip ah
 		double conductivity = atof(index);
 
 		if (conductivity == 0.0){
@@ -250,5 +267,12 @@ ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
 	LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_1);
 
 	return CT_SUCCESS;
+}
+
+static void reset_ct_struct_fields(CT* self)
+{
+	self->averages.conductivity = 0.0;
+	self->averages.temp = 0.0;
+	self->total_samples = 0;
 }
 

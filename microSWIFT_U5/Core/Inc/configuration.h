@@ -24,6 +24,8 @@
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 1
+// The number of samples for the CT sensor to take. Result will be averaged
+#define TOTAL_CT_SAMPLES 10
 // If the IMU will be utilized or not
 #define IMU_ENABLED false
 // If there is a CT sensor present
@@ -35,6 +37,7 @@ typedef struct microSWIFT_configuration {
 	uint32_t iridium_max_transmit_time;
 	uint32_t gnss_max_acquisition_wait_time;
 	uint32_t gnss_sampling_rate;
+	uint32_t total_ct_samples;
 } microSWIFT_configuration;
 
 

@@ -194,6 +194,11 @@ void gnss_process_message(GNSS* self)
 	int16_t pDOP;
 	bool is_ubx_nav_pvt_msg, velocities_exceed_max;
 
+	// Samples array overflow safety check
+	if (self->total_samples >= self->global_config->samples_per_window) {
+		return;
+	}
+
 	// Really gross for loop that processes msgs in each iteration
 	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
 				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end);
@@ -201,10 +206,6 @@ void gnss_process_message(GNSS* self)
 			num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
 				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end))
 	{
-		// Samples array overflow safety check
-		if (self->total_samples >= self->global_config->samples_per_window) {
-			return;
-		}
 
 		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01, message ID is 0x07
 		is_ubx_nav_pvt_msg = (num_payload_bytes == UBX_NAV_PVT_PAYLOAD_LENGTH) ||
@@ -286,12 +287,12 @@ void gnss_process_message(GNSS* self)
 		}
 		else if (self->total_samples == self->global_config->samples_per_window) {
 			HAL_UART_DMAStop(self->gnss_uart_handle);
-			self->all_samples_processed = true;
 			self->sample_window_stop_time = HAL_GetTick();
-			self->sample_window_freq =
-					((float)((self->sample_window_stop_time - self->sample_window_start_time) /
-							self->global_config->samples_per_window));
-			tx_event_flags_set(self->event_flags, GNSS_DONE, TX_NO_WAIT);
+			self->all_samples_processed = true;
+			self->sample_window_freq = (float)(((float)self->global_config->samples_per_window) /
+					(((float)(self->sample_window_stop_time - self->sample_window_start_time) /
+							1000.0)));
+
 			return;
 		}
 

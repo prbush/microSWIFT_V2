@@ -102,6 +102,7 @@ int16_t* IMU_D_Array;
 #if CT_ENABLED
 CT* ct;
 CHAR* ct_data;
+ct_samples* samples_buf;
 #endif
 /* USER CODE END PV */
 
@@ -299,8 +300,14 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
-	// The CT data array
+	// The CT input data buffer array
 	ret = tx_byte_allocate(byte_pool, (VOID**) &ct_data, CT_DATA_ARRAY_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
+	// The CT samples array
+	ret = tx_byte_allocate(byte_pool, (VOID**) &samples_buf, TOTAL_CT_SAMPLES * sizeof(ct_samples),
+			TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -331,6 +338,7 @@ void MX_ThreadX_Init(device_handles_t *handles)
   configuration.iridium_max_transmit_time = IRIDIUM_MAX_TRANSMIT_TIME;
   configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
   configuration.gnss_sampling_rate = GNSS_SAMPLING_RATE;
+  configuration.total_ct_samples = TOTAL_CT_SAMPLES;
   /* USER CODE END  Before_Kernel_Start */
 
   tx_kernel_enter();
@@ -432,6 +440,9 @@ void startup_thread_entry(ULONG thread_input){
 		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
 		// TODO: do something here
 	}
+	// We'll keep power to the modem but put it to sleep
+	iridium->sleep(iridium, GPIO_PIN_RESET);
+
 	// We got an ack and were able to config the Iridium modem
 	threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
 	if (threadx_return != TX_SUCCESS) {
@@ -448,14 +459,16 @@ void startup_thread_entry(ULONG thread_input){
 #if CT_ENABLED
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
-	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, &thread_flags, ct_data);
-	// Turn on the CT FET
-	ct->on_off(ct, GPIO_PIN_SET);
+	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
+			&thread_flags, ct_data, samples_buf);
 	// Make sure we get good data from the CT sensor
 	if (ct->self_test(ct) != CT_SUCCESS) {
 		// TODO: cycle power to the board, do some stuff
 		HAL_NVIC_SystemReset();
 	}
+	// We can turn off the CT sensor for now
+	ct->on_off(ct, GPIO_PIN_RESET);
+
 	// We received a good message from the CT sensor
 	threadx_return = tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
 	if (threadx_return != TX_SUCCESS) {
@@ -483,7 +496,7 @@ void gnss_thread_entry(ULONG thread_input){
 	uint32_t timeout_start = 0, elapsed_time = 0;
 	uint32_t timeout = configuration.gnss_max_acquisition_wait_time * MILLISECONDS_PER_MINUTE;
 	// Wait until we get the ready flag
-	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
 //	return_code = gnss->resolve_time(gnss);
 
@@ -501,43 +514,11 @@ void gnss_thread_entry(ULONG thread_input){
 		while (!gnss->all_samples_processed);
 	}
 
-	HAL_Delay(100);
+	while (tx_event_flags_set(&thread_flags, GNSS_DONE, TX_OR) != TX_SUCCESS) {
+		HAL_Delay(10);
+	}
 
-//	switch(return_code) {
-//		case GNSS_SUCCESS:
-//			break;
-//		case GNSS_RTC_ERROR:
-//			// TODO: sleep, then reset???
-//			break;
-//		case GNSS_TIME_RESOLUTION_ERROR:
-//			// TODO: sleep
-//			break;
-//		default: // Something went terribly wrong, reset and hope for the best
-//			HAL_NVIC_SystemReset();
-//	}
-//
-//	return_code = gnss->get_valid_first_sample(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE);
-//
-//	switch(return_code) {
-//		case GNSS_SUCCESS:
-//			break;
-//		case GNSS_UART_ERROR:
-//			HAL_NVIC_SystemReset();
-//			break;
-//		case GNSS_FIRST_SAMPLE_RESOLUTION_ERROR:
-//			// TODO: sleep
-//			break;
-//		default: // Something went terribly wrong, reset and hope for the best
-//			HAL_NVIC_SystemReset();
-//	}
-
-	tx_event_flags_get(&thread_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-		// TODO: add a synchronization step in here that checks that we
-		//       processed 10 messages in the last go. A simple prime number
-		//       delay will do it
-		// TODO: check queue full flag and do something?
-	HAL_Delay(10);
-
+	tx_thread_suspend(&gnss_thread);
 }
 
 #if IMU_ENABLED
@@ -569,22 +550,28 @@ void imu_thread_entry(ULONG thread_input){
   */
 void ct_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
-	ct_error_code_t result;
-	// TODO: make sure this works with the GNSS_DONE flag
+	ct_error_code_t return_code;
+
 	tx_event_flags_get(&thread_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	while (ct->total_samples < REQUIRED_CT_SAMPLES) {
-		result = ct_parse_sample(ct);
-		if (result == CT_PARSING_ERROR) {
+	while (ct->total_samples < ct->global_config->total_ct_samples) {
+		return_code = ct_parse_sample(ct);
+		if (return_code == CT_PARSING_ERROR) {
 			// TODO: do something
 		}
 	}
 
 	// got our samples, now average them
-	result = ct->get_averages(ct);
-	if (result == CT_NOT_ENOUGH_SAMPLES) {
+	return_code = ct->get_averages(ct);
+	if (return_code == CT_NOT_ENOUGH_SAMPLES) {
 		// TODO: do something
 	}
+
+	tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+
+	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+
+	tx_thread_suspend(&ct_thread);
 }
 #endif
 
@@ -598,7 +585,7 @@ void ct_thread_entry(ULONG thread_input){
 void waves_thread_entry(ULONG thread_input){
 
 	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
 	real16_T E[42];
 	real16_T Dp;
@@ -621,6 +608,10 @@ void waves_thread_entry(ULONG thread_input){
 	emxDestroyArray_real32_T(down);
 	emxDestroyArray_real32_T(east);
 	emxDestroyArray_real32_T(north);
+
+	tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR);
+
+	tx_thread_suspend(&waves_thread);
 }
 
 /**
