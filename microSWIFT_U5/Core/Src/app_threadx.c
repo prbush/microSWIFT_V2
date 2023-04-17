@@ -450,7 +450,7 @@ void startup_thread_entry(ULONG thread_input){
 /////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
 	ct_init(ct, device_handles->CT_uart, device_handles->CT_dma_handle, &thread_flags, ct_data);
 	// Turn on the CT FET
-	ct->on_off(ct, true);
+	ct->on_off(ct, GPIO_PIN_SET);
 	// Make sure we get good data from the CT sensor
 	if (ct->self_test(ct) != CT_SUCCESS) {
 		// TODO: cycle power to the board, do some stuff
@@ -487,16 +487,21 @@ void gnss_thread_entry(ULONG thread_input){
 
 //	return_code = gnss->resolve_time(gnss);
 
-	timeout_start = HAL_GetTick();
+	while (!gnss->all_samples_processed) {
 
-	while (elapsed_time < timeout) {
-		elapsed_time = HAL_GetTick() - timeout_start;
+		timeout_start = HAL_GetTick();
+		while (elapsed_time < timeout) {
+			elapsed_time = HAL_GetTick() - timeout_start;
+		}
+
+		if (!gnss->all_resolution_stages_complete) {
+			// TODO: sleep for 1 hour by RTC
+			HAL_Delay(100);
+		}
+		while (!gnss->all_samples_processed);
 	}
 
-	if (!gnss->all_resolution_stages_complete) {
-		// TODO: sleep for 1 hour by RTC
-		HAL_Delay(100);
-	}
+	HAL_Delay(100);
 
 //	switch(return_code) {
 //		case GNSS_SUCCESS:

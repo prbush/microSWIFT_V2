@@ -53,7 +53,7 @@ typedef enum {
 
 // Macros
 #define CONFIG_BUFFER_SIZE 600
-#define MAX_POSSIBLE_VELOCITY 10000	// 10 m/s
+#define MAX_POSSIBLE_VELOCITY 10000	// 10000 mm/s = 10 m/s
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 100
@@ -64,7 +64,7 @@ typedef enum {
 #define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
 #define MAX_ACCEPTABLE_SACC 250 // need to confirm with Jim what this should be
-#define MAX_ACCEPTABLE_PDOP 600 // scale is 0.01, max acceptable is 6.0
+#define MAX_ACCEPTABLE_PDOP 1000 // (units = 0.01) greater than 10 means fair fix accuracy
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 #define GNSS_DEFAULT_BAUD_RATE 9600
@@ -116,29 +116,29 @@ typedef struct GNSS {
 	// Number of messages processed in a given buffer
 	int16_t messages_processed;
 	// Keep a running track of sum -- to be used in getRunningAverage
-	int64_t v_north_sum;
-	int64_t v_east_sum;
-	int64_t v_down_sum;
+	int32_t v_north_sum;
+	int32_t v_east_sum;
+	int32_t v_down_sum;
 	// Hold the current lat/long for whatever we might need it for (modem)
 	int32_t current_latitude;
 	int32_t current_longitude;
 	// The start time for the sampling window
-	uint32_t sample_window_start_timestamp;
-	// The start time of trying to resolve time and get a good first sample
-	uint32_t resolution_stage_start_time;
+	uint32_t sample_window_start_time;
+	// The start time for the sampling window
+	uint32_t sample_window_stop_time;
+	// The true calculated sample window frequency
+	float sample_window_freq;
 	// Increment with each sample or running average
 	uint16_t total_samples;
 	// We'll keep track of how many times we had to sub in a running average
-	uint16_t total_samples_averaged; // Just do a %10 in the end
+	uint16_t total_samples_averaged;
 	// How many times we've had to skip a sample - gets reset with valid data
 	uint16_t number_cycles_without_data;
 	// Flags
+	bool current_fix_is_good;
 	bool all_resolution_stages_complete;
 	bool is_configured;
-	bool is_location_valid;
-	bool is_velocity_valid;
 	bool is_clock_set;
-	bool is_time_resolved;
 	bool rtc_error;
 	bool all_samples_processed;
 	// Function pointers
@@ -149,11 +149,7 @@ typedef struct GNSS {
 	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
 			int32_t* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
-	gnss_error_code_t (*resolve_time)(struct GNSS* self);
-	gnss_error_code_t (*get_valid_first_sample)(struct GNSS* self,
-			gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
-			uint8_t* buffer, size_t buf_size);
-	gnss_error_code_t (*process_message)(struct GNSS* self);
+	void		 	  (*process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self, bool put_to_sleep);
 	void			  (*on_off)(struct GNSS* self, GPIO_PinState pin_state);
 	void			  (*cycle_power)(struct GNSS* self);
@@ -172,11 +168,7 @@ gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS
 		uint8_t* buffer, size_t msg_size);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
-gnss_error_code_t gnss_resolve_time(GNSS* self);
-gnss_error_code_t gnss_get_valid_first_sample(GNSS* self,
-		gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
-		uint8_t* buffer, size_t buf_size);
-gnss_error_code_t gnss_process_message(GNSS* self);
+void 			  gnss_process_message(GNSS* self);
 gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);
 void			  gnss_on_off(GNSS* self, GPIO_PinState pin_state);
 void			  gnss_cycle_power(GNSS* self);

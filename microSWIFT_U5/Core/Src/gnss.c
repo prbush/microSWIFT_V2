@@ -54,8 +54,6 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 	self->self_test = gnss_self_test;
 	self->get_location = gnss_get_location;
 	self->get_running_average_velocities = gnss_get_running_average_velocities;
-	self->resolve_time = gnss_resolve_time;
-	self->get_valid_first_sample = gnss_get_valid_first_sample;
 	self->process_message = gnss_process_message;
 	self->sleep = gnss_sleep;
 	self->on_off = gnss_on_off;
@@ -178,158 +176,134 @@ gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS
 }
 
 /**
- * Wait until time has been resolved to within one second.
- *
- * @return gnss_error_code_t
- */
-gnss_error_code_t gnss_resolve_time(GNSS* self)
-{
-	uint8_t msg_buf[INITIAL_STAGES_BUFFER_SIZE];
-	ULONG actual_flags;
-	gnss_error_code_t return_code = GNSS_SUCCESS;
-	uint32_t elapsed_time = 0;
-	uint32_t timeout = self->global_config->gnss_max_acquisition_wait_time *
-			MILLISECONDS_PER_MINUTE;
-
-	self->is_clock_set = false;
-	self->messages_processed = 0;
-	self->resolution_stage_start_time = HAL_GetTick();
-	reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-
-	while ((elapsed_time < timeout) && !self->is_clock_set)
-	{
-
-		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
-				INITIAL_STAGES_BUFFER_SIZE);
-		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
-
-		if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-				&actual_flags, TX_TIMER_TICKS_PER_SECOND + 2) != TX_SUCCESS)
-		{
-			HAL_UART_DMAStop(self->gnss_uart_handle);
-			self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-			continue;
-		}
-		HAL_UART_DMAStop(self->gnss_uart_handle);
-		// Process the contents
-		internal_process_messages(self, msg_buf);
-		// If the clock is set, time has been resolved
-		if (self->is_clock_set) {
-			reset_struct_fields(self);
-			self->is_clock_set = true;
-
-			break;
-		}
-		elapsed_time = HAL_GetTick() - self->resolution_stage_start_time;
-	}
-
-	HAL_UART_DMAStop(self->gnss_uart_handle);
-	// Figure out the return code
-	if (self->is_clock_set && !self->rtc_error)
-	{
-		return_code = GNSS_SUCCESS;
-	}
-	else if (self->rtc_error)
-	{
-		return_code = GNSS_RTC_ERROR;
-	}
-	else if (!self->is_clock_set)
-	{
-		return_code = GNSS_TIME_RESOLUTION_ERROR;
-	}
-
-    return return_code;
-}
-
-/**
  * Process the messages in the buffer.
  *
  * @return gnss_error_code_t
  */
-gnss_error_code_t gnss_get_valid_first_sample(GNSS* self,
-		gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
-		uint8_t* buffer, size_t buf_size)
+void gnss_process_message(GNSS* self)
 {
-	uint8_t msg_buf[UBX_MESSAGE_SIZE];
-	ULONG actual_flags;
-	gnss_error_code_t return_code = GNSS_SUCCESS;
-	uint32_t elapsed_time = 0;
-	uint32_t timeout = self->global_config->gnss_max_acquisition_wait_time *
-			MILLISECONDS_PER_MINUTE;
+	uint8_t payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
+	const char* buf_start = (const char*)&(self->ubx_process_buf[0]);
+	const char* buf_end = buf_start;
+	// Our input buffer is a message off the queue, 10 UBX_NAV_PVT msgs
+	size_t buf_length = UBX_MESSAGE_SIZE * 2;
+	int32_t message_class = 0;
+	int32_t message_id = 0;
+	int32_t num_payload_bytes = 0;
+	int32_t lat, lon, sAcc, vnorth, veast, vdown;
+	int16_t pDOP;
+	bool is_ubx_nav_pvt_msg, velocities_exceed_max;
 
-	self->messages_processed = 0;
-
-	reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-
-	elapsed_time = HAL_GetTick() - self->resolution_stage_start_time;
-	while (elapsed_time < timeout)
+	// Really gross for loop that processes msgs in each iteration
+	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
+				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end);
+			num_payload_bytes > 0;
+			num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
+				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end))
 	{
+		// Samples array overflow safety check
+		if (self->total_samples >= self->global_config->samples_per_window) {
+			return;
+		}
 
-		HAL_UARTEx_ReceiveToIdle_DMA(self->gnss_uart_handle, &(msg_buf[0]), UBX_MESSAGE_SIZE);
-		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01, message ID is 0x07
+		is_ubx_nav_pvt_msg = (num_payload_bytes == UBX_NAV_PVT_PAYLOAD_LENGTH) ||
+							 (message_class == UBX_NAV_PVT_MESSAGE_CLASS)  ||
+							 (message_id == UBX_NAV_PVT_MESSAGE_ID);
 
-		if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-				&actual_flags, 2) != TX_SUCCESS)
+		if (!is_ubx_nav_pvt_msg)
 		{
-			HAL_UART_DMAStop(self->gnss_uart_handle);
-			self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-			HAL_Delay(100);
+			self->get_running_average_velocities(self);
+			self->number_cycles_without_data++;
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
 			continue;
 		}
-		HAL_UART_DMAStop(self->gnss_uart_handle);
-		// Process the contents
-		internal_process_messages(self, msg_buf);
-		// If the clock is set, time has been resolved
-		if (self->total_samples >= 1) {
-			reset_struct_fields(self);
-			self->is_clock_set = true;
+
+		// Even if we don't end up using the values, we did get a valid message
+		self->messages_processed++;
+
+		// Grab a bunch of things from the message
+		lon 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LON_INDEX, AS_LITTLE_ENDIAN);
+		lat 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LAT_INDEX, AS_LITTLE_ENDIAN);
+		pDOP 	= (int16_t) get_two_bytes(payload, UBX_NAV_PVT_PDOP_INDEX, AS_LITTLE_ENDIAN);
+		sAcc 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_SACC_INDEX, AS_LITTLE_ENDIAN);
+		vnorth 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_NORTH_INDEX, AS_LITTLE_ENDIAN);
+		veast 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_EAST_INDEX, AS_LITTLE_ENDIAN);
+		vdown 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_DOWN_INDEX, AS_LITTLE_ENDIAN);
+
+		// This allows us to make sure we're not in the sampling window if time has not been resolved
+		if (!self->is_clock_set) {
+			if (self->set_rtc(self, (uint8_t*)payload) != GNSS_SUCCESS){
+				continue;
+			}
+		}
+
+		// We'll always retain the lat/lon and use a flag to indicate if it is any good
+		self->current_fix_is_good = (pDOP < MAX_ACCEPTABLE_PDOP);
+		self->current_latitude = lat;
+		self->current_longitude = lon;
+
+		// Grab velocities, start by checking speed accuracy estimate (sAcc)
+		if (sAcc > MAX_ACCEPTABLE_SACC) {
+			// This message was not within acceptable parameters,
+			self->get_running_average_velocities(self);
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
+			continue;
+		}
+
+		// vAcc was within acceptable range, still need to check
+		// individual velocities are less than MAX_POSSIBLE_VELOCITY
+		velocities_exceed_max = (vnorth > MAX_POSSIBLE_VELOCITY) ||
+								(veast > MAX_POSSIBLE_VELOCITY) ||
+								(vdown > MAX_POSSIBLE_VELOCITY);
+
+		if (velocities_exceed_max) {
+			// One or more velocity component was greater than the
+			// max possible velocity. Loop around and try again
+			self->get_running_average_velocities(self);
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
+			continue;
+		}
+
+		// All velocity values are good to go
+		self->v_north_sum += vnorth;
+		self->v_east_sum += veast;
+		self->v_down_sum += vdown;
+
+		self->GNSS_N_Array[self->total_samples] = ((float)((float)vnorth)/MM_PER_METER);
+		self->GNSS_E_Array[self->total_samples] = ((float)((float)veast)/MM_PER_METER);
+		self->GNSS_D_Array[self->total_samples] = ((float)((float)vdown)/MM_PER_METER);
+
+		self->number_cycles_without_data = 0;
+		self->total_samples++;
+
+		if (self->total_samples == 1) {
 			self->all_resolution_stages_complete = true;
-			break;
+			self->sample_window_start_time = HAL_GetTick();
 		}
-		elapsed_time = HAL_GetTick() - self->resolution_stage_start_time;
-		HAL_Delay(1);
+		else if (self->total_samples == self->global_config->samples_per_window) {
+			HAL_UART_DMAStop(self->gnss_uart_handle);
+			self->all_samples_processed = true;
+			self->sample_window_stop_time = HAL_GetTick();
+			self->sample_window_freq =
+					((float)((self->sample_window_stop_time - self->sample_window_start_time) /
+							self->global_config->samples_per_window));
+			tx_event_flags_set(self->event_flags, GNSS_DONE, TX_NO_WAIT);
+			return;
+		}
+
+		buf_length -= buf_end - buf_start;
+		buf_start = buf_end;
 	}
-
-
-	// Figure out the return code
-	if (self->all_resolution_stages_complete)
-	{
-		return_code = start_dma(self, &(buffer[0]), buf_size);
-	}
-	else
-	{
-		return_code = GNSS_FIRST_SAMPLE_RESOLUTION_ERROR;
-	}
-
-    return return_code;
-}
-
-/**
- * Process the messages in the buffer.
- *
- * @return gnss_error_code_t
- */
-gnss_error_code_t gnss_process_message(GNSS* self)
-{
-	ULONG num_msgs_enqueued, available_space;
-	uint8_t *message = &(self->ubx_process_buf[0]);
-	uint8_t **msg_ptr = &message;
-	gnss_error_code_t return_code = GNSS_SUCCESS;
-	int total_samples = self->total_samples;
-	uint32_t max_ticks_to_receive_queue_message =
-			(((UBX_BUFFER_SIZE / UBX_NAV_PVT_MESSAGE_LENGTH) /
-			(self->global_config->gnss_sampling_rate)) * TX_TIMER_TICKS_PER_SECOND) + 1;
-
-	// Process the contents
-	internal_process_messages(self, message);
-
-
-    return return_code;
 }
 
 /**
  * Get the current lat/long. We're going to return the lat/long no matter what,
- * but the return code will indicate if it's any good
+ * but the return code will indicate if it's any good.
+ * !!! Only valid when the GNSS is on and procesing samples or shortly thereafter
  *
  * @param latitude - return parameter for latitude
  * @param longitude - return parameter for longitude
@@ -339,7 +313,7 @@ gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude,
 		int32_t* longitude)
 {
 	gnss_error_code_t return_code = GNSS_SUCCESS;
-	if (!self->is_location_valid) {
+	if (!self->current_fix_is_good) {
 		return_code = GNSS_LOCATION_INVALID;
 	}
 
@@ -361,30 +335,34 @@ gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude,
  */
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self)
 {
-	// A bit of an obnoxious amount of casting...
+	gnss_error_code_t return_code = GNSS_SUCCESS;
+	float substitute_north, substitute_east, substitute_down;
+	// avoid a divide by zero error
 	if (self->total_samples > 0) {
-		float substituteNorth = ((float)self->v_north_sum) /
+		substitute_north = ((float)self->v_north_sum) /
 				((float)self->total_samples);
-		self->v_north_sum += (int64_t)substituteNorth;
-		self->GNSS_N_Array[self->total_samples] = (int16_t)substituteNorth;
+		substitute_east = ((float)self->v_east_sum) /
+				((float)self->total_samples);
+		substitute_down = ((float)self->v_down_sum) /
+				((float)self->total_samples);
 
-		float substituteEast = ((float)self->v_east_sum) /
-				((float)self->total_samples);
-		self->v_east_sum += (int64_t)substituteEast;
-		self->GNSS_E_Array[self->total_samples] = (int16_t)substituteEast;
+		self->v_north_sum += (int32_t)substitute_north;
+		self->v_east_sum += (int32_t)substitute_east;
+		self->v_down_sum += (int32_t)substitute_down;
 
-		float substituteDown = ((float)self->v_down_sum) /
-				((float)self->total_samples);
-		self->v_down_sum += (int64_t)substituteDown;
-		self->GNSS_D_Array[self->total_samples] = (int16_t)substituteDown;
+		self->GNSS_N_Array[self->total_samples] = substitute_north;
+		self->GNSS_E_Array[self->total_samples] = substitute_east;
+		self->GNSS_D_Array[self->total_samples] = substitute_down;
 
 		self->total_samples++;
 		self->total_samples_averaged++;
-		return GNSS_SUCCESS;
-	} else {
-		// No valid samples yet, avoid divide by zero error
-		return GNSS_NO_SAMPLES_ERROR;
 	}
+	else {
+		// No valid samples yet, avoid divide by zero error
+		return_code = GNSS_NO_SAMPLES_ERROR;
+	}
+
+	return return_code;
 }
 
 
@@ -650,120 +628,6 @@ static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
 }
 
 /**
- * Helper function that processes UBX_NAV_PVT messages from a buffer.
- *
- * @param self- GNSS struct
- * @param
- */
-static void internal_process_messages(GNSS* self, uint8_t* process_buf)
-{
-	uint8_t payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
-	const char* buf_start = (const char*)&(process_buf[0]);
-	const char* buf_end = buf_start;
-	// Our input buffer is a message off the queue, 10 UBX_NAV_PVT msgs
-	size_t buf_length = UBX_BUFFER_SIZE;
-	int32_t message_class = 0;
-	int32_t message_id = 0;
-	int32_t num_payload_bytes = 0;
-	int32_t lat, lon, sAcc, vnorth, veast, vdown;
-	int16_t pDOP;
-
-	// Really gross for loop that processes msgs in each iteration
-	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end);
-			num_payload_bytes > 0;
-			num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end))
-	{
-		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01,
-		// message ID is 0x07
-		if ((num_payload_bytes != UBX_NAV_PVT_PAYLOAD_LENGTH ||
-				message_class != UBX_NAV_PVT_MESSAGE_CLASS  ||
-				message_id    != UBX_NAV_PVT_MESSAGE_ID) &&
-				(self->total_samples > 0))
-		{
-			self->get_running_average_velocities(self);
-			self->number_cycles_without_data++;
-			buf_length -= buf_end - buf_start;
-			buf_start = buf_end;
-			continue;
-		}
-
-		// Even if we don't end up using the values, we did get a valid message
-		self->messages_processed++;
-		// Grab a bunch of things from the message
-		lon 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LON_INDEX, AS_LITTLE_ENDIAN);
-		lat 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LAT_INDEX, AS_LITTLE_ENDIAN);
-		pDOP 	= (int16_t) get_two_bytes(payload, UBX_NAV_PVT_PDOP_INDEX, AS_LITTLE_ENDIAN);
-		sAcc 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_SACC_INDEX, AS_LITTLE_ENDIAN);
-		vnorth 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_NORTH_INDEX, AS_LITTLE_ENDIAN);
-		veast 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_EAST_INDEX, AS_LITTLE_ENDIAN);
-		vdown 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_DOWN_INDEX, AS_LITTLE_ENDIAN);
-
-		// This allows us to make sure we're not in the sampling window if time has not been resolved
-		if (!self->is_clock_set) {
-			if (self->set_rtc(self, (uint8_t*)payload) != GNSS_SUCCESS){
-				continue;
-			}
-		}
-
-		// reset the location validity flag
-		self->is_location_valid = false;
-		// Check Lat/Long accuracy, assign to class fields if good
-		if (pDOP < MAX_ACCEPTABLE_PDOP) {
-			self->current_latitude = lat;
-			self->current_longitude = lon;
-			self->is_location_valid = true;
-		}
-
-		// reset the velocity validity flag
-		self->is_velocity_valid = false;
-		// Grab velocities, start by checking speed accuracy estimate (sAcc)
-		if (sAcc > MAX_ACCEPTABLE_SACC) {
-			// This message was not within acceptable parameters,
-			self->get_running_average_velocities(self);
-			buf_length -= buf_end - buf_start;
-			buf_start = buf_end;
-			continue;
-		}
-
-		// vAcc was within acceptable range, still need to check
-		// individual velocities are less than MAX_POSSIBLE_VELOCITY
-		if ((vnorth > MAX_POSSIBLE_VELOCITY) ||
-			(veast > MAX_POSSIBLE_VELOCITY) ||
-			(vdown > MAX_POSSIBLE_VELOCITY)) {
-			// One or more velocity component was greater than the
-			// max possible velocity. Loop around and try again
-			self->get_running_average_velocities(self);
-			buf_length -= buf_end - buf_start;
-			buf_start = buf_end;
-			continue;
-		}
-
-		self->is_velocity_valid = true;
-		// All velocity values are good to go, convert them to
-		// shorts and store them in the arrays
-		self->GNSS_N_Array[self->total_samples] = ((float)((float)vnorth)/MM_PER_METER);
-		self->GNSS_E_Array[self->total_samples] = ((float)((float)veast)/MM_PER_METER);
-		self->GNSS_D_Array[self->total_samples] = ((float)((float)vdown)/MM_PER_METER);
-
-		self->number_cycles_without_data = 0;
-		self->total_samples++;
-		if (self->total_samples == 1) {
-			self->all_resolution_stages_complete = true;
-		} else if (self->total_samples == self->global_config->samples_per_window) {
-			HAL_UART_DMAStop(self->gnss_uart_handle);
-			self->all_samples_processed = true;
-			tx_event_flags_set(self->event_flags, GNSS_DONE, TX_NO_WAIT);
-			return;
-		}
-
-		buf_length -= buf_end - buf_start;
-		buf_start = buf_end;
-	}
-}
-
-/**
  *
  *
  * @param self- GNSS struct
@@ -948,17 +812,16 @@ static void reset_struct_fields(GNSS* self)
 	self->v_down_sum = 0;
 	self->current_latitude = 0;
 	self->current_longitude = 0;
-	self->sample_window_start_timestamp = 0;
-	self->resolution_stage_start_time = 0;
+	self->sample_window_start_time = 0;
+	self->sample_window_stop_time = 0;
+	self->sample_window_freq = 0.0;
 	self->total_samples = 0;
 	self->total_samples_averaged = 0;
 	self->number_cycles_without_data = 0;
+	self->current_fix_is_good = false;
 	self->all_resolution_stages_complete = false;
 	self->is_configured = false;
-	self->is_location_valid = false;
-	self->is_velocity_valid = false;
 	self->is_clock_set = false;
-	self->is_time_resolved = false;
 	self->rtc_error = false;
 	self->all_samples_processed = false;
 }
