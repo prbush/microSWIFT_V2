@@ -60,6 +60,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+extern DMA_QListTypeDef GNSS_LL_Queue;
 // The configuration struct
 microSWIFT_configuration configuration;
 // The primary byte pool from which all memory is allocated from
@@ -801,6 +802,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
 
 		} else {
+			memcpy(&(gnss->ubx_process_buf[0]), &(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
 			gnss->process_message(gnss);
 		}
 	}
@@ -920,6 +922,32 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 	gnss->reset_uart(gnss, GNSS_DEFAULT_BAUD_RATE);
 
 	memset(&(buffer[0]), 0, UBX_MESSAGE_SIZE * 2);
+
+	HAL_UART_DMAStop(gnss_struct_ptr->gnss_uart_handle);
+
+	hal_return_code = MX_GNSS_LL_Queue_Config();
+
+	if (hal_return_code != HAL_OK) {
+		return_code = GNSS_UART_ERROR;
+	}
+
+	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.Priority = DMA_LOW_PRIORITY_HIGH_WEIGHT;
+	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.LinkStepMode = DMA_LSM_FULL_EXECUTION;
+	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.LinkAllocatedPort = DMA_LINK_ALLOCATED_PORT0;
+	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.TransferEventMode = DMA_TCEM_LAST_LL_ITEM_TRANSFER;
+	gnss_struct_ptr->gnss_dma_handle->InitLinkedList.LinkedListMode = DMA_LINKEDLIST_CIRCULAR;
+
+	if (HAL_DMAEx_List_Init(gnss_struct_ptr->gnss_dma_handle) != HAL_OK)
+	{
+		return_code = GNSS_UART_ERROR;
+	}
+
+	__HAL_LINKDMA(gnss_struct_ptr->gnss_uart_handle, hdmarx, *gnss_struct_ptr->gnss_dma_handle);
+
+	hal_return_code = HAL_DMAEx_List_LinkQ(gnss_struct_ptr->gnss_dma_handle, &GNSS_LL_Queue);
+	if (hal_return_code != HAL_OK) {
+		return_code = GNSS_UART_ERROR;
+	}
 
 	hal_return_code = HAL_UART_Receive_DMA(gnss_struct_ptr->gnss_uart_handle,
 			(uint8_t*)&(buffer[0]), msg_size);
