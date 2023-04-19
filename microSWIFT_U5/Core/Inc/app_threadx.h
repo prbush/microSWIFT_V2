@@ -99,6 +99,32 @@ typedef enum led_sequence_t{
 	TEST_NON_CIRTICAL_FAULT_LED_SEQUENCE = 3,
 	TEST_CRITICAL_FAULT_LED_SEQUENCE = 4
 }led_sequence_t;
+
+#pragma pack(1)
+typedef struct sbd_message_type_52 {
+	uint8_T			legacy_number_7;
+	uint8_t 		type;
+	uint8_t 		port;
+	uint16_t 		size;
+	real16_T 		Hs;
+	real16_T		Tp;
+	real16_T 		Dp;
+	real16_T	 	E_array[42];
+	real16_T		f_min;
+	real16_T		f_max;
+	signed char		a1_array[42];
+	signed char		b1_array[42];
+	signed char		a2_array[42];
+	signed char		b2_array[42];
+	signed char		cf_array[42];
+	float			Lat;
+	float			Lon;
+	real16_T		mean_temp;
+	real16_T		mean_salinity;
+	real16_T		mean_voltage;
+	float			timestamp;
+} sbd_message_type_52;
+#pragma pack(4)
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

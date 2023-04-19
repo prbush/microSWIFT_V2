@@ -50,6 +50,8 @@ ct_error_code_t ct_parse_sample(CT* self)
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_PARSING_ERROR;
 	int fail_counter = 0;
+	double temperature, salinity;
+	char* index;
 	// Sensor sends a message every 2 seconds @ 9600 baud, takes 0.245 seconds to get it out
 	int required_ticks_to_get_message = (TX_TIMER_TICKS_PER_SECOND * 2) + 3;
 
@@ -78,31 +80,31 @@ ct_error_code_t ct_parse_sample(CT* self)
 			continue;
 		}
 
-		char* index = strstr(self->data_buf, "mS/cm");
-		if (index == NULL || index > &(self->data_buf[0]) + 240){
-			continue;
-		}
-
-		index += 7; // skip ahead 7 chars
-		double conductivity = atof(index);
-
-		if (conductivity == 0.0){
-			continue;
-		}
-
 		index = strstr(self->data_buf, "Deg.C");
-		if (index == NULL){
+		// Make the message was received in the right alignment
+		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
 			continue;
 		}
-
-		index += 6; // skip ahead 6 chars
-		double temperature = atof(index);
-
+		index += 6;
+		temperature = atof(index);
+		// error return of atof() is 0.0
 		if (temperature == 0.0){
 			continue;
 		}
 
-		self->samples_buf[self->total_samples].conductivity = conductivity;
+		char* index = strstr(self->data_buf, "PSU");
+		if (index == NULL){
+			continue;
+		}
+
+		index += 4;
+		salinity = atof(index);
+
+		if (salinity == 0.0){
+			continue;
+		}
+
+		self->samples_buf[self->total_samples].salinity = salinity;
 		self->samples_buf[self->total_samples].temp = temperature;
 		self->total_samples++;
 
@@ -122,7 +124,7 @@ ct_error_code_t ct_parse_sample(CT* self)
 ct_error_code_t ct_get_averages(CT* self)
 {
 	double temp_sum = 0.0;
-	double conductivity_sum = 0.0;
+	double salinity_sum = 0.0;
 
 	if (self->total_samples < self->global_config->total_ct_samples) {
 		return CT_NOT_ENOUGH_SAMPLES;
@@ -130,11 +132,11 @@ ct_error_code_t ct_get_averages(CT* self)
 
 	for (int i = 0; i < self->total_samples; i++) {
 		temp_sum += self->samples_buf[i].temp;
-		conductivity_sum += self->samples_buf[i].conductivity;
+		salinity_sum += self->samples_buf[i].salinity;
 	}
 
 	self->averages.temp = temp_sum / ((double)self->total_samples);
-	self->averages.conductivity = conductivity_sum / ((double)self->total_samples);
+	self->averages.salinity = salinity_sum / ((double)self->total_samples);
 
 	return CT_SUCCESS;
 }
@@ -144,9 +146,9 @@ ct_error_code_t ct_get_averages(CT* self)
  *
  * @return ct_error_code_t
  */
-void ct_on_off(CT* self, bool on)
+void ct_on_off(CT* self, GPIO_PinState pin_state)
 {
-	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, on);
+	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, pin_state);
 }
 
 /**
@@ -154,11 +156,13 @@ void ct_on_off(CT* self, bool on)
  *
  * @return ct_error_code_t
  */
-ct_error_code_t ct_self_test(CT* self)
+ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_SELF_TEST_FAIL;
 	uint32_t elapsed_time, start_time;
+	double temperature, salinity;
+	char* index;
 
 	self->on_off(self, GPIO_PIN_SET);
 	self->reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
@@ -185,34 +189,37 @@ ct_error_code_t ct_self_test(CT* self)
 			continue;
 		}
 
-		char* index = strstr(self->data_buf, "mS/cm");
-		if (index == NULL || index > &(self->data_buf[0]) + 240){
-			continue;
-		}
-
-		index += 7; // skip ah
-		double conductivity = atof(index);
-
-		if (conductivity == 0.0){
-			continue;
-		}
-
 		index = strstr(self->data_buf, "Deg.C");
-		if (index == NULL){
+		// Make the message was received in the right alignment
+		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
 			continue;
 		}
 		index += 6;
-		double temperature = atof(index);
-
+		temperature = atof(index);
+		// error return of atof() is 0.0
 		if (temperature == 0.0){
 			continue;
 		}
 
-		// Handle the warmup delay
-		elapsed_time = HAL_GetTick() - start_time;
-		int32_t required_delay = WARMUP_TIME - elapsed_time;
-		if (required_delay > 0) {
-			HAL_Delay(required_delay);
+		char* index = strstr(self->data_buf, "PSU");
+		if (index == NULL){
+			continue;
+		}
+
+		index += 4;
+		salinity = atof(index);
+
+		if (salinity == 0.0){
+			continue;
+		}
+
+		if (add_warmup_time) {
+			// Handle the warmup delay
+			elapsed_time = HAL_GetTick() - start_time;
+			int32_t required_delay = WARMUP_TIME - elapsed_time;
+			if (required_delay > 0) {
+				HAL_Delay(required_delay);
+			}
 		}
 
 		return_code = CT_SUCCESS;
@@ -271,7 +278,7 @@ ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
 
 static void reset_ct_struct_fields(CT* self)
 {
-	self->averages.conductivity = 0.0;
+	self->averages.salinity = 0.0;
 	self->averages.temp = 0.0;
 	self->total_samples = 0;
 }

@@ -23,6 +23,7 @@
 // The total length of a response sentence from the sensor
 #define CT_DATA_ARRAY_SIZE 291
 #define CT_DEFAULT_BAUD_RATE 9600
+#define TEMP_MEASUREMENT_START_INDEX 70
 
 typedef enum {
 	CT_SUCCESS = 0,
@@ -34,7 +35,7 @@ typedef enum {
 }ct_error_code_t;
 
 typedef struct ct_samples{
-	double conductivity;
+	double salinity;
 	double temp;
 } ct_samples;
 
@@ -56,8 +57,8 @@ typedef struct CT{
 	// Function pointers
 	ct_error_code_t (*parse_sample)  (struct CT* self);
 	ct_error_code_t (*get_averages)  (struct CT* self);
-	void		    (*on_off) 		 (struct CT* self, bool on);
-	ct_error_code_t (*self_test) 	 (struct CT* self);
+	void		    (*on_off) 		 (struct CT* self, GPIO_PinState pin_state);
+	ct_error_code_t (*self_test) 	 (struct CT* self, bool add_warmup_time);
 	ct_error_code_t (*reset_ct_uart) (struct CT* self, uint16_t baud_rate);
 } CT;
 
@@ -66,8 +67,8 @@ void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeD
 		ct_samples* samples_buf);
 ct_error_code_t ct_parse_sample(CT* self);
 ct_error_code_t ct_get_averages(CT* self);
-void            ct_on_off(CT* self, bool on);
-ct_error_code_t ct_self_test(CT* self);
+void 			ct_on_off(CT* self, GPIO_PinState pin_state);
+ct_error_code_t ct_self_test(CT* self, bool add_warmup_time);
 ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate);
 
 #endif /* SRC_CT_H_ */

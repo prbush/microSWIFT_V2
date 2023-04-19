@@ -63,6 +63,8 @@
 extern DMA_QListTypeDef GNSS_LL_Queue;
 // The configuration struct
 microSWIFT_configuration configuration;
+// The SBD message we'll assemble
+sbd_message_type_52 sbd_message;
 // The primary byte pool from which all memory is allocated from
 TX_BYTE_POOL *byte_pool;
 // Our threads
@@ -311,6 +313,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
+	// The CT samples array
+	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message, sizeof(sbd_message_type_52),
+			TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
 
 	north = get_waves_float_array(&configuration);
 	east = get_waves_float_array(&configuration);
@@ -375,6 +383,8 @@ void startup_thread_entry(ULONG thread_input){
 	 */
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+	// Zero out the sbd message struct
+	memset(&sbd_message, 0, sizeof(sbd_message));
 	// Initialize GNSS struct
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
 			&thread_flags, &(ubx_message_process_buf[0]), device_handles->hrtc, north, east, down);
@@ -462,7 +472,7 @@ void startup_thread_entry(ULONG thread_input){
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
 			&thread_flags, ct_data, samples_buf);
 	// Make sure we get good data from the CT sensor
-	if (ct->self_test(ct) != CT_SUCCESS) {
+	if (ct->self_test(ct, false) != CT_SUCCESS) {
 		// TODO: cycle power to the board, do some stuff
 		HAL_NVIC_SystemReset();
 	}
@@ -484,15 +494,14 @@ void startup_thread_entry(ULONG thread_input){
 
 /**
   * @brief  gnss_thread_entry
-  *         Thread that governs the GNSS message processing and building of
-  *         uGNSSArray, vGNSSArray, zGNSSArray arrays.
+  *         Thread that governs the GNSS processing. Note that actuall message processing
+  *         happens in interrupt context, so this thread is just acting as the traffic cop.
+  *
   * @param  ULONG thread_input - unused
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
-	UINT threadx_return;
 	ULONG actual_flags;
-	gnss_error_code_t return_code;
 	uint32_t timeout_start = 0, elapsed_time = 0;
 	uint32_t timeout = configuration.gnss_max_acquisition_wait_time * MILLISECONDS_PER_MINUTE;
 	// Wait until we get the ready flag
@@ -543,33 +552,57 @@ void imu_thread_entry(ULONG thread_input){
 #if CT_ENABLED
 /**
   * @brief  ct_thread_entry
-  *         This thread will handle the CT sensor, capture readings, and store
-  *         in ct_data.
+  *         This thread will handle the CT sensor, capture readings, and getting averages..
+  *
   * @param  ULONG thread_input - unused
   * @retval void
   */
 void ct_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	ct_error_code_t return_code;
+	uint32_t ct_parsing_error_counter = 0;
 
 	tx_event_flags_get(&thread_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
-	while (ct->total_samples < ct->global_config->total_ct_samples) {
+	// If the CT sensor doesn't respond, set the error flag and quit
+	if (ct->self_test(ct, true) != CT_SUCCESS) {
+		tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
+		tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+		tx_thread_suspend(&ct_thread);
+	}
+
+	// Take our samples
+	while (ct->total_samples < configuration.total_ct_samples) {
 		return_code = ct_parse_sample(ct);
 		if (return_code == CT_PARSING_ERROR) {
-			// TODO: do something
+			// If there are too many parsing errors, then there's something wrong
+			if (++ct_parsing_error_counter == 10) {
+				tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
+				tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+				tx_thread_suspend(&ct_thread);
+			}
 		}
 	}
 
-	// got our samples, now average them
+	// Got our samples, now average them
 	return_code = ct->get_averages(ct);
+	// Make sure something didn't go terribly wrong
 	if (return_code == CT_NOT_ENOUGH_SAMPLES) {
-		// TODO: do something
+		tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
+		tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+		tx_thread_suspend(&ct_thread);
 	}
 
-	tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+	sbd_message.mean_salinity = floatToHalf(ct->averages.salinity);
+	sbd_message.mean_temp = floatToHalf(ct->averages.temp);
 
-	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+	while (tx_event_flags_set(&thread_flags, CT_DONE, TX_OR) != TX_SUCCESS) {
+		HAL_Delay(10);
+	}
+
+	while (tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR) != TX_SUCCESS) {
+		HAL_Delay(10);
+	}
 
 	tx_thread_suspend(&ct_thread);
 }
@@ -578,7 +611,7 @@ void ct_thread_entry(ULONG thread_input){
 /**
   * @brief  waves_thread_entry
   *         This thread will run the GPSWaves algorithm.
-  *         // TODO: update comments here
+  *
   * @param  ULONG thread_input - unused
   * @retval void
   */
@@ -599,6 +632,8 @@ void waves_thread_entry(ULONG thread_input){
 	signed char b2[42];
 	unsigned char check[42];
 
+	north = argInit_1xUnbounded_real32_T();
+
 	/* Call the entry-point 'NEDwaves_memlight'. */
 	NEDwaves_memlight(north, east, down, argInit_real_T(), &Hs, &Tp, &Dp, E,
 					&b_fmin, &b_fmax, a1, b1, a2, b2, check);
@@ -609,28 +644,40 @@ void waves_thread_entry(ULONG thread_input){
 	emxDestroyArray_real32_T(east);
 	emxDestroyArray_real32_T(north);
 
-	tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR);
+	while (tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR) != TX_SUCCESS) {
+		HAL_Delay(10);
+	}
 
 	tx_thread_suspend(&waves_thread);
 }
 
 /**
   * @brief  iridium_thread_entry
-  *         This thread will handle message sending via Iridium modem. The
-  *         buffer iridium_message is provided for message storage.
+  *         This thread will handle message sending via Iridium modem.
+  *
   * @param  ULONG thread_input - unused
   * @retval void
   */
 void iridium_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
-	ULONG required_flags = GNSS_DONE | CT_DONE | WAVES_DONE | IRIDIUM_READY;
-	ULONG error_flags = GNSS_ERROR | CT_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR
+	ULONG required_flags = GNSS_DONE | WAVES_DONE | IRIDIUM_READY;
+	ULONG error_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR
 			| DMA_ERROR | UART_ERROR;
+
+#if CT_ENABLED
+	required_flags |= CT_DONE;
+	error_flags |= CT_ERROR;
+#endif
 
 #if IMU_ENABLED
 	required_flags |= IMU_DONE;
 	error_flags |= IMU_ERROR;
 #endif
+
+//	if (tx_event_flags_get(&thread_flags, error_flags, TX_OR, &actual_flags,
+//			TX_TIMER_TICKS_PER_SECOND * ) == TX_SUCCESS) {
+//		//TODO: send error message here
+//	}
 
 	tx_event_flags_get(&thread_flags, required_flags, TX_AND, &actual_flags, TX_WAIT_FOREVER);
 

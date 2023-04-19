@@ -21,7 +21,6 @@
 static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		size_t message_size);
 static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop);
-static void internal_process_messages(GNSS* self, uint8_t* process_buf);
 static void process_self_test_messages(GNSS* self, uint8_t* process_buf);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes);
@@ -291,7 +290,7 @@ void gnss_process_message(GNSS* self)
 			self->all_samples_processed = true;
 			self->sample_window_freq = (float)(((float)self->global_config->samples_per_window) /
 					(((float)(self->sample_window_stop_time - self->sample_window_start_time) /
-							1000.0)));
+					1000.0)));
 
 			return;
 		}
