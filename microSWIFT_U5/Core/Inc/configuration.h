@@ -23,7 +23,7 @@
 #define IRIDIUM_MAX_TRANSMIT_TIME 10
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
-#define GNSS_MAX_ACQUISITION_WAIT_TIME 1 //TODO: change this to 10
+#define GNSS_MAX_ACQUISITION_WAIT_TIME 10 //TODO: change this to 10
 // The number of samples for the CT sensor to take. Result will be averaged
 #define TOTAL_CT_SAMPLES 10
 // If the IMU will be utilized or not

@@ -127,7 +127,7 @@ typedef struct GNSS {
 	// The start time for the sampling window
 	uint32_t sample_window_stop_time;
 	// The true calculated sample window frequency
-	float sample_window_freq;
+	double sample_window_freq;
 	// Increment with each sample or running average
 	uint16_t total_samples;
 	// We'll keep track of how many times we had to sub in a running average
@@ -164,7 +164,7 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
 		float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
-gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),\
+gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
 		uint8_t* buffer, size_t msg_size);
 gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);

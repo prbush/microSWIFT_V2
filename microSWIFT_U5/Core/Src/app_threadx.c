@@ -78,9 +78,12 @@ TX_THREAD teardown_thread;
 // We'll use flags to signal other threads to run/shutdown
 TX_EVENT_FLAGS_GROUP thread_flags;
 // The data structures for Waves
-float* down;
-float* east;
-float* north;
+emxArray_real32_T *north;
+emxArray_real32_T *east;
+emxArray_real32_T *down;
+//float* down;
+//float* east;
+//float* north;
 // The primary DMA buffer for GNSS UBX messages
 uint8_t* ubx_DMA_message_buf;
 // Buffer for messages ready to process
@@ -320,9 +323,9 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	  return ret;
 	}
 
-	north = get_waves_float_array(&configuration);
-	east = get_waves_float_array(&configuration);
-	down = get_waves_float_array(&configuration);
+	north = argInit_1xUnbounded_real32_T(&configuration); //get_waves_float_array(&configuration);
+	east  = argInit_1xUnbounded_real32_T(&configuration); //get_waves_float_array(&configuration);
+	down  = argInit_1xUnbounded_real32_T(&configuration); //get_waves_float_array(&configuration);
 #endif
   /* USER CODE END App_ThreadX_MEM_POOL */
 
@@ -383,11 +386,10 @@ void startup_thread_entry(ULONG thread_input){
 	 */
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-	// Zero out the sbd message struct
-	memset(&sbd_message, 0, sizeof(sbd_message));
 	// Initialize GNSS struct
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-			&thread_flags, &(ubx_message_process_buf[0]), device_handles->hrtc, north, east, down);
+			&thread_flags, &(ubx_message_process_buf[0]), device_handles->hrtc, north->data,
+			east->data, down->data);
 	// turn on the GNSS FET
 	gnss->on_off(gnss, GPIO_PIN_SET);
 	// Send the configuration commands to the GNSS unit.
@@ -593,9 +595,6 @@ void ct_thread_entry(ULONG thread_input){
 		tx_thread_suspend(&ct_thread);
 	}
 
-	sbd_message.mean_salinity = floatToHalf(ct->averages.salinity);
-	sbd_message.mean_temp = floatToHalf(ct->averages.temp);
-
 	while (tx_event_flags_set(&thread_flags, CT_DONE, TX_OR) != TX_SUCCESS) {
 		HAL_Delay(10);
 	}
@@ -620,6 +619,9 @@ void waves_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
+	// Zero out the sbd message struct
+	memset(&sbd_message, 0, sizeof(sbd_message));
+	// Function return parameters
 	real16_T E[42];
 	real16_T Dp;
 	real16_T Hs;
@@ -632,10 +634,8 @@ void waves_thread_entry(ULONG thread_input){
 	signed char b2[42];
 	unsigned char check[42];
 
-	north = argInit_1xUnbounded_real32_T();
-
 	/* Call the entry-point 'NEDwaves_memlight'. */
-	NEDwaves_memlight(north, east, down, argInit_real_T(), &Hs, &Tp, &Dp, E,
+	NEDwaves_memlight(north, east, down, gnss->sample_window_freq, &Hs, &Tp, &Dp, E,
 					&b_fmin, &b_fmax, a1, b1, a2, b2, check);
 	// TODO: create a function to assemble the Iridium payload here, to include
 	//       changing the endianess of array E
@@ -643,6 +643,40 @@ void waves_thread_entry(ULONG thread_input){
 	emxDestroyArray_real32_T(down);
 	emxDestroyArray_real32_T(east);
 	emxDestroyArray_real32_T(north);
+
+	sbd_message.legacy_number_7 = '7';
+	sbd_message.type = 52;
+	sbd_message.port = 0;
+	sbd_message.size = 327;
+	sbd_message.Hs = Hs;
+	sbd_message.Tp = Tp;
+	sbd_message.Dp = Dp;
+	for (int i = 0; i < 42; i++) {
+		sbd_message.E_array[i] = E[i];
+	}
+	sbd_message.f_min = b_fmin;
+	sbd_message.f_max = b_fmax;
+	for (int i = 0; i < 42; i++) {
+		sbd_message.a1_array[i] = a1[i];
+	}
+	for (int i = 0; i < 42; i++) {
+		sbd_message.b1_array[i] = b1[i];
+	}
+	for (int i = 0; i < 42; i++) {
+		sbd_message.a2_array[i] = a2[i];
+	}
+	for (int i = 0; i < 42; i++) {
+		sbd_message.b2_array[i] = b2[i];
+	}
+	for (int i = 0; i < 42; i++) {
+		sbd_message.cf_array[i] = check[i];
+	}
+	sbd_message.Lat = (float)gnss->current_latitude;
+	sbd_message.Lon = (float)gnss->current_longitude;
+	sbd_message.mean_salinity = floatToHalf(ct->averages.salinity);
+	sbd_message.mean_temp = floatToHalf(ct->averages.temp);
+	sbd_message.mean_voltage = floatToHalf(6.0);
+
 
 	while (tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR) != TX_SUCCESS) {
 		HAL_Delay(10);
@@ -1003,4 +1037,5 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 
 	return return_code;
 }
+
 /* USER CODE END 1 */

@@ -288,8 +288,8 @@ void gnss_process_message(GNSS* self)
 			HAL_UART_DMAStop(self->gnss_uart_handle);
 			self->sample_window_stop_time = HAL_GetTick();
 			self->all_samples_processed = true;
-			self->sample_window_freq = (float)(((float)self->global_config->samples_per_window) /
-					(((float)(self->sample_window_stop_time - self->sample_window_start_time) /
+			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
+					(((double)(self->sample_window_stop_time - self->sample_window_start_time) /
 					1000.0)));
 
 			return;
