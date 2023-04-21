@@ -15,7 +15,7 @@
 // and transmission will be spent in sleep mode
 #define DUTY_CYCLE 60
 // Number of samples in each sampling window
-#define TOTAL_SAMPLES_PER_WINDOW 512
+#define TOTAL_SAMPLES_PER_WINDOW 8192
 // Sampling rate in Hz for the GNSS sensor
 #define GNSS_SAMPLING_RATE 5
 // The max time in MINUTES to try to get an Iridium message off

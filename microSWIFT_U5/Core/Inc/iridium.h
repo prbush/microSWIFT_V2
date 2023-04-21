@@ -107,7 +107,7 @@ typedef struct Iridium {
 	uint8_t* response_buffer;
 	// Unsent message storage queue
 	struct Iridium_message_queue* storage_queue;
-	// current lat/long
+	// current lat/long (for future use)
 	float current_lat;
 	float current_lon;
 

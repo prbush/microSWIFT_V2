@@ -72,7 +72,7 @@
  	CT_DONE = 1 << 7,
  	IRIDIUM_DONE = 1 << 8,
 	WAVES_DONE = 1 << 9,
- 	// Sleep states
+ 	// Sleep states (for future use)
  	SET_STOP_2 = 1 << 10,
  	RESET_STOP_2 = 1 << 11,
  	SET_SHUTDOWN = 1 << 12,

@@ -70,9 +70,6 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	memset(&(self->message_buffer[0]), 0, IRIDIUM_MESSAGE_PAYLOAD_SIZE);
 	memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 
-//	HAL_UART_RegisterCallback(self->iridium_uart_handle, HAL_UART_RX_COMPLETE_CB_ID,
-//			uart_receive_dma_callback);
-
 	self->queue_create(self);
 }
 
