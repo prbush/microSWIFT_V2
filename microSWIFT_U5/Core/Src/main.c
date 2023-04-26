@@ -582,7 +582,7 @@ static void MX_RTC_Init(void)
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_12;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
   hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
@@ -695,7 +695,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin|EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin|EXT_LED_GREEN_Pin|BUS_5V_FET_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOG, LED_RED_Pin|CT_FET_Pin|GNSS_FET_Pin|GNSS_EXTINT_Pin
@@ -729,19 +729,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USER_BUTTON_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : EXT_LED_RED_Pin EXT_LED_GREEN_Pin */
-  GPIO_InitStruct.Pin = EXT_LED_RED_Pin|EXT_LED_GREEN_Pin;
+  /*Configure GPIO pins : EXT_LED_RED_Pin EXT_LED_GREEN_Pin BUS_5V_FET_Pin */
+  GPIO_InitStruct.Pin = EXT_LED_RED_Pin|EXT_LED_GREEN_Pin|BUS_5V_FET_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PF2 PF3 PF4 PF5
-                           PF6 PF7 PF8 PF9
-                           PF10 PF11 PF12 PF13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9
-                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13;
+  /*Configure GPIO pins : PF3 PF4 PF5 PF6
+                           PF7 PF8 PF9 PF10
+                           PF11 PF12 PF13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
@@ -851,7 +851,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
 
 /**
   * @brief  This function is executed in case of error occurrence.

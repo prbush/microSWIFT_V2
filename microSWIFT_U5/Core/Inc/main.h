@@ -74,6 +74,8 @@ void Error_Handler(void);
 #define EXT_LED_RED_GPIO_Port GPIOF
 #define EXT_LED_GREEN_Pin GPIO_PIN_1
 #define EXT_LED_GREEN_GPIO_Port GPIOF
+#define BUS_5V_FET_Pin GPIO_PIN_2
+#define BUS_5V_FET_GPIO_Port GPIOF
 #define GNSS_UART_TX_Pin GPIO_PIN_2
 #define GNSS_UART_TX_GPIO_Port GPIOA
 #define GNSS_UART_RX_Pin GPIO_PIN_3
