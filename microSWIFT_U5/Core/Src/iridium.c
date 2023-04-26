@@ -16,7 +16,6 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 		uint16_t payload_size);
 static uint8_t get_signal_strength(Iridium* self);
 static void cycle_power(Iridium* self);
-static float get_timestamp(Iridium* self);
 
 // static variables
 static const char* ack = "AT\r";
@@ -57,6 +56,7 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	self->transmit_message = iridium_transmit_message;
 	self->transmit_error_message = iridium_transmit_error_message;
 	self->set_location = iridium_set_location;
+	self->get_timestamp = iridium_get_timestamp;
 	self->sleep = iridium_sleep;
 	self->on_off = iridium_on_off;
 	self->store_in_flash = iridium_store_in_flash;
@@ -690,7 +690,7 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
 	memcpy(&(self->error_message_buffer[payload_iterator]), lon_ptr,
 				sizeof(self->current_lon));
 	payload_iterator += sizeof(self->current_lon);
-	timestamp = get_timestamp(self);
+	timestamp = self->get_timestamp(self);
 	memcpy(&(self->error_message_buffer[payload_iterator]), timestamp_ptr,
 			sizeof(float));
 
@@ -804,7 +804,7 @@ static uint8_t get_signal_strength(Iridium* self)
  * @param self - Iridium struct
  * @return timestamp as a float
  */
-static float get_timestamp(Iridium* self)
+float iridium_get_timestamp(Iridium* self)
 {
 	uint32_t timestamp = 0;
 	bool is_leap_year = false;

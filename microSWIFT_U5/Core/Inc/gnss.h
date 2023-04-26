@@ -74,6 +74,7 @@ typedef enum {
 #define MM_PER_METER 1000.0
 #define MIN_SATELLITES_TO_PASS_TEST 4
 #define LOWER_4_BITS_MASK 0xF
+#define LAT_LON_CONVERSION_FACTOR 10000000 // format as 1E-7
 // UBX message definitions
 #define FULLY_RESOLVED_AND_VALID_TIME 0x7
 #define UBX_NAV_PVT_YEAR_INDEX 4
@@ -146,8 +147,8 @@ typedef struct GNSS {
 	gnss_error_code_t (*self_test)(struct GNSS* self,
 				gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
 				uint8_t* buffer, size_t msg_size);
-	gnss_error_code_t (*get_location)(struct GNSS* self, int32_t* latitude,
-			int32_t* longitude);
+	gnss_error_code_t (*get_location)(struct GNSS* self, float* latitude,
+			float* longitude);
 	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
 	void		 	  (*process_message)(struct GNSS* self);
 	gnss_error_code_t (*sleep)(struct GNSS* self, bool put_to_sleep);
@@ -166,7 +167,7 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 gnss_error_code_t gnss_config(GNSS* self);
 gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
 		uint8_t* buffer, size_t msg_size);
-gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude, int32_t* longitude);
+gnss_error_code_t gnss_get_location(GNSS* self, float* latitude, float* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
 void 			  gnss_process_message(GNSS* self);
 gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);

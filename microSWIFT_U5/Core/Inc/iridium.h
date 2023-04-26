@@ -116,6 +116,7 @@ typedef struct Iridium {
 	iridium_error_code_t (*transmit_message)(struct Iridium* self);
 	iridium_error_code_t (*transmit_error_message)(struct Iridium* self, char* error_message);
 	void                 (*set_location)(struct Iridium* self, float latitiude, float longitude);
+	float				 (*get_timestamp)(struct Iridium* self);
 	void 				 (*sleep)(struct Iridium* self, GPIO_PinState pin_state);
 	void				 (*on_off)(struct Iridium* self, GPIO_PinState pin_state);
 	iridium_error_code_t (*store_in_flash)(struct Iridium* self);
@@ -162,6 +163,7 @@ void				 iridium_storage_queue_create(Iridium* self);
 iridium_error_code_t iridium_storage_queue_add(Iridium* self,uint8_t* payload);
 iridium_error_code_t iridium_storage_queue_get(Iridium* self,uint8_t* msg_index);
 void                 iridium_storage_queue_flush(Iridium* self);
+float 				 iridium_get_timestamp(Iridium* self);
 
 
 #endif /* SRC_IRIDIUM_H_ */

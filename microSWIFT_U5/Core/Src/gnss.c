@@ -309,16 +309,16 @@ void gnss_process_message(GNSS* self)
  * @param longitude - return parameter for longitude
  * @return gnss_error_code_t
  */
-gnss_error_code_t gnss_get_location(GNSS* self, int32_t* latitude,
-		int32_t* longitude)
+gnss_error_code_t gnss_get_location(GNSS* self, float* latitude, float* longitude)
 {
 	gnss_error_code_t return_code = GNSS_SUCCESS;
+
 	if (!self->current_fix_is_good) {
 		return_code = GNSS_LOCATION_INVALID;
 	}
 
-	*latitude = self->current_latitude;
-	*longitude = self->current_longitude;
+	*latitude = ((float)self->current_latitude)/((float)LAT_LON_CONVERSION_FACTOR);
+	*longitude = ((float)self->current_longitude)/((float)LAT_LON_CONVERSION_FACTOR);
 
 	return return_code;
 }
