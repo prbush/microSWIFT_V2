@@ -82,7 +82,7 @@ typedef enum {
 #define SECONDS_IN_HOUR 3600
 #define SECONDS_IN_DAY 86400
 #define SECONDS_IN_YEAR 31536000 // 365 day year, not accounting for 1/4 leap days
-#define SECONDS_1970_TO_2000 946713600
+#define SECONDS_1970_TO_2000 946684800
 #define EPOCH_YEAR 1970
 #define CURRENT_CENTURY 2000
 

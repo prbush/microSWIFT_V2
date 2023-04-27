@@ -128,7 +128,7 @@ __packed float			timestamp;
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define DBUG
+#define DBUG //TODO: remove this!!!
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

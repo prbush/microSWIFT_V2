@@ -624,11 +624,11 @@ static iridium_error_code_t internal_transmit_message(Iridium* self, uint8_t* pa
 
 			case 2: // Message Tx unsuccessful, try again
 				HAL_Delay(adaptive_delay_time[fail_counter % 5]);
-				network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
-				while (network_available == false && !self->timer_timeout) {
-					network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
-					HAL_Delay(5);
-				}
+//				network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
+//				while (network_available == false && !self->timer_timeout) {
+//					network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
+//					HAL_Delay(5);
+//				}
 				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 				continue;
 
@@ -814,8 +814,8 @@ float iridium_get_timestamp(Iridium* self)
 	RTC_TimeTypeDef rtc_time;
 
 	// Get the date and time
-	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD);
-	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD);
+	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BIN);
 
 	// Let's make a timestamp (yay...)
 	// Years first
@@ -880,7 +880,7 @@ float iridium_get_timestamp(Iridium* self)
 		default:
 			break;
 	}
-	timestamp += julian_date_first_of_month * SECONDS_IN_DAY;
+	timestamp += (julian_date_first_of_month) * SECONDS_IN_DAY;
 	timestamp += (rtc_date.Date - 1) * SECONDS_IN_DAY;
 	timestamp += rtc_time.Hours * SECONDS_IN_HOUR;
 	timestamp += rtc_time.Minutes * SECONDS_IN_MIN;

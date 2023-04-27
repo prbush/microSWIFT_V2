@@ -122,7 +122,6 @@ int main(void)
   MX_GPIO_Init();
   MX_GPDMA1_Init();
   MX_USB_OTG_FS_PCD_Init();
-  MX_RTC_Init();
   MX_ICACHE_Init();
   MX_UART4_Init();
   MX_I2C1_Init();
@@ -131,6 +130,20 @@ int main(void)
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  __HAL_RCC_PWR_CLK_ENABLE();
+  HAL_PWR_EnableBkUpAccess();
+
+  // Check if we got here after being in standby mode and setup the RTC accordingly
+  if (__HAL_PWR_GET_FLAG(PWR_FLAG_SBF) == RESET) {
+	  // Got here by reset, not by standby mode
+	  MX_RTC_Init();
+  } else {
+	  // Got here after being in standby mode
+	  __HAL_RCC_RTCAPB_CLK_ENABLE();
+	  __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SBF);
+	  __HAL_RTC_CLEAR_FLAG(&hrtc, RTC_CLEAR_WUTF);
+	  HAL_RTCEx_DeactivateWakeUpTimer(&hrtc);
+  }
 
   device_handles_t handles;
 
@@ -143,6 +156,10 @@ int main(void)
   handles.Iridium_tx_dma_handle = &handle_GPDMA1_Channel2;
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
+
+#ifdef DBUG
+  HAL_DBGMCU_EnableDBGStandbyMode();
+#endif
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
@@ -603,8 +620,19 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN RTC_Init 2 */
 
+  /** Enable the WakeUp
+  */
+//  if (HAL_RTCEx_SetWakeUpTimer(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+  /* USER CODE BEGIN RTC_Init 2 */
+  /* Set Calendar Ultra-Low power mode */
+  if (HAL_RTCEx_SetLowPowerCalib(&hrtc, RTC_LPCAL_SET) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END RTC_Init 2 */
 
 }

@@ -7,7 +7,12 @@
 
 #include "ct_sensor.h"
 
+// Helper functions
 static void reset_ct_struct_fields(CT* self);
+
+// Search terms
+static const char* temp_units = "Deg.C";
+static const char* salinity_units = "PSU";
 
 
 /**
@@ -80,24 +85,24 @@ ct_error_code_t ct_parse_sample(CT* self)
 			continue;
 		}
 
-		index = strstr(self->data_buf, "Deg.C");
+		index = strstr(self->data_buf, temp_units);
 		// Make the message was received in the right alignment
 		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
 			continue;
 		}
-		index += 6;
+		index += TEMP_OFFSET_FROM_UNITS;
 		temperature = atof(index);
 		// error return of atof() is 0.0
 		if (temperature == 0.0){
 			continue;
 		}
 
-		char* index = strstr(self->data_buf, "PSU");
+		char* index = strstr(self->data_buf, salinity_units);
 		if (index == NULL){
 			continue;
 		}
 
-		index += 4;
+		index += SALINITY_OFFSET_FROM_UNITS;
 		salinity = atof(index);
 
 		if (salinity == 0.0){
@@ -189,24 +194,24 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 			continue;
 		}
 
-		index = strstr(self->data_buf, "Deg.C");
+		index = strstr(self->data_buf, temp_units);
 		// Make the message was received in the right alignment
 		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
 			continue;
 		}
-		index += 6;
+		index += TEMP_OFFSET_FROM_UNITS;
 		temperature = atof(index);
 		// error return of atof() is 0.0
 		if (temperature == 0.0){
 			continue;
 		}
 
-		char* index = strstr(self->data_buf, "PSU");
+		char* index = strstr(self->data_buf, salinity_units);
 		if (index == NULL){
 			continue;
 		}
 
-		index += 4;
+		index += SALINITY_OFFSET_FROM_UNITS;
 		salinity = atof(index);
 
 		if (salinity == 0.0){

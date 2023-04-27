@@ -132,6 +132,8 @@ void ct_thread_entry(ULONG thread_input);
 #endif
 // Static helper functions
 static void led_sequence(uint8_t sequence);
+static void enter_stop_3_for_one_hour(void);
+static void enter_standby_mode_until_top_of_hour(void);
 /* USER CODE END PFP */
 
 /**
@@ -345,7 +347,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   * @param  None
   * @retval None
   */
-  /* USER CODE BEGIN  Before_Kernel_Start */
 void MX_ThreadX_Init(device_handles_t *handles)
 {
   device_handles = handles;
@@ -717,27 +718,6 @@ void iridium_thread_entry(ULONG thread_input){
 		iridium->transmit_error_message(iridium, "Sample error message");
 	}
 
-
-
-//	iridium->current_lat = 47.655357637587834;
-//	iridium->current_lon = -122.32135545762652;
-
-//	RTC_DateTypeDef rtc_date;
-//	RTC_TimeTypeDef rtc_time;
-//
-//	rtc_date.Date = 3;
-//	rtc_date.Month = RTC_MONTH_APRIL;
-//	rtc_date.Year = 23;
-//	rtc_date.WeekDay = 1;
-//
-//	rtc_time.Hours = 15;
-//	rtc_time.Minutes = 10;
-//	rtc_time.Seconds = 15;
-//	rtc_time.TimeFormat = RTC_HOURFORMAT_24;
-//	rtc_time.SecondFraction = 0;
-//
-//	HAL_RTC_SetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BCD);
-//	HAL_RTC_SetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BCD);
 	sbd_message.legacy_number_7 = '7';
 	sbd_message.type = 52;
 	sbd_message.size = 327;
@@ -787,6 +767,10 @@ void teardown_thread_entry(ULONG thread_input){
 #endif
 
 	tx_event_flags_get(&thread_flags, required_flags, TX_AND_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+
+	// Calculate wakeup
+
+	enter_standby_mode_until_top_of_hour();
 
 	UINT status;
 	ULONG retreived_flags;
@@ -1032,6 +1016,26 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 	}
 
 	return return_code;
+}
+
+static void enter_stop_3_for_one_hour(void)
+{
+
+}
+
+static void enter_standby_mode_until_top_of_hour(void)
+{
+
+	uint32_t wakeup_counter = 0;
+	RTC_TimeTypeDef rtc_time;
+
+	// Get the date and time
+	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
+	// https://community.st.com/s/article/how-to-configure-the-rtc-to-wake-up-the-stm32-periodically-from-low-power-modes
+	wakeup_counter = (((59 - rtc_time.Minutes) + rtc_time.Seconds) * 1000000) / 488;
+
+	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, wakeup_counter, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
+	HAL_PWR_EnterSTANDBYMode();
 }
 
 /* USER CODE END 1 */

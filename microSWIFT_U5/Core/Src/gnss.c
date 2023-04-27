@@ -152,7 +152,6 @@ gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS
 				self->total_samples == 5)
 		{
 			return_code = GNSS_SUCCESS;
-			self->set_rtc(self, msg_buf);
 			break;
 		}
 	}
@@ -486,7 +485,7 @@ gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
 	// We are not using weekday, but the time will be set incorrectly if this field is not initialized
 	// Value for WeekDay will not have any effect on time/date
 	rtc_date.WeekDay = RTC_WEEKDAY_MONDAY;
-	if (HAL_RTC_SetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD) != HAL_OK) {
+	if (HAL_RTC_SetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BIN) != HAL_OK) {
 		return_code = GNSS_RTC_ERROR;
 		self->rtc_error = true;
 		return return_code;
@@ -496,7 +495,7 @@ gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
 	rtc_time.Minutes = min;
 	rtc_time.Seconds = sec;
 	rtc_time.SecondFraction = 0;
-	if (HAL_RTC_SetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD) != HAL_OK) {
+	if (HAL_RTC_SetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BIN) != HAL_OK) {
 		return_code = GNSS_RTC_ERROR;
 		self->rtc_error = true;
 		return return_code;
