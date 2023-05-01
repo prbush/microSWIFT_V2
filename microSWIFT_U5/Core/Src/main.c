@@ -81,7 +81,7 @@ static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void enter_standby_mode(uint32_t wakeup_counter);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -115,13 +115,15 @@ int main(void)
   SystemPower_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  __HAL_RCC_PWR_CLK_ENABLE();
+  HAL_PWR_EnableBkUpAccess();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_GPDMA1_Init();
   MX_USB_OTG_FS_PCD_Init();
+  MX_RTC_Init();
   MX_ICACHE_Init();
   MX_UART4_Init();
   MX_I2C1_Init();
@@ -130,9 +132,10 @@ int main(void)
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  __HAL_RCC_PWR_CLK_ENABLE();
-  HAL_PWR_EnableBkUpAccess();
 
+  HAL_DBGMCU_EnableDBGStandbyMode();
+
+  HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
   // Check if we got here after being in standby mode and setup the RTC accordingly
   if (__HAL_PWR_GET_FLAG(PWR_FLAG_SBF) == RESET) {
 	  // Got here by reset, not by standby mode
@@ -144,6 +147,15 @@ int main(void)
 	  __HAL_RTC_CLEAR_FLAG(&hrtc, RTC_CLEAR_WUTF);
 	  HAL_RTCEx_DeactivateWakeUpTimer(&hrtc);
   }
+
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+
+//	HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 10000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
+//	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
+//
+//	HAL_PWR_EnterSTANDBYMode();
+//  enter_standby_mode(10000);
 
   device_handles_t handles;
 
@@ -157,9 +169,7 @@ int main(void)
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
 
-#ifdef DBUG
-  HAL_DBGMCU_EnableDBGStandbyMode();
-#endif
+
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
@@ -591,6 +601,7 @@ static void MX_RTC_Init(void)
   /* USER CODE END RTC_Init 0 */
 
   RTC_PrivilegeStateTypeDef privilegeState = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -599,15 +610,13 @@ static void MX_RTC_Init(void)
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
-  hrtc.Init.BinMode = RTC_BINARY_NONE;
+  hrtc.Init.BinMode = RTC_BINARY_ONLY;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
@@ -621,9 +630,31 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
 
-  /** Enable the WakeUp
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
   */
-//  if (HAL_RTCEx_SetWakeUpTimer(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16) != HAL_OK)
+  if (HAL_RTCEx_SetSSRU_IT(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+//  /** Enable the Alarm A
+//  */
+//  sAlarm.AlarmTime.SubSeconds = 0x0;
+//  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
+//  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDBINMASK_NONE;
+//  sAlarm.Alarm = RTC_ALARM_A;
+//  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  /** Enable the WakeUp
+//  */
+//  if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0) != HAL_OK)
 //  {
 //    Error_Handler();
 //  }
@@ -877,8 +908,30 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void enter_standby_mode(uint32_t wakeup_counter)
+{
+	HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, wakeup_counter, RTC_WAKEUPCLOCK_RTCCLK_DIV16, wakeup_counter);
 
+	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
+
+	// Configure MCU low-power mode for CPU deep sleep mode
+	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
+	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
+
+	// Configure CPU core
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
+#ifdef NDEBUG
+	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
+#endif
+
+	// Enter low-power mode
+	for (;;) {
+		__DSB();
+		__WFI();
+	}
+}
 /* USER CODE END 4 */
+
 
 /**
   * @brief  This function is executed in case of error occurrence.

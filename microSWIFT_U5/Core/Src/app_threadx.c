@@ -721,7 +721,7 @@ void iridium_thread_entry(ULONG thread_input){
 	sbd_message.legacy_number_7 = '7';
 	sbd_message.type = 52;
 	sbd_message.size = 327;
-	sbd_message.mean_voltage = floatToHalf(6.0);
+	sbd_message.mean_voltage = floatToHalf(6.2);
 	sbd_message.timestamp = iridium->get_timestamp(iridium);
 
 	// Copy over the struct into the Iridium message buffer
@@ -770,7 +770,27 @@ void teardown_thread_entry(ULONG thread_input){
 
 	// Calculate wakeup
 
-	enter_standby_mode_until_top_of_hour();
+	HAL_SuspendTick();
+
+	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, 1000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
+
+	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
+
+	// Configure MCU low-power mode for CPU deep sleep mode
+	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
+	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
+
+	// Configure CPU core
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
+#ifdef NDEBUG
+	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
+#endif
+
+	HAL_PWR_EnableWakeUpPin(RTC_IT_WUT);
+
+	HAL_PWR_EnterSTANDBYMode();
+
+//	enter_standby_mode_until_top_of_hour();
 
 	UINT status;
 	ULONG retreived_flags;
@@ -1029,13 +1049,39 @@ static void enter_standby_mode_until_top_of_hour(void)
 	uint32_t wakeup_counter = 0;
 	RTC_TimeTypeDef rtc_time;
 
-	// Get the date and time
-	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
-	// https://community.st.com/s/article/how-to-configure-the-rtc-to-wake-up-the-stm32-periodically-from-low-power-modes
-	wakeup_counter = (((59 - rtc_time.Minutes) + rtc_time.Seconds) * 1000000) / 488;
+//	HAL_SuspendTick();
+//	// Get the date and time
+//	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
+//	// https://community.st.com/s/article/how-to-configure-the-rtc-to-wake-up-the-stm32-periodically-from-low-power-modes
+//	wakeup_counter = (((59 - rtc_time.Minutes) + rtc_time.Seconds) * 1000000) / 488;
+//
+//	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, 100000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
+//	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
+//	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+//	HAL_PWR_EnterSTANDBYMode();
 
-	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, wakeup_counter, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
-	HAL_PWR_EnterSTANDBYMode();
+
+	HAL_SuspendTick();
+	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, 100000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
+
+	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
+
+	// Configure MCU low-power mode for CPU deep sleep mode
+	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
+	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
+
+	// Configure CPU core
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
+#ifdef NDEBUG
+	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
+#endif
+
+	// Enter low-power mode
+	for (;;) {
+		__DSB();
+		__WFI();
+	}
 }
 
 /* USER CODE END 1 */
