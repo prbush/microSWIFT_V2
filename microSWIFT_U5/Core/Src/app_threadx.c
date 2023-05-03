@@ -347,6 +347,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   * @param  None
   * @retval None
   */
+  /* USER CODE BEGIN  Before_Kernel_Start */
 void MX_ThreadX_Init(device_handles_t *handles)
 {
   device_handles = handles;
@@ -442,9 +443,12 @@ void startup_thread_entry(ULONG thread_input){
 	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
 			device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
 			device_handles->Iridium_tx_dma_handle, &thread_flags,
-			device_handles->hrtc,(uint8_t*)iridium_message,
+			device_handles->hrtc, &sbd_message,
 			(uint8_t*)iridium_error_message,
 			(uint8_t*)iridium_response_message);
+
+	// Only do this on initial power up, else leave it alone!
+	iridium->queue_create(iridium);
 	// See if we can get an ack message from the modem
 	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
 		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
@@ -526,11 +530,12 @@ void gnss_thread_entry(ULONG thread_input){
 
 	gnss->get_location(gnss, &temp_lat, &temp_lon);
 	// Just to be overly sure about alignment
-	*(&sbd_message.Lat) = temp_lat;
-	*(&sbd_message.Lon) = temp_lon;
+	memcpy(&sbd_message.Lat, &temp_lat, sizeof(float));
+	memcpy(&sbd_message.Lon, &temp_lon, sizeof(float));
 	// We're using the "port" field to encode how many samples were averaged. If the number
 	// is greater than 255, then you just get 255.
-	sbd_message.port = (gnss->total_samples_averaged > 255) ? 255 : gnss->total_samples_averaged;
+	uint8_t sbd_port = (gnss->total_samples_averaged > 255) ? 255 : gnss->total_samples_averaged;
+	memcpy(&sbd_message.port, &sbd_port, sizeof(uint8_t));
 
 	while (tx_event_flags_set(&thread_flags, GNSS_DONE, TX_OR) != TX_SUCCESS) {
 		HAL_Delay(10);
@@ -602,8 +607,11 @@ void ct_thread_entry(ULONG thread_input){
 		tx_thread_suspend(&ct_thread);
 	}
 
-	sbd_message.mean_salinity = floatToHalf(ct->averages.salinity);
-	sbd_message.mean_temp = floatToHalf(ct->averages.temp);
+	real16_T half_salinity = floatToHalf(ct->averages.salinity);
+	real16_T half_temp = floatToHalf(ct->averages.temp);
+
+	memcpy(&sbd_message.mean_salinity, &half_salinity, sizeof(real16_T));
+	memcpy(&sbd_message.mean_temp, &half_temp, sizeof(real16_T));
 
 	while (tx_event_flags_set(&thread_flags, CT_DONE, TX_OR) != TX_SUCCESS) {
 		HAL_Delay(10);
@@ -652,29 +660,17 @@ void waves_thread_entry(ULONG thread_input){
 	emxDestroyArray_real32_T(east);
 	emxDestroyArray_real32_T(north);
 
-	sbd_message.Hs = Hs;
-	sbd_message.Tp = Tp;
-	sbd_message.Dp = Dp;
-	for (int i = 0; i < 42; i++) {
-		sbd_message.E_array[i] = E[i];
-	}
-	sbd_message.f_min = b_fmin;
-	sbd_message.f_max = b_fmax;
-	for (int i = 0; i < 42; i++) {
-		sbd_message.a1_array[i] = a1[i];
-	}
-	for (int i = 0; i < 42; i++) {
-		sbd_message.b1_array[i] = b1[i];
-	}
-	for (int i = 0; i < 42; i++) {
-		sbd_message.a2_array[i] = a2[i];
-	}
-	for (int i = 0; i < 42; i++) {
-		sbd_message.b2_array[i] = b2[i];
-	}
-	for (int i = 0; i < 42; i++) {
-		sbd_message.cf_array[i] = check[i];
-	}
+	memcpy(&sbd_message.Hs, &Hs, sizeof(real16_T));
+	memcpy(&sbd_message.Tp, &Tp, sizeof(real16_T));
+	memcpy(&sbd_message.Dp, &Dp, sizeof(real16_T));
+	memcpy(&(sbd_message.E_array[0]), &(E[0]), 42 * sizeof(real16_T));
+	memcpy(&sbd_message.f_min, &b_fmin, sizeof(real16_T));
+	memcpy(&sbd_message.f_max, &b_fmax, sizeof(real16_T));
+	memcpy(&(sbd_message.a1_array[0]), &(a1[0]), 42 * sizeof(signed char));
+	memcpy(&(sbd_message.b1_array[0]), &(b1[0]), 42 * sizeof(signed char));
+	memcpy(&(sbd_message.a2_array[0]), &(a2[0]), 42 * sizeof(signed char));
+	memcpy(&(sbd_message.b2_array[0]), &(b2[0]), 42 * sizeof(signed char));
+	memcpy(&(sbd_message.cf_array[0]), &(check[0]), 42 * sizeof(unsigned char));
 
 	while (tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR) != TX_SUCCESS) {
 		HAL_Delay(10);
@@ -718,17 +714,23 @@ void iridium_thread_entry(ULONG thread_input){
 		iridium->transmit_error_message(iridium, "Sample error message");
 	}
 
-	sbd_message.legacy_number_7 = '7';
-	sbd_message.type = 52;
-	sbd_message.size = 327;
-	sbd_message.mean_voltage = floatToHalf(6.2);
-	sbd_message.timestamp = iridium->get_timestamp(iridium);
-
-	// Copy over the struct into the Iridium message buffer
-	memcpy(&(iridium->message_buffer[0]), (void*)&sbd_message, sizeof(sbd_message_type_52));
+	uint8_t ascii_7 = '7';
+	uint8_t sbd_type = 52;
+	uint16_t sbd_size = 327;
+	real16_T sbd_voltage = floatToHalf(6.2);
+	float sbd_timestamp = iridium->get_timestamp(iridium);
+	// finish filling out the sbd message
+	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(uint8_t));
+	memcpy(&sbd_message.type, &sbd_type, sizeof(uint8_t));
+	memcpy(&sbd_message.size, &sbd_size, sizeof(uint16_t));
+	memcpy(&sbd_message.mean_voltage, &sbd_voltage, sizeof(real16_T));
+	memcpy(&sbd_message.timestamp, &sbd_timestamp, sizeof(float));
 
 	// This will turn on the modem and make sure the caps are charged
 	iridium->self_test(iridium);
+
+	memcpy(&iridium->current_lat, &sbd_message.Lat, sizeof(float));
+	memcpy(&iridium->current_lon, &sbd_message.Lon, sizeof(float));
 
 	return_code = iridium->transmit_message(iridium);
 	// TODO: do something if the return code is not success?
@@ -757,6 +759,7 @@ void teardown_thread_entry(ULONG thread_input){
 	// 	For now, we'll just assume the right combo is that everything is done
 	ULONG actual_flags, required_flags;
 	required_flags =  	GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
+	  RTC_AlarmTypeDef sAlarm = {0};
 
 #if CT_ENABLED
 	required_flags |= CT_DONE;
@@ -768,27 +771,54 @@ void teardown_thread_entry(ULONG thread_input){
 
 	tx_event_flags_get(&thread_flags, required_flags, TX_AND_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
-	// Calculate wakeup
+	RTC_DateTypeDef rtc_date;
+	RTC_TimeTypeDef rtc_time;
 
+	// Get the date and time
+	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+
+	rtc_time.Minutes = (rtc_time.Minutes == 59) ? 0 : rtc_time.Minutes + 1;
+	sAlarm.AlarmTime = rtc_time;
+	sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;
+	sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDBINMASK_ALL;
+	sAlarm.BinaryAutoClr = RTC_ALARMSUBSECONDBIN_AUTOCLR_NO;
+	sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_WEEKDAY;
+	sAlarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
+	sAlarm.FlagAutoClr = ALARM_FLAG_AUTOCLR_ENABLE;
+	sAlarm.Alarm = RTC_ALARM_A;
+	if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &sAlarm, RTC_FORMAT_BIN) != HAL_OK)
+	{
+	  HAL_NVIC_SystemReset();
+	}
+//
+//	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
+//
+//	// Configure MCU low-power mode for CPU deep sleep mode
+//	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
+//	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
+//
+//	// Configure CPU core
+//	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
+//#ifdef NDEBUG
+//	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
+//#endif
+
+	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+
+
+
+	HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 7, 7);
+	HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
+
+	HAL_ICACHE_Disable();
 	HAL_SuspendTick();
 
-	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, 1000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
+	HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI);
 
-	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
-
-	// Configure MCU low-power mode for CPU deep sleep mode
-	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
-	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
-
-	// Configure CPU core
-	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
-#ifdef NDEBUG
-	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
-#endif
-
-	HAL_PWR_EnableWakeUpPin(RTC_IT_WUT);
-
-	HAL_PWR_EnterSTANDBYMode();
+	// Make it easy and just reset
+	HAL_NVIC_SystemReset();
 
 //	enter_standby_mode_until_top_of_hour();
 

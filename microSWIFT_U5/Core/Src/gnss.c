@@ -285,6 +285,8 @@ void gnss_process_message(GNSS* self)
 		}
 		else if (self->total_samples == self->global_config->samples_per_window) {
 			HAL_UART_DMAStop(self->gnss_uart_handle);
+			HAL_UART_DeInit(self->gnss_uart_handle);
+			HAL_DMA_DeInit(self->gnss_dma_handle);
 			self->sample_window_stop_time = HAL_GetTick();
 			self->all_samples_processed = true;
 			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
@@ -722,8 +724,8 @@ static uint32_t get_timestamp(GNSS* self)
 	RTC_TimeTypeDef rtc_time;
 
 	// Get the date and time
-	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BCD);
-	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BCD);
+	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BIN);
 
 	// Let's make a timestamp (yay...)
 	// Years first

@@ -14,6 +14,7 @@
 #include "math.h"
 #include "tx_api.h"
 #include "NEDwaves_memlight_types.h"
+#include "NEDwaves_memlight_emxAPI.h"
 #include "configuration.h"
 
 int memory_pool_init(TX_BYTE_POOL* pool, VOID* pool_start, size_t pool_size);

@@ -56,6 +56,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern LPTIM_HandleTypeDef hlptim1;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel1;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel3;
@@ -174,10 +175,9 @@ void DebugMon_Handler(void)
 void RTC_IRQHandler(void)
 {
   /* USER CODE BEGIN RTC_IRQn 0 */
-
   /* USER CODE END RTC_IRQn 0 */
-  HAL_RTC_AlarmIRQHandler(&hrtc);
-  HAL_RTCEx_WakeUpTimerIRQHandler(&hrtc);
+//  HAL_RTC_AlarmIRQHandler(&hrtc);
+//  HAL_RTCEx_WakeUpTimerIRQHandler(&hrtc);
   /* USER CODE BEGIN RTC_IRQn 1 */
 
   /* USER CODE END RTC_IRQn 1 */
@@ -254,6 +254,20 @@ void LPUART1_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles LPTIM1 global interrupt.
+  */
+void LPTIM1_IRQHandler(void)
+{
+  /* USER CODE BEGIN LPTIM1_IRQn 0 */
+
+  /* USER CODE END LPTIM1_IRQn 0 */
+  HAL_LPTIM_IRQHandler(&hlptim1);
+  /* USER CODE BEGIN LPTIM1_IRQn 1 */
+
+  /* USER CODE END LPTIM1_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM16 global interrupt.
   */
 void TIM16_IRQHandler(void)
@@ -282,5 +296,17 @@ void TIM17_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+/**
+  * @brief This function handles PWR wake up from Stop3 interrupt.
+  */
+void PWR_S3WU_IRQHandler(void)
+{
+  /* USER CODE BEGIN PWR_S3WU_IRQn 0 */
 
+  /* USER CODE END PWR_S3WU_IRQn 0 */
+  HAL_PWREx_S3WU_IRQHandler(PWR_WAKEUP_PIN7);
+  /* USER CODE BEGIN PWR_S3WU_IRQn 1 */
+
+  /* USER CODE END PWR_S3WU_IRQn 1 */
+}
 /* USER CODE END 1 */

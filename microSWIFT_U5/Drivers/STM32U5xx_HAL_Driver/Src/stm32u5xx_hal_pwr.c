@@ -639,7 +639,6 @@ void HAL_PWR_EnterSTANDBYMode(void)
 {
   /* Select Standby mode */
   MODIFY_REG(PWR->CR1, PWR_CR1_LPMS, PWR_CR1_LPMS_2);
-  (void)PWR->CR1;
 
   /* Set SLEEPDEEP bit of Cortex System Control Register */
   SET_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));

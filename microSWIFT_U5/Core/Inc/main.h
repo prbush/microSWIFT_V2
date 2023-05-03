@@ -47,6 +47,8 @@ typedef struct {
 	DMA_HandleTypeDef* Iridium_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
 	TIM_HandleTypeDef* iridium_timer;
+	LPTIM_HandleTypeDef* low_power_timer;
+	uint32_t reset_reason;
 } device_handles_t;
 /* USER CODE END ET */
 
@@ -130,10 +132,6 @@ void Error_Handler(void);
 #define IMU_INT_GPIO_Port GPIOG
 #define IMU_nRESET_Pin GPIO_PIN_12
 #define IMU_nRESET_GPIO_Port GPIOG
-#define IMU_I2C_SDA_Pin GPIO_PIN_13
-#define IMU_I2C_SDA_GPIO_Port GPIOG
-#define IMU_I2C_SCL_Pin GPIO_PIN_14
-#define IMU_I2C_SCL_GPIO_Port GPIOG
 #define UCPD_DBn_Pin GPIO_PIN_5
 #define UCPD_DBn_GPIO_Port GPIOB
 #define LED_BLUE_Pin GPIO_PIN_7
