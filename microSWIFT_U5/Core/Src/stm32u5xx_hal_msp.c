@@ -182,7 +182,6 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
 */
 void HAL_LPTIM_MspInit(LPTIM_HandleTypeDef* hlptim)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
   if(hlptim->Instance==LPTIM1)
   {
@@ -201,18 +200,6 @@ void HAL_LPTIM_MspInit(LPTIM_HandleTypeDef* hlptim)
 
     /* Peripheral clock enable */
     __HAL_RCC_LPTIM1_CLK_ENABLE();
-
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-    /**LPTIM1 GPIO Configuration
-    PC0     ------> LPTIM1_IN1
-    */
-    GPIO_InitStruct.Pin = GPIO_PIN_0;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF1_LPTIM1;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
     /* LPTIM1 interrupt Init */
     HAL_NVIC_SetPriority(LPTIM1_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
@@ -238,11 +225,6 @@ void HAL_LPTIM_MspDeInit(LPTIM_HandleTypeDef* hlptim)
   /* USER CODE END LPTIM1_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_LPTIM1_CLK_DISABLE();
-
-    /**LPTIM1 GPIO Configuration
-    PC0     ------> LPTIM1_IN1
-    */
-    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_0);
 
     /* LPTIM1 interrupt DeInit */
     HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
@@ -598,7 +580,7 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef* hrtc)
     HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(RTC_IRQn);
   /* USER CODE BEGIN RTC_MspInit 1 */
-
+    __HAL_RCC_RTCAPB_CLKAM_ENABLE();
   /* USER CODE END RTC_MspInit 1 */
   }
 

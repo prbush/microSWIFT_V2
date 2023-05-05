@@ -133,6 +133,7 @@ void ct_thread_entry(ULONG thread_input);
 // Static helper functions
 static void led_sequence(uint8_t sequence);
 static void enter_stop_3_for_one_hour(void);
+static void setup_lptim_for_wakeup(uint32_t mins_to_sleep);
 static void enter_standby_mode_until_top_of_hour(void);
 /* USER CODE END PFP */
 
@@ -525,8 +526,13 @@ void gnss_thread_entry(ULONG thread_input){
 			// TODO: sleep for 1 hour by RTC
 			HAL_Delay(100);
 		}
-		while (!gnss->all_samples_processed);
+		while (!gnss->all_samples_processed){
+			HAL_Delay(1);
+		}
 	}
+
+	HAL_UART_DeInit(gnss->gnss_uart_handle);
+	HAL_DMA_DeInit(gnss->gnss_dma_handle);
 
 	gnss->get_location(gnss, &temp_lat, &temp_lon);
 	// Just to be overly sure about alignment
@@ -537,9 +543,7 @@ void gnss_thread_entry(ULONG thread_input){
 	uint8_t sbd_port = (gnss->total_samples_averaged > 255) ? 255 : gnss->total_samples_averaged;
 	memcpy(&sbd_message.port, &sbd_port, sizeof(uint8_t));
 
-	while (tx_event_flags_set(&thread_flags, GNSS_DONE, TX_OR) != TX_SUCCESS) {
-		HAL_Delay(10);
-	}
+	tx_event_flags_set(&thread_flags, GNSS_DONE, TX_OR);
 
 	tx_thread_suspend(&gnss_thread);
 }
@@ -582,6 +586,7 @@ void ct_thread_entry(ULONG thread_input){
 	if (ct->self_test(ct, true) != CT_SUCCESS) {
 		tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
 		tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+		tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
 		tx_thread_suspend(&ct_thread);
 	}
 
@@ -593,10 +598,14 @@ void ct_thread_entry(ULONG thread_input){
 			if (++ct_parsing_error_counter == 10) {
 				tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
 				tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+				tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
 				tx_thread_suspend(&ct_thread);
 			}
 		}
 	}
+
+	HAL_UART_DeInit(ct->ct_uart_handle);
+	HAL_DMA_DeInit(ct->ct_dma_handle);
 
 	// Got our samples, now average them
 	return_code = ct->get_averages(ct);
@@ -613,13 +622,8 @@ void ct_thread_entry(ULONG thread_input){
 	memcpy(&sbd_message.mean_salinity, &half_salinity, sizeof(real16_T));
 	memcpy(&sbd_message.mean_temp, &half_temp, sizeof(real16_T));
 
-	while (tx_event_flags_set(&thread_flags, CT_DONE, TX_OR) != TX_SUCCESS) {
-		HAL_Delay(10);
-	}
-
-	while (tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR) != TX_SUCCESS) {
-		HAL_Delay(10);
-	}
+	tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
 
 	tx_thread_suspend(&ct_thread);
 }
@@ -672,9 +676,7 @@ void waves_thread_entry(ULONG thread_input){
 	memcpy(&(sbd_message.b2_array[0]), &(b2[0]), 42 * sizeof(signed char));
 	memcpy(&(sbd_message.cf_array[0]), &(check[0]), 42 * sizeof(unsigned char));
 
-	while (tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR) != TX_SUCCESS) {
-		HAL_Delay(10);
-	}
+	tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR);
 
 	tx_thread_suspend(&waves_thread);
 }
@@ -728,6 +730,7 @@ void iridium_thread_entry(ULONG thread_input){
 
 	// This will turn on the modem and make sure the caps are charged
 	iridium->self_test(iridium);
+	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
 
 	memcpy(&iridium->current_lat, &sbd_message.Lat, sizeof(float));
 	memcpy(&iridium->current_lon, &sbd_message.Lon, sizeof(float));
@@ -735,11 +738,18 @@ void iridium_thread_entry(ULONG thread_input){
 	return_code = iridium->transmit_message(iridium);
 	// TODO: do something if the return code is not success?
 
+	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
+
+	iridium->sleep(iridium, GPIO_PIN_RESET);
+	iridium->on_off(iridium, GPIO_PIN_RESET);
+
+	HAL_UART_DeInit(iridium->iridium_uart_handle);
+	HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
+	HAL_DMA_DeInit(iridium->iridium_tx_dma_handle);
+
 	int32_t elapsed_time = (HAL_GetTick() - start_time_millis) / 1000;
 
-	while (tx_event_flags_set(&thread_flags, IRIDIUM_DONE, TX_OR) != TX_SUCCESS) {
-		HAL_Delay(10);
-	}
+	tx_event_flags_set(&thread_flags, IRIDIUM_DONE, TX_OR);
 
 	tx_thread_suspend(&iridium_thread);
 
@@ -759,7 +769,8 @@ void teardown_thread_entry(ULONG thread_input){
 	// 	For now, we'll just assume the right combo is that everything is done
 	ULONG actual_flags, required_flags;
 	required_flags =  	GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
-	  RTC_AlarmTypeDef sAlarm = {0};
+//	uint32_t mins_to_sleep;
+	RTC_AlarmTypeDef alarm = {0};
 
 #if CT_ENABLED
 	required_flags |= CT_DONE;
@@ -778,116 +789,38 @@ void teardown_thread_entry(ULONG thread_input){
 	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
-	rtc_time.Minutes = (rtc_time.Minutes == 59) ? 0 : rtc_time.Minutes + 1;
-	sAlarm.AlarmTime = rtc_time;
-	sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;
-	sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDBINMASK_ALL;
-	sAlarm.BinaryAutoClr = RTC_ALARMSUBSECONDBIN_AUTOCLR_NO;
-	sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_WEEKDAY;
-	sAlarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
-	sAlarm.FlagAutoClr = ALARM_FLAG_AUTOCLR_ENABLE;
-	sAlarm.Alarm = RTC_ALARM_A;
-	if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &sAlarm, RTC_FORMAT_BIN) != HAL_OK)
+	alarm.Alarm = RTC_ALARM_A;
+	alarm.AlarmTime.SubSeconds = 0x0;
+	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;
+	alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+	alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
+	alarm.AlarmTime = rtc_time;
+	alarm.AlarmTime.Hours = rtc_time.Hours == 23 ? 0 : rtc_time.Hours + 1;
+	alarm.AlarmTime.Minutes = rtc_time.Minutes == 59 ? 1 : rtc_time.Minutes + 2;
+	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS;
+
+	if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN) != HAL_OK)
 	{
-	  HAL_NVIC_SystemReset();
+		HAL_NVIC_SystemReset();
 	}
-//
-//	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
-//
-//	// Configure MCU low-power mode for CPU deep sleep mode
-//	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
-//	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
-//
-//	// Configure CPU core
-//	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
-//#ifdef NDEBUG
-//	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
-//#endif
 
-	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
-	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
-
+	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(RTC_IRQn);
 
 
 	HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 7, 7);
 	HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 
+	// See errata regarding ICACHE access on wakeup
 	HAL_ICACHE_Disable();
+	HAL_Delay(1);
 	HAL_SuspendTick();
+
+	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 
 	HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI);
 
 	// Make it easy and just reset
-	HAL_NVIC_SystemReset();
-
-//	enter_standby_mode_until_top_of_hour();
-
-	UINT status;
-	ULONG retreived_flags;
-	ULONG done_flags_to_check = GNSS_DONE |
-								IMU_DONE |
-								CT_DONE |
-								IRIDIUM_DONE |
-								WAVES_DONE;
-
-	ULONG error_flags_to_check = GNSS_ERROR |
-								 IMU_ERROR |
-								 CT_ERROR |
-								 MODEM_ERROR |
-								 MEMORY_ALLOC_ERROR;
-
-	while(1) {
-		retreived_flags = 0x0;
-		// Start by checking if we get an error flag. The last argument of "1"
-		// means we will check this every tick
-		status = tx_event_flags_get(&thread_flags,
-				error_flags_to_check,
-				TX_OR, &retreived_flags, 1);
-		// Clear out all bit positions except for the error bits
-		retreived_flags &= 0x1F000;
-		if ((status == TX_SUCCESS) && (retreived_flags & error_flags_to_check)) {
-			// We received an error flag, restart and try again
-			HAL_NVIC_SystemReset();
-		}
-		// Clear out all bit positions except for the done bits
-		retreived_flags &= 0xF0;
-		// Now we'll check the done flags
-		status = tx_event_flags_get(&thread_flags,
-						done_flags_to_check,
-						TX_AND, &retreived_flags, 1);
-		if ((status == TX_SUCCESS) && ~(retreived_flags ^ done_flags_to_check)) {
-			// We received all the done bits, break out of the loop so we can
-			// shut everything down
-			break;
-		}
-	}
-	// If we made it here, we received all the done bits and we're good to
-	// dealloc memory and shutdown. We're not going to check the return value
-	// because we're going to standby mode regardless, and all RAM will be lost.
-//	tx_byte_release(&startup_thread);
-//	tx_byte_release(&gnss_thread);
-//	tx_byte_release(&imu_thread);
-//	tx_byte_release(&ct_thread);
-//	tx_byte_release(&waves_thread);
-//	tx_byte_release(&iridium_thread);
-//	tx_byte_release(&teardown_thread);
-//	tx_byte_release(&thread_flags);
-//	tx_byte_release(&uGNSSArray);
-//	tx_byte_release(&vGNSSArray);
-//	tx_byte_release(&zGNSSArray);
-//	tx_byte_release(&uIMUArray);
-//	tx_byte_release(&vIMUArray);
-//	tx_byte_release(&zIMUArray);
-//	tx_byte_release(&uWavesArray);
-//	tx_byte_release(&vWavesArray);
-//	tx_byte_release(&zWavesArray);
-//	tx_byte_release(&wavesTempCopyArray);
-//	tx_byte_release(&ubx_DMA_message_buf);
-//	tx_byte_release(&ct_data);
-//	tx_byte_release(&iridium_message);
-
-	// TODO: figure out how to go into standby mode
-	// This is just a placeholder for development/debugging purposes
 	HAL_NVIC_SystemReset();
 }
 
@@ -946,6 +879,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 
 //	_tx_thread_context_restore();
+}
+
+void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
+{
+	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 }
 
 /**
@@ -1070,6 +1008,19 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 
 static void enter_stop_3_for_one_hour(void)
 {
+
+}
+
+static void setup_lptim_for_wakeup(uint32_t mins_to_sleep)
+{
+
+
+	device_handles->low_power_timer->Init.RepetitionCounter = mins_to_sleep - 1;
+
+	if (HAL_LPTIM_Counter_Start_IT(device_handles->low_power_timer) != HAL_OK)
+	{
+		HAL_NVIC_SystemReset();
+	}
 
 }
 

@@ -102,7 +102,9 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_BACKUPRESET_FORCE();
+  __HAL_RCC_BACKUPRESET_RELEASE();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -112,8 +114,7 @@ int main(void)
   SystemPower_Config();
 
   /* USER CODE BEGIN SysInit */
-  __HAL_RCC_PWR_CLK_ENABLE();
-  HAL_PWR_EnableBkUpAccess();
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -130,6 +131,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
+
 
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
   // Check if we got here after being in standby mode and setup the RTC accordingly
@@ -200,7 +202,7 @@ void SystemClock_Config(void)
   /** Configure LSE Drive Capability
   */
   HAL_PWR_EnableBkUpAccess();
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_MEDIUMHIGH);
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
@@ -274,20 +276,21 @@ static void SystemPower_Config(void)
   /*
    * SRAM Power Down In Stop Mode Config
    */
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM1_PAGE1_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM1_PAGE2_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM1_PAGE3_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM2_PAGE1_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM2_PAGE2_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE1_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE2_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE3_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE4_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE5_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE6_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE7_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM3_PAGE8_STOP_RETENTION);
-  HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_PAGE1_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_PAGE2_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_PAGE3_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_PAGE1_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_PAGE2_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE1_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE2_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE3_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE4_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE5_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE6_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE7_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE8_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
 
   /*
    * Switch to SMPS regulator instead of LDO
@@ -445,14 +448,12 @@ static void MX_LPTIM1_Init(void)
 
   /* USER CODE END LPTIM1_Init 1 */
   hlptim1.Instance = LPTIM1;
-  hlptim1.Init.Clock.Source = LPTIM_CLOCKSOURCE_ULPTIM;
+  hlptim1.Init.Clock.Source = LPTIM_CLOCKSOURCE_APBCLOCK_LPOSC;
   hlptim1.Init.Clock.Prescaler = LPTIM_PRESCALER_DIV128;
-  hlptim1.Init.UltraLowPowerClock.Polarity = LPTIM_CLOCKPOLARITY_RISING;
-  hlptim1.Init.UltraLowPowerClock.SampleTime = LPTIM_CLOCKSAMPLETIME_DIRECTTRANSITION;
   hlptim1.Init.Trigger.Source = LPTIM_TRIGSOURCE_SOFTWARE;
-  hlptim1.Init.Period = 1600;
+  hlptim1.Init.Period = 15360;
   hlptim1.Init.UpdateMode = LPTIM_UPDATE_IMMEDIATE;
-  hlptim1.Init.CounterSource = LPTIM_COUNTERSOURCE_EXTERNAL;
+  hlptim1.Init.CounterSource = LPTIM_COUNTERSOURCE_INTERNAL;
   hlptim1.Init.Input1Source = LPTIM_INPUT1SOURCE_GPIO;
   hlptim1.Init.Input2Source = LPTIM_INPUT2SOURCE_GPIO;
   hlptim1.Init.RepetitionCounter = 0;
@@ -622,6 +623,7 @@ static void MX_RTC_Init(void)
   /* USER CODE END RTC_Init 0 */
 
   RTC_PrivilegeStateTypeDef privilegeState = {0};
+//  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -661,20 +663,13 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
 
-//  /** Enable the Alarm A
-//  */
+  /** Enable the Alarm A
+  */
 //  sAlarm.AlarmTime.SubSeconds = 0x0;
 //  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
-//  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDBINMASK_NONE;
+//  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 //  sAlarm.Alarm = RTC_ALARM_A;
-//  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//
-//  /** Enable the WakeUp
-//  */
-//  if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0) != HAL_OK)
+//  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BIN) != HAL_OK)
 //  {
 //    Error_Handler();
 //  }
@@ -797,10 +792,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PC1 PC2 PC3 PC6
-                           PC8 PC9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_6
-                          |GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pins : PC0 PC1 PC2 PC3
+                           PC6 PC8 PC9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
+                          |GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -926,8 +921,8 @@ static void enter_standby_mode(uint32_t wakeup_counter)
 		__WFI();
 	}
 }
-/* USER CODE END 4 */
 
+/* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -509,7 +509,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 static iridium_error_code_t internal_transmit_message(Iridium* self,
 		uint8_t* payload, uint16_t payload_size)
 {
-	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
+	iridium_error_code_t return_code;
 	char* needle;
 	char payload_size_str[4];
 	char load_sbd[15] = "AT+SBDWB=";
@@ -519,6 +519,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	bool network_available = false;
 	uint32_t adaptive_delay_time[5] = {ONE_SECOND * 3, ONE_SECOND * 5,
 			ONE_SECOND * 30, ONE_SECOND * 60, ONE_SECOND * 180};
+	uint32_t delay_time;
 
 	// Assemble the load_sbd string
 	itoa(payload_size, payload_size_str, 10);
@@ -602,16 +603,24 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 				}
 				// force outer loop to break
 				fail_counter = MAX_RETRIES;
+				return_code = IRIDIUM_SUCCESS;
 				break;
 
 			case 2: // Message Tx unsuccessful, try again
-				HAL_Delay(adaptive_delay_time[fail_counter % 5]);
+				delay_time = adaptive_delay_time[fail_counter % 5];
+				// Wait the prescribed time, but check that we haven't timed out
+				while (!self->timer_timeout && delay_time > 0) {
+					HAL_Delay(1);
+					delay_time --;
+				}
+
 				network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
 				while (network_available == false && !self->timer_timeout) {
 					network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
-					HAL_Delay(5);
+					HAL_Delay(1);
 				}
 				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+				return_code = IRIDIUM_TRANSMIT_ERROR;
 				continue;
 
 			default: // Response didn't make sense
@@ -621,10 +630,6 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 				break;
 		}
-	}
-
-	if (fail_counter == MAX_RETRIES && return_code != IRIDIUM_UNKNOWN_ERROR) {
-		return_code = IRIDIUM_TRANSMIT_ERROR;
 	}
 
 	return return_code;

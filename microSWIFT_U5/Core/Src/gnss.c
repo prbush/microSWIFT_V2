@@ -192,11 +192,6 @@ void gnss_process_message(GNSS* self)
 	int16_t pDOP;
 	bool is_ubx_nav_pvt_msg, velocities_exceed_max;
 
-	// Samples array overflow safety check
-	if (self->total_samples >= self->global_config->samples_per_window) {
-		return;
-	}
-
 	// Really gross for loop that processes msgs in each iteration
 	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
 				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end);
@@ -267,6 +262,23 @@ void gnss_process_message(GNSS* self)
 			continue;
 		}
 
+		// Was this the first sample?
+		if (self->total_samples == 1) {
+			self->all_resolution_stages_complete = true;
+			self->sample_window_start_time = HAL_GetTick();
+		}
+		// Make sure we don't overflow our arrays
+		else if (self->total_samples == self->global_config->samples_per_window) {
+			HAL_UART_DMAStop(self->gnss_uart_handle);
+			self->sample_window_stop_time = HAL_GetTick();
+			self->all_samples_processed = true;
+			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
+					(((double)(self->sample_window_stop_time - self->sample_window_start_time) /
+					1000.0)));
+
+			return;
+		}
+
 		// All velocity values are good to go
 		self->v_north_sum += vnorth;
 		self->v_east_sum += veast;
@@ -278,23 +290,6 @@ void gnss_process_message(GNSS* self)
 
 		self->number_cycles_without_data = 0;
 		self->total_samples++;
-
-		if (self->total_samples == 1) {
-			self->all_resolution_stages_complete = true;
-			self->sample_window_start_time = HAL_GetTick();
-		}
-		else if (self->total_samples == self->global_config->samples_per_window) {
-			HAL_UART_DMAStop(self->gnss_uart_handle);
-			HAL_UART_DeInit(self->gnss_uart_handle);
-			HAL_DMA_DeInit(self->gnss_dma_handle);
-			self->sample_window_stop_time = HAL_GetTick();
-			self->all_samples_processed = true;
-			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
-					(((double)(self->sample_window_stop_time - self->sample_window_start_time) /
-					1000.0)));
-
-			return;
-		}
 
 		buf_length -= buf_end - buf_start;
 		buf_start = buf_end;

@@ -27,7 +27,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
-
+int32_t rtc_irq_counter = 0;
 /* USER CODE END TD */
 
 /* Private define ------------------------------------------------------------*/
@@ -115,6 +115,7 @@ void MemManage_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
+	  HAL_NVIC_SystemReset();
     /* USER CODE END W1_MemoryManagement_IRQn 0 */
   }
 }
@@ -130,6 +131,7 @@ void BusFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_BusFault_IRQn 0 */
+	  HAL_NVIC_SystemReset();
     /* USER CODE END W1_BusFault_IRQn 0 */
   }
 }
@@ -145,6 +147,7 @@ void UsageFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
+	  HAL_NVIC_SystemReset();
     /* USER CODE END W1_UsageFault_IRQn 0 */
   }
 }
@@ -175,9 +178,9 @@ void DebugMon_Handler(void)
 void RTC_IRQHandler(void)
 {
   /* USER CODE BEGIN RTC_IRQn 0 */
+  rtc_irq_counter++;
   /* USER CODE END RTC_IRQn 0 */
-//  HAL_RTC_AlarmIRQHandler(&hrtc);
-//  HAL_RTCEx_WakeUpTimerIRQHandler(&hrtc);
+  HAL_RTC_AlarmIRQHandler(&hrtc);
   /* USER CODE BEGIN RTC_IRQn 1 */
 
   /* USER CODE END RTC_IRQn 1 */
