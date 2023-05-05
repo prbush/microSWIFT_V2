@@ -441,13 +441,13 @@ void startup_thread_entry(ULONG thread_input){
 
 		threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
 
-	#if IMU_ENABLED
+#if IMU_ENABLED
 		threadx_return = tx_event_flags_set(&thread_flags, IMU_READY, TX_OR);
-	#endif
+#endif
 
-	#if CT_ENABLED
+#if CT_ENABLED
 		threadx_return = tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
-	#endif
+#endif
 	}
 
 	// This is first time power up, test everything and flash LED sequence
@@ -521,12 +521,12 @@ void startup_thread_entry(ULONG thread_input){
 		// We got an ack and were able to config the Iridium modem
 		threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
 
-		#if IMU_ENABLED
+#if IMU_ENABLED
 		///////////////////////////////////////////////////////////////////////////////////////////////
 		////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
-		#endif
+#endif
 
-		#if CT_ENABLED
+#if CT_ENABLED
 		///////////////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
 		// Make sure we get good data from the CT sensor
@@ -538,7 +538,7 @@ void startup_thread_entry(ULONG thread_input){
 
 		// We received a good message from the CT sensor
 		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
-		#endif
+#endif
 
 		// If we made it here, everything passed!
 		led_sequence(TEST_PASSED_LED_SEQUENCE);
@@ -640,6 +640,13 @@ void ct_thread_entry(ULONG thread_input){
 		tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
 		tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
 		tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+
+#ifdef DBUG
+		for (int i = 0; i < 100; i++) {
+			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+		}
+#endif
+
 		tx_thread_suspend(&ct_thread);
 	}
 
@@ -652,6 +659,11 @@ void ct_thread_entry(ULONG thread_input){
 				tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
 				tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
 				tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+#ifdef DBUG
+				for (int i = 0; i < 100; i++) {
+					led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+				}
+#endif
 				tx_thread_suspend(&ct_thread);
 			}
 		}
@@ -781,8 +793,9 @@ void iridium_thread_entry(ULONG thread_input){
 	HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
 	HAL_DMA_DeInit(iridium->iridium_tx_dma_handle);
 
+#ifdef DBUG
 	int32_t elapsed_time = (HAL_GetTick() - start_time_millis) / 1000;
-
+#endif
 	tx_event_flags_set(&thread_flags, IRIDIUM_DONE, TX_OR);
 
 	tx_thread_suspend(&iridium_thread);
