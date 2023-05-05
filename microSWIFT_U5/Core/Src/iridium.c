@@ -46,6 +46,8 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	self->current_message = current_message;
 	self->error_message_buffer = error_message_buffer;
 	self->response_buffer = response_buffer;
+	// place the storage queue in SRAM 4
+	self->storage_queue = (Iridium_message_queue*) SRAM4_START_ADDR;
 	self->current_lat = 0.0;
 	self->current_lon = 0.0;
 	self->timer_timeout = false;
@@ -123,18 +125,17 @@ iridium_error_code_t iridium_config(Iridium* self)
 iridium_error_code_t iridium_self_test(Iridium* self)
 {
 	int fail_counter;
-	uint32_t elapsed_time = 0;
+	uint32_t start_time = 0, elapsed_time = 0;
 	// Power the unit by pulling the sleep pin to ground.
 	self->on_off(self, GPIO_PIN_SET);
 	self->sleep(self, GPIO_PIN_SET);
-	// Start the timer
-	HAL_TIM_Base_Start(self->timer);
+
+	start_time = HAL_GetTick();
 	// Wait an appropriate amount of time for the caps to charge
 	while (elapsed_time < IRIDIUM_CAP_CHARGE_TIME) {
 		HAL_Delay(1000);
-		elapsed_time = __HAL_TIM_GET_COUNTER(self->timer);
+		elapsed_time = HAL_GetTick() - start_time;
 	}
-	HAL_TIM_Base_Stop(self->timer);
 
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
 		// Get an ack message
@@ -178,7 +179,15 @@ void iridium_sleep(Iridium* self, GPIO_PinState pin_state)
  */
 void iridium_on_off(Iridium* self, GPIO_PinState pin_state)
 {
-	HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
+	if (pin_state == GPIO_PIN_SET) {
+		HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, pin_state);
+		// Wait 10ms between powering 5V bus FET and the Iridium power FET
+		HAL_Delay(10);
+		HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
+	} else {
+		HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
+		HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, pin_state);
+	}
 }
 
 /**
@@ -278,8 +287,6 @@ iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minut
  */
 void iridium_storage_queue_create(Iridium* self)
 {
-	// place the storage queue in SRAM 4
-	self->storage_queue = (Iridium_message_queue*) SRAM4_START_ADDR;
 	// Zero out the queue space
 	memset(self->storage_queue->msg_queue, 0, STORAGE_QUEUE_SIZE);
 	self->storage_queue->num_msgs_enqueued = 0;

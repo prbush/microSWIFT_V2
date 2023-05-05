@@ -120,6 +120,7 @@ void gnss_thread_entry(ULONG thread_input);
 void waves_thread_entry(ULONG thread_input);
 void iridium_thread_entry(ULONG thread_input);
 void teardown_thread_entry(ULONG thread_input);
+static void shut_it_all_down(void);
 // callback function to get GNSS DMA started
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
 
@@ -132,9 +133,6 @@ void ct_thread_entry(ULONG thread_input);
 #endif
 // Static helper functions
 static void led_sequence(uint8_t sequence);
-static void enter_stop_3_for_one_hour(void);
-static void setup_lptim_for_wakeup(uint32_t mins_to_sleep);
-static void enter_standby_mode_until_top_of_hour(void);
 /* USER CODE END PFP */
 
 /**
@@ -381,118 +379,171 @@ void startup_thread_entry(ULONG thread_input){
 	UINT threadx_return;
 	int fail_counter;
 
-	/*TODO: flash:
-	 * 			  (1) Read some predetermined page and quadword.
-	 * 			  (2) If the contents are 0xFFFFFFFF, it has not been written to
-	 * 			  	(a) run this thread in its entirety
-	 * 			  	(b) at the end of the thread, write a bit pattern to that
-	 * 			  	    page and address. Maybe something like 0xAAAAAAAA.
-	 * 			  (3) If the contents are 0xAAAAAAAA, skip this thread.
-	 * 			  	(a) run a different, more watered down version that just
-	 * 			  	    warms up the GNSS receiver until it is getting good
-	 * 			  	    reception
-	 */
-///////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-	// Initialize GNSS struct
+	// Initialize the structs
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
 			&thread_flags, &(ubx_message_process_buf[0]), device_handles->hrtc, north->data,
 			east->data, down->data);
-	// turn on the GNSS FET
-	gnss->on_off(gnss, GPIO_PIN_SET);
-	// Send the configuration commands to the GNSS unit.
-	fail_counter = 0;
-	while (fail_counter < MAX_SELF_TEST_RETRIES) {
-		if (gnss->config(gnss) != GNSS_SUCCESS) {
-			// Config didn't work, cycle power and try again
-			gnss->cycle_power(gnss);
-			fail_counter++;
-		} else {
-			break;
-		}
-	}
-
-	if (fail_counter == MAX_SELF_TEST_RETRIES){
-		HAL_NVIC_SystemReset();
-	}
-
-	// Wait until we get a series of good UBX_NAV_PVT messages and are
-	// tracking a good number of satellites before moving on
-	fail_counter = 0;
-	while (fail_counter < MAX_SELF_TEST_RETRIES) {
-		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
-				!= GNSS_SUCCESS) {
-			// self_test failed, cycle power and try again
-			gnss->cycle_power(gnss);
-			fail_counter++;
-		} else {
-			gnss->is_configured = true;
-			break;
-		}
-
-	}
-
-	if (fail_counter == MAX_SELF_TEST_RETRIES){
-		HAL_NVIC_SystemReset();
-	}
-
-	// If we made it here, the self test passed and we're ready to process messages
-	threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
-
-///////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
 	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
-			device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
-			device_handles->Iridium_tx_dma_handle, &thread_flags,
-			device_handles->hrtc, &sbd_message,
-			(uint8_t*)iridium_error_message,
-			(uint8_t*)iridium_response_message);
-
-	// Only do this on initial power up, else leave it alone!
-	iridium->queue_create(iridium);
-	// See if we can get an ack message from the modem
-	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
-		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
-		// TODO: do something here
-	}
-	// Send the configuration settings to the modem
-	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
-		tx_event_flags_set(&thread_flags, MODEM_ERROR, TX_OR);
-		// TODO: do something here
-	}
-	// We'll keep power to the modem but put it to sleep
-	iridium->sleep(iridium, GPIO_PIN_RESET);
-
-	// We got an ack and were able to config the Iridium modem
-	threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
-
-#if IMU_ENABLED
-///////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
-#endif
-
+					device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
+					device_handles->Iridium_tx_dma_handle, &thread_flags,
+					device_handles->hrtc, &sbd_message,
+					(uint8_t*)iridium_error_message,
+					(uint8_t*)iridium_response_message);
 #if CT_ENABLED
-///////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
-			&thread_flags, ct_data, samples_buf);
-	// Make sure we get good data from the CT sensor
-	if (ct->self_test(ct, false) != CT_SUCCESS) {
-		// TODO: cycle power to the board, do some stuff
-		HAL_NVIC_SystemReset();
-	}
-	// We can turn off the CT sensor for now
-	ct->on_off(ct, GPIO_PIN_RESET);
-
-	// We received a good message from the CT sensor
-	threadx_return = tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
-	if (threadx_return != TX_SUCCESS) {
-		// TODO: create a "handle_tx_error" function and call it in here
-		HAL_Delay(10);
-		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
-	}
-
+					&thread_flags, ct_data, samples_buf);
 #endif
+
+	// If the reset was from a software trigger, only test GNSS
+	if (device_handles->reset_reason & RCC_RESET_FLAG_SW) {
+		///////////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+		// turn on the GNSS FET
+		gnss->on_off(gnss, GPIO_PIN_SET);
+		// Send the configuration commands to the GNSS unit.
+		fail_counter = 0;
+		while (fail_counter < MAX_SELF_TEST_RETRIES) {
+			if (gnss->config(gnss) != GNSS_SUCCESS) {
+				// Config didn't work, cycle power and try again
+				gnss->cycle_power(gnss);
+				fail_counter++;
+			} else {
+				break;
+			}
+		}
+
+		if (fail_counter == MAX_SELF_TEST_RETRIES){
+			HAL_NVIC_SystemReset();
+		}
+
+		// Wait until we get a series of good UBX_NAV_PVT messages and are
+		// tracking a good number of satellites before moving on
+		fail_counter = 0;
+		while (fail_counter < MAX_SELF_TEST_RETRIES) {
+			if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+					!= GNSS_SUCCESS) {
+				// self_test failed, cycle power and try again
+				gnss->cycle_power(gnss);
+				fail_counter++;
+			} else {
+				gnss->is_configured = true;
+				break;
+			}
+
+		}
+
+		if (fail_counter == MAX_SELF_TEST_RETRIES){
+			HAL_NVIC_SystemReset();
+		}
+
+		// If we made it here, the self test passed and we're ready to process messages
+		threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+
+		threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
+
+	#if IMU_ENABLED
+		threadx_return = tx_event_flags_set(&thread_flags, IMU_READY, TX_OR);
+	#endif
+
+	#if CT_ENABLED
+		threadx_return = tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
+	#endif
+	}
+
+	// This is first time power up, test everything and flash LED sequence
+	else {
+		///////////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+		// turn on the GNSS FET
+		gnss->on_off(gnss, GPIO_PIN_SET);
+		// Send the configuration commands to the GNSS unit.
+		fail_counter = 0;
+		while (fail_counter < MAX_SELF_TEST_RETRIES) {
+			if (gnss->config(gnss) != GNSS_SUCCESS) {
+				// Config didn't work, cycle power and try again
+				gnss->cycle_power(gnss);
+				fail_counter++;
+			} else {
+				break;
+			}
+		}
+
+		if (fail_counter == MAX_SELF_TEST_RETRIES){
+			while(1) {
+				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+			}
+		}
+
+		// Wait until we get a series of good UBX_NAV_PVT messages and are
+		// tracking a good number of satellites before moving on
+		fail_counter = 0;
+		while (fail_counter < MAX_SELF_TEST_RETRIES) {
+			if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+					!= GNSS_SUCCESS) {
+				// self_test failed, cycle power and try again
+				gnss->cycle_power(gnss);
+				fail_counter++;
+			} else {
+				gnss->is_configured = true;
+				break;
+			}
+
+		}
+
+		if (fail_counter == MAX_SELF_TEST_RETRIES){
+			while(1) {
+				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+			}
+		}
+
+		// If we made it here, the self test passed and we're ready to process messages
+		threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
+
+		///////////////////////////////////////////////////////////////////////////////////////////////
+		///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
+		// Only do this on initial power up, else leave it alone!
+		iridium->queue_create(iridium);
+		// See if we can get an ack message from the modem
+		if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
+			while(1) {
+				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+			}
+		}
+		// Send the configuration settings to the modem
+		if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
+			while(1) {
+				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+			}
+		}
+		// We'll keep power to the modem but put it to sleep
+		iridium->sleep(iridium, GPIO_PIN_RESET);
+
+		// We got an ack and were able to config the Iridium modem
+		threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
+
+		#if IMU_ENABLED
+		///////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
+		#endif
+
+		#if CT_ENABLED
+		///////////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
+		// Make sure we get good data from the CT sensor
+		if (ct->self_test(ct, false) != CT_SUCCESS) {
+			led_sequence(TEST_NON_CRITICAL_FAULT_LED_SEQUENCE);
+		}
+		// We can turn off the CT sensor for now
+		ct->on_off(ct, GPIO_PIN_RESET);
+
+		// We received a good message from the CT sensor
+		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
+		#endif
+
+		// If we made it here, everything passed!
+		led_sequence(TEST_PASSED_LED_SEQUENCE);
+	}
+
 	// We're done, suspend this thread
 	tx_thread_suspend(&startup_thread);
 }
@@ -530,7 +581,9 @@ void gnss_thread_entry(ULONG thread_input){
 			HAL_Delay(1);
 		}
 	}
-
+	// turn off the GNSS sensor
+	gnss->on_off(gnss, GPIO_PIN_RESET);
+	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(gnss->gnss_uart_handle);
 	HAL_DMA_DeInit(gnss->gnss_dma_handle);
 
@@ -603,7 +656,9 @@ void ct_thread_entry(ULONG thread_input){
 			}
 		}
 	}
-
+	// Turn off the CT sensor
+	ct->on_off(ct, GPIO_PIN_RESET);
+	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(ct->ct_uart_handle);
 	HAL_DMA_DeInit(ct->ct_dma_handle);
 
@@ -689,32 +744,10 @@ void waves_thread_entry(ULONG thread_input){
   * @retval void
   */
 void iridium_thread_entry(ULONG thread_input){
-	ULONG actual_flags, error_flags, imu_error, ct_error, iridium_error, gnss_error;
+	ULONG actual_flags;
 	iridium_error_code_t return_code;
-	error_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR
-			| DMA_ERROR | UART_ERROR;
-
-#if CT_ENABLED
-	error_flags |= CT_ERROR;
-#endif
-
-#if IMU_ENABLED
-	error_flags |= IMU_ERROR;
-#endif
 
 	tx_event_flags_get(&thread_flags, WAVES_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-
-	// The event flags contain an error message, figure it out
-	if (actual_flags & error_flags) {
-		imu_error = actual_flags & IMU_ERROR;
-		ct_error = actual_flags & CT_ERROR;
-		gnss_error = actual_flags & GNSS_ERROR;
-		iridium_error = actual_flags & MODEM_ERROR;
-		// TODO: figure out how to send an error message, make sure to store some flag in
-		//   	 flash so it only sends once
-
-		iridium->transmit_error_message(iridium, "Sample error message");
-	}
 
 	uint8_t ascii_7 = '7';
 	uint8_t sbd_type = 52;
@@ -740,9 +773,10 @@ void iridium_thread_entry(ULONG thread_input){
 
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 
+	// Turn off the modem
 	iridium->sleep(iridium, GPIO_PIN_RESET);
 	iridium->on_off(iridium, GPIO_PIN_RESET);
-
+	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(iridium->iridium_uart_handle);
 	HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
 	HAL_DMA_DeInit(iridium->iridium_tx_dma_handle);
@@ -765,12 +799,11 @@ void iridium_thread_entry(ULONG thread_input){
   * @retval void
   */
 void teardown_thread_entry(ULONG thread_input){
-	// TODO: Figure out the right flag combinations to start this thread
-	// 	For now, we'll just assume the right combo is that everything is done
 	ULONG actual_flags, required_flags;
 	required_flags =  	GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
-//	uint32_t mins_to_sleep;
 	RTC_AlarmTypeDef alarm = {0};
+	RTC_DateTypeDef rtc_date;
+	RTC_TimeTypeDef rtc_time;
 
 #if CT_ENABLED
 	required_flags |= CT_DONE;
@@ -782,8 +815,8 @@ void teardown_thread_entry(ULONG thread_input){
 
 	tx_event_flags_get(&thread_flags, required_flags, TX_AND_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
-	RTC_DateTypeDef rtc_date;
-	RTC_TimeTypeDef rtc_time;
+	// Just to be overly sure everything is off
+	shut_it_all_down();
 
 	// Get the date and time
 	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
@@ -792,7 +825,11 @@ void teardown_thread_entry(ULONG thread_input){
 	alarm.Alarm = RTC_ALARM_A;
 	alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
 	alarm.AlarmTime = rtc_time;
+#ifdef DBUG
 	alarm.AlarmTime.Minutes = rtc_time.Minutes == 59 ? 1 : rtc_time.Minutes + 2;
+#else
+	alarm.AlarmTime.Minutes = 0;
+#endif
 	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_SECONDS;
 	alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 
@@ -801,13 +838,11 @@ void teardown_thread_entry(ULONG thread_input){
 		HAL_NVIC_SystemReset();
 	}
 	// Enable RTC interrupt
+	// This is being enabled here because of the RTC timer interrupt issue
+	// documented in the errata. We don't want any GPDMA, UART, LPUART IRQs
+	// to trigger the RTC IRQ
 	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(RTC_IRQn);
-	// Setup wakeup pin for RTC
-	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN6_HIGH_3);
-	// Enable Stop3 mode interrupt
-	HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 7, 7);
-	HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 
 	// See errata regarding ICACHE access on wakeup
 	HAL_ICACHE_Disable();
@@ -882,6 +917,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 {
 	// Clear the alarm flag
+	HAL_PWR_EnableBkUpAccess();
 	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 }
 
@@ -925,7 +961,7 @@ static void led_sequence(led_sequence_t sequence)
 			}
 			break;
 
-		case TEST_NON_CIRTICAL_FAULT_LED_SEQUENCE:
+		case TEST_NON_CRITICAL_FAULT_LED_SEQUENCE:
 			for (int i = 0; i < 10; i++){
 				HAL_GPIO_WritePin(GPIOB, LED_BLUE_Pin, GPIO_PIN_SET);
 				HAL_Delay(500);
@@ -1005,63 +1041,8 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 	return return_code;
 }
 
-static void enter_stop_3_for_one_hour(void)
+static void shut_it_all_down(void)
 {
 
 }
-
-static void setup_lptim_for_wakeup(uint32_t mins_to_sleep)
-{
-
-
-	device_handles->low_power_timer->Init.RepetitionCounter = mins_to_sleep - 1;
-
-	if (HAL_LPTIM_Counter_Start_IT(device_handles->low_power_timer) != HAL_OK)
-	{
-		HAL_NVIC_SystemReset();
-	}
-
-}
-
-static void enter_standby_mode_until_top_of_hour(void)
-{
-
-	uint32_t wakeup_counter = 0;
-	RTC_TimeTypeDef rtc_time;
-
-//	HAL_SuspendTick();
-//	// Get the date and time
-//	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
-//	// https://community.st.com/s/article/how-to-configure-the-rtc-to-wake-up-the-stm32-periodically-from-low-power-modes
-//	wakeup_counter = (((59 - rtc_time.Minutes) + rtc_time.Seconds) * 1000000) / 488;
-//
-//	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, 100000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
-//	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
-//	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
-//	HAL_PWR_EnterSTANDBYMode();
-
-
-	HAL_SuspendTick();
-	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
-	HAL_RTCEx_SetWakeUpTimer_IT(device_handles->hrtc, 100000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
-
-	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
-
-	// Configure MCU low-power mode for CPU deep sleep mode
-	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
-	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
-
-	// Configure CPU core
-	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
-#ifdef NDEBUG
-	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
-#endif
-
-	// Enter low-power mode
-	for (;;) {
-		__DSB();
-		__WFI();
-	}
-}
-
 /* USER CODE END 1 */

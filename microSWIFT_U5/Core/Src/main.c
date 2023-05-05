@@ -78,7 +78,7 @@ static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_LPTIM1_Init(void);
 /* USER CODE BEGIN PFP */
-static void enter_standby_mode(uint32_t wakeup_counter);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -114,7 +114,34 @@ int main(void)
   SystemPower_Config();
 
   /* USER CODE BEGIN SysInit */
-//  HAL_DBGMCU_EnableDBGStopMode();
+
+  /*
+   * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   *
+   * DO
+   * NOT
+   * EVER
+   * CALL
+   *
+   * HAL_DBGMCU_EnableDBGStopMode()
+   *
+   * WHEN
+   * USING
+   * RTC
+   * AS
+   * WAKEUP
+   * SOURCE!!!
+   *
+   * RE-READ
+   * THE
+   * ERRATA
+   * IF
+   * YOU'VE
+   * FORGOTTEN
+   * WHY
+   * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   */
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -132,26 +159,7 @@ int main(void)
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
 
-
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-  // Check if we got here after being in standby mode and setup the RTC accordingly
-//  if (__HAL_PWR_GET_FLAG(PWR_FLAG_SBF) == RESET) {
-//	  // Got here by reset, not by standby mode
-//	  MX_RTC_Init();
-//  } else {
-//	  // Got here after being in standby mode
-//	  __HAL_RCC_RTCAPB_CLK_ENABLE();
-//	  __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SBF);
-//	  __HAL_RTC_CLEAR_FLAG(&hrtc, RTC_CLEAR_WUTF);
-//	  HAL_RTCEx_DeactivateWakeUpTimer(&hrtc);
-//  }
-
-
-//	HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 10000, RTC_WAKEUPCLOCK_RTCCLK_DIV16, 0);
-//	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
-//
-//	HAL_PWR_EnterSTANDBYMode();
-//  enter_standby_mode(10000);
 
   device_handles_t handles;
 
@@ -899,28 +907,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-static void enter_standby_mode(uint32_t wakeup_counter)
-{
-	HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, wakeup_counter, RTC_WAKEUPCLOCK_RTCCLK_DIV16, wakeup_counter);
-
-	PWR->SR = PWR_SR_CSSF; // clear wakeup flags
-
-	// Configure MCU low-power mode for CPU deep sleep mode
-	PWR->CR1 |= (1 << 2); // PWR_CR1_LPMS_SHUTDOWN
-	(void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
-
-	// Configure CPU core
-	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // Enable CPU deep sleep mode
-#ifdef NDEBUG
-	DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
-#endif
-
-	// Enter low-power mode
-	for (;;) {
-		__DSB();
-		__WFI();
-	}
-}
 
 /* USER CODE END 4 */
 

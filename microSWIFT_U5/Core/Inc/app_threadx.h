@@ -96,7 +96,7 @@
 typedef enum led_sequence_t{
 	INITIAL_LED_SEQUENCE = 1,
 	TEST_PASSED_LED_SEQUENCE = 2,
-	TEST_NON_CIRTICAL_FAULT_LED_SEQUENCE = 3,
+	TEST_NON_CRITICAL_FAULT_LED_SEQUENCE = 3,
 	TEST_CRITICAL_FAULT_LED_SEQUENCE = 4
 }led_sequence_t;
 
@@ -105,7 +105,7 @@ typedef enum led_sequence_t{
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define DBUG //TODO: remove this!!!
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

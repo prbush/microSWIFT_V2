@@ -38,9 +38,9 @@ typedef enum {
 
 // Macros
 #ifdef DBUG
-#define IRIDIUM_CAP_CHARGE_TIME 25
+#define IRIDIUM_CAP_CHARGE_TIME 20
 #else
-#define IRIDIUM_CAP_CHARGE_TIME 25000
+#define IRIDIUM_CAP_CHARGE_TIME 20000
 #endif
 #define MAX_RETRIES 10
 #define ACK_MESSAGE_SIZE 9

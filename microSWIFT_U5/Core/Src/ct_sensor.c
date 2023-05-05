@@ -283,8 +283,10 @@ ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
 
 static void reset_ct_struct_fields(CT* self)
 {
-	self->averages.salinity = 0.0;
-	self->averages.temp = 0.0;
+	// We will know if the CT sensor fails by the value 9999 in the
+	// iridium message
+	self->averages.salinity = 9999;
+	self->averages.temp = 9999;
 	self->total_samples = 0;
 }
 
