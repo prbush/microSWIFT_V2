@@ -790,24 +790,22 @@ void teardown_thread_entry(ULONG thread_input){
 	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 	alarm.Alarm = RTC_ALARM_A;
-	alarm.AlarmTime.SubSeconds = 0x0;
-	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY;
-	alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 	alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
 	alarm.AlarmTime = rtc_time;
-	alarm.AlarmTime.Hours = rtc_time.Hours == 23 ? 0 : rtc_time.Hours + 1;
 	alarm.AlarmTime.Minutes = rtc_time.Minutes == 59 ? 1 : rtc_time.Minutes + 2;
-	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS;
+	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_SECONDS;
+	alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 
 	if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN) != HAL_OK)
 	{
 		HAL_NVIC_SystemReset();
 	}
-
+	// Enable RTC interrupt
 	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(RTC_IRQn);
-
-
+	// Setup wakeup pin for RTC
+	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN6_HIGH_3);
+	// Enable Stop3 mode interrupt
 	HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 7, 7);
 	HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 
@@ -818,7 +816,7 @@ void teardown_thread_entry(ULONG thread_input){
 
 	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 
-	HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI);
+	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
 
 	// Make it easy and just reset
 	HAL_NVIC_SystemReset();
@@ -883,6 +881,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 {
+	// Clear the alarm flag
 	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 }
 

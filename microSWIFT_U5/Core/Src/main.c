@@ -114,7 +114,7 @@ int main(void)
   SystemPower_Config();
 
   /* USER CODE BEGIN SysInit */
-
+//  HAL_DBGMCU_EnableDBGStopMode();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
