@@ -857,6 +857,8 @@ void teardown_thread_entry(ULONG thread_input){
 	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(RTC_IRQn);
 
+	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
+
 	// See errata regarding ICACHE access on wakeup
 	HAL_ICACHE_Disable();
 	HAL_Delay(1);
@@ -864,7 +866,7 @@ void teardown_thread_entry(ULONG thread_input){
 
 	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 
-	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
+	HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI);
 
 	// Make it easy and just reset
 	HAL_NVIC_SystemReset();

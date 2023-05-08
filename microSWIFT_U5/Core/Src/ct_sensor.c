@@ -190,7 +190,7 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS) {
 			HAL_UART_DMAStop(self->ct_uart_handle);
 			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
-			HAL_Delay(100);
+			HAL_Delay(103);
 			continue;
 		}
 

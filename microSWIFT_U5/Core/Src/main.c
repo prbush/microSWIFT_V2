@@ -157,6 +157,10 @@ int main(void)
   MX_LPTIM1_Init();
   /* USER CODE BEGIN 2 */
 
+  // Enable sleep 3 mode interrupt
+  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
+
   uint32_t reset_reason = HAL_RCC_GetResetSource();
 
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
@@ -177,7 +181,6 @@ int main(void)
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
-
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
