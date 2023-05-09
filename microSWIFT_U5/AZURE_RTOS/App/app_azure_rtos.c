@@ -108,7 +108,7 @@ VOID tx_application_define(VOID *first_unused_memory)
       /* USER CODE BEGIN  App_ThreadX_Init_Error */
       // Something went wrong along the way, reset and try again
     	shut_it_all_down();
-    	HAL_NVIC_SystemReset();
+	  	HAL_NVIC_SystemReset();
       /* USER CODE END  App_ThreadX_Init_Error */
     }
     /* USER CODE BEGIN  App_ThreadX_Init_Success */

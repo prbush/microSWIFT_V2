@@ -232,4 +232,25 @@
 
 /*#define TX_SAFETY_CRITICAL*/
 
+/* Define the LowPower macros and flags */
+
+/* Define a macro that sets up a low power clock and keep track of time */
+void App_ThreadX_LowPower_Timer_Setup(unsigned long count);
+#define TX_LOW_POWER_TIMER_SETUP(_count) App_ThreadX_LowPower_Timer_Setup(_count)
+
+/* Define the TX_LOW_POWER_TICKLESS to disable the internal ticks */
+//#define TX_LOW_POWER_TICKLESS
+
+/* A user defined macro to make the system enter low power mode */
+void App_ThreadX_LowPower_Enter(void);
+#define TX_LOW_POWER_USER_ENTER App_ThreadX_LowPower_Enter()
+
+/* A user defined macro to make the system exit low power mode */
+void App_ThreadX_LowPower_Exit(void);
+#define TX_LOW_POWER_USER_EXIT App_ThreadX_LowPower_Exit()
+
+/* User's low-power macro to obtain the amount of time (in ticks) the system has been in low power mode */
+unsigned long App_ThreadX_LowPower_Timer_Adjust(void);
+#define TX_LOW_POWER_USER_TIMER_ADJUST App_ThreadX_LowPower_Timer_Adjust()
+
 #endif

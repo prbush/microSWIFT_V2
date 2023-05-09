@@ -154,9 +154,7 @@ int main(void)
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
-#ifndef DISABLE_IWDG
   MX_IWDG_Init();
-#endif
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -179,7 +177,6 @@ int main(void)
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
-
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -282,22 +279,8 @@ static void SystemPower_Config(void)
   /*
    * SRAM Power Down In Stop Mode Config
    */
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_PAGE1_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_PAGE2_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_PAGE3_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_PAGE1_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_PAGE2_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE1_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE2_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE3_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE4_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE5_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE6_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE7_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE8_STOP_RETENTION);
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
-
 
   /*
    * Switch to SMPS regulator instead of LDO
@@ -668,6 +651,9 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
+
+  /* USER CODE BEGIN RTC_Init 2 */
+
   /* USER CODE END RTC_Init 2 */
 
 }
@@ -903,6 +889,7 @@ void Error_Handler(void)
   HAL_NVIC_SystemReset();
   while (1)
   {
+	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
   }
   /* USER CODE END Error_Handler_Debug */

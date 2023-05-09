@@ -112,16 +112,10 @@ ct_samples* samples_buf;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-void watchdog_thread_entry(ULONG thread_input);
-void startup_thread_entry(ULONG thread_input);
-void gnss_thread_entry(ULONG thread_input);
-void waves_thread_entry(ULONG thread_input);
-void iridium_thread_entry(ULONG thread_input);
-void teardown_thread_entry(ULONG thread_input);
+void SystemClock_Restore(void);
+
 static self_test_status_t initial_power_on_self_test(void);
 static self_test_status_t subsequent_window_self_test(void);
-//static self_test_status_t software_reset_self_test(void);
-//static self_test_status_t watchdog_reset_self_test(void);
 void shut_it_all_down(void);
 // callback function to get GNSS DMA started
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
@@ -388,6 +382,57 @@ void MX_ThreadX_Init(device_handles_t *handles)
   /* USER CODE END  Kernel_Start_Error */
 }
 
+/**
+  * @brief  App_ThreadX_LowPower_Timer_Setup
+  * @param  count : TX timer count
+  * @retval None
+  */
+void App_ThreadX_LowPower_Timer_Setup(ULONG count)
+{
+  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Setup */
+
+  /* USER CODE END  App_ThreadX_LowPower_Timer_Setup */
+}
+
+/**
+  * @brief  App_ThreadX_LowPower_Enter
+  * @param  None
+  * @retval None
+  */
+void App_ThreadX_LowPower_Enter(void)
+{
+  /* USER CODE BEGIN  App_ThreadX_LowPower_Enter */
+	enter_stop_2_mode();
+  /* USER CODE END  App_ThreadX_LowPower_Enter */
+}
+
+/**
+  * @brief  App_ThreadX_LowPower_Exit
+  * @param  None
+  * @retval None
+  */
+void App_ThreadX_LowPower_Exit(void)
+{
+  /* USER CODE BEGIN  App_ThreadX_LowPower_Exit */
+	SystemClock_Restore();
+	HAL_ResumeTick();
+	HAL_ICACHE_Enable();
+	HAL_NVIC_DisableIRQ(RTC_IRQn);
+  /* USER CODE END  App_ThreadX_LowPower_Exit */
+}
+
+/**
+  * @brief  App_ThreadX_LowPower_Timer_Adjust
+  * @param  None
+  * @retval Amount of time (in ticks)
+  */
+ULONG App_ThreadX_LowPower_Timer_Adjust(void)
+{
+  /* USER CODE BEGIN  App_ThreadX_LowPower_Timer_Adjust */
+  return 0;
+  /* USER CODE END  App_ThreadX_LowPower_Timer_Adjust */
+}
+
 /* USER CODE BEGIN 1 */
 /**
   * @brief  Watchdog thread entry
@@ -399,19 +444,14 @@ void MX_ThreadX_Init(device_handles_t *handles)
   */
 void watchdog_thread_entry(ULONG thread_input)
 {
-	uint32_t start_time, elapsed_time = 0;
+	while(1) {
+		GPIO_PinState blink = (gnss->total_samples % 3 == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET;
+		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, blink);
 
-	start_time = HAL_GetTick();
-
-	while (elapsed_time < MAX_POSSIBLE_WINDOW_TIME) {
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
-		// IWDG window is 3 seconds, refresh will occur once a second
-		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND - 1);
-		elapsed_time = HAL_GetTick() - start_time;
+		// If we made it here, the max time has elapsed. Do not refresh watchdog and let it initiate a reset
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
 	}
-
-	// If we made it here, the max time has elapsed. Do not refresh watchdog and let it initiate a reset
-	tx_thread_suspend(&watchdog_thread);
 }
 
 
@@ -819,8 +859,6 @@ void teardown_thread_entry(ULONG thread_input){
 
 	HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI);
 
-	// Probably unsafe... but reset the systick counter to 0 to keep the watchdog happy
-	uwTick = 0;
 	HAL_ResumeTick();
 	HAL_ICACHE_Enable();
 	HAL_NVIC_DisableIRQ(RTC_IRQn);
@@ -1194,201 +1232,89 @@ static self_test_status_t subsequent_window_self_test(void)
 	return return_code;
 }
 
-/**
-  * @brief  Test communication with and configure the GNSS sensor. Other peripherals will be skipped.
-  *
-  * @param  void
-  *
-  * @retval SELF_TEST_PASSED
-  * 		SELF_TEST_CRITICAL_FAULT --> if GNSS or Iridium modem
-  */
-//static self_test_status_t software_reset_self_test(void)
-//{
-//	self_test_status_t return_code = SELF_TEST_PASSED;
-//	int fail_counter;
-//
-//	///////////////////////////////////////////////////////////////////////////////////////////////
-//	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-//	// turn on the GNSS FET
-//	gnss->on_off(gnss, GPIO_PIN_SET);
-//	// Send the configuration commands to the GNSS unit.
-//	fail_counter = 0;
-//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
-//		if (gnss->config(gnss) != GNSS_SUCCESS) {
-//			// Config didn't work, cycle power and try again
-//			gnss->cycle_power(gnss);
-//			HAL_Delay(13);
-//			fail_counter++;
-//		} else {
-//			break;
-//		}
-//	}
-//
-//	if (fail_counter == MAX_SELF_TEST_RETRIES){
-//		return_code = SELF_TEST_CRITICAL_FAULT;
-//		return return_code;
-//	}
-//
-//	// Wait until we get a series of good UBX_NAV_PVT messages and are
-//	// tracking a good number of satellites before moving on
-//	fail_counter = 0;
-//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
-//		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
-//				!= GNSS_SUCCESS) {
-//			// self_test failed, cycle power and try again
-//			gnss->cycle_power(gnss);
-//			fail_counter++;
-//		} else {
-//			gnss->is_configured = true;
-//			break;
-//		}
-//
-//	}
-//
-//	if (fail_counter == MAX_SELF_TEST_RETRIES){
-//		return_code = SELF_TEST_CRITICAL_FAULT;
-//		return return_code;
-//	}
-//
-//	// If we made it here, the self test passed and we're ready to process messages
-//	tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
-//
-//	tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
-//
-//#if IMU_ENABLED
-//	threadx_return = tx_event_flags_set(&thread_control_flags, IMU_READY, TX_OR);
-//#endif
-//
-//#if CT_ENABLED
-//	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
-//#endif
-//
-//	return return_code;
-//}
+void enter_stop_2_mode(void)
+{
+	HAL_ICACHE_Disable();
+	HAL_Delay(1);
+	HAL_SuspendTick();
 
-/**
-  * @brief  Test communication with each peripheral. Same as initial_power_on_self_test,
-  * 		but without flushing the Iridium queue.
-  *
-  * @param  void
-  *
-  * @retval SELF_TEST_PASSED
-  * 		SELF_TEST_NON_CRITICAL_FAULT --> if CT or IMU failed
-  * 		SELF_TEST_CRITICAL_FAULT --> if GNSS or Iridium modem
-  */
-//static self_test_status_t watchdog_reset_self_test(void)
-//{
-//	self_test_status_t return_code = SELF_TEST_PASSED;
-//	int fail_counter;
-//
-//	///////////////////////////////////////////////////////////////////////////////////////////////
-//	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-//	// turn on the GNSS FET
-//	gnss->on_off(gnss, GPIO_PIN_SET);
-//	// Send the configuration commands to the GNSS unit.
-//	fail_counter = 0;
-//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
-//		if (gnss->config(gnss) != GNSS_SUCCESS) {
-//			// Config didn't work, cycle power and try again
-//			gnss->cycle_power(gnss);
-//			fail_counter++;
-//		} else {
-//			break;
-//		}
-//	}
-//
-//	if (fail_counter == MAX_SELF_TEST_RETRIES) {
-//
-//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
-//			HAL_NVIC_SystemReset();
-//		}
-//
-//		while(1) {
-//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-//		}
-//	}
-//
-//	// Wait until we get a series of good UBX_NAV_PVT messages and are
-//	// tracking a good number of satellites before moving on
-//	fail_counter = 0;
-//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
-//		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
-//				!= GNSS_SUCCESS) {
-//			// self_test failed, cycle power and try again
-//			gnss->cycle_power(gnss);
-//			fail_counter++;
-//		} else {
-//			gnss->is_configured = true;
-//			break;
-//		}
-//
-//	}
-//
-//	if (fail_counter == MAX_SELF_TEST_RETRIES){
-//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
-//			HAL_NVIC_SystemReset();
-//		}
-//
-//		while(1) {
-//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-//		}
-//	}
-//
-//	// If we made it here, the self test passed and we're ready to process messages
-//	threadx_return = tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
-//
-//	///////////////////////////////////////////////////////////////////////////////////////////////
-//	///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
-//	// Only do this on initial power up, else leave it alone!
-//	iridium->queue_flush(iridium);
-//	// See if we can get an ack message from the modem
-//	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
-//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
-//			HAL_NVIC_SystemReset();
-//		}
-//
-//		while(1) {
-//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-//		}
-//	}
-//	// Send the configuration settings to the modem
-//	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
-//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
-//			HAL_NVIC_SystemReset();
-//		}
-//
-//		while(1) {
-//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-//		}
-//	}
-//	// We'll keep power to the modem but put it to sleep
-//	iridium->sleep(iridium, GPIO_PIN_RESET);
-//
-//	// We got an ack and were able to config the Iridium modem
-//	threadx_return = tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
-//
-//#if IMU_ENABLED
-//	///////////////////////////////////////////////////////////////////////////////////////////////
-//	////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
-//#endif
-//
-//#if CT_ENABLED
-//	///////////////////////////////////////////////////////////////////////////////////////////////
-//	/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
-//	// Make sure we get good data from the CT sensor
-//	if (ct->self_test(ct, false) != CT_SUCCESS) {
-//		led_sequence(TEST_NON_CRITICAL_FAULT_LED_SEQUENCE);
-//	}
-//	// We can turn off the CT sensor for now
-//	ct->on_off(ct, GPIO_PIN_RESET);
-//
-//	// We received a good message from the CT sensor
-//	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
-//#endif
-//
-//	// If we made it here, everything passed!
-//	led_sequence(TEST_PASSED_LED_SEQUENCE);
-//
-//	return return_code;
-//}
+	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
+}
+
+
+void SystemClock_Restore(void)
+{
+	  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+	  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+	  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
+
+	  /* Deinitialize the RCC */
+	  HAL_RCC_DeInit();
+
+	  /* Enable Power Clock */
+	  __HAL_RCC_PWR_CLK_ENABLE();
+
+	  /** Configure the main internal regulator output voltage
+	  */
+	  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE3) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+
+	  /** Configure LSE Drive Capability
+	  */
+	  HAL_PWR_EnableBkUpAccess();
+	  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
+
+	  /** Initializes the CPU, AHB and APB buses clocks
+	  */
+	  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI
+	                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
+	  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+	  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+	  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+	  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+	  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
+	  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_3;
+	  RCC_OscInitStruct.LSIDiv = RCC_LSI_DIV1;
+	  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+	  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+
+	  /** Initializes the CPU, AHB and APB buses clocks
+	  */
+	  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+	                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
+	                              |RCC_CLOCKTYPE_PCLK3;
+	  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+	  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+	  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+	  RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
+
+	  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+
+	  /** Enable the SYSCFG APB clock
+	  */
+	  __HAL_RCC_CRS_CLK_ENABLE();
+
+	  /** Configures CRS
+	  */
+	  RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
+	  RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_LSE;
+	  RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
+	  RCC_CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,32768);
+	  RCC_CRSInitStruct.ErrorLimitValue = 34;
+	  RCC_CRSInitStruct.HSI48CalibrationValue = 32;
+
+	  HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
+
+	  __HAL_RCC_PWR_CLK_DISABLE();
+}
+
 /* USER CODE END 1 */
