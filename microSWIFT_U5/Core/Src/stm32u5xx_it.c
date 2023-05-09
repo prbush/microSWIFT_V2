@@ -47,7 +47,7 @@
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-
+extern void shut_it_all_down(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -56,7 +56,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern LPTIM_HandleTypeDef hlptim1;
+extern IWDG_HandleTypeDef hiwdg;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel1;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel3;
@@ -79,7 +79,7 @@ extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-  // TODO: Add NMI recovery code
+  shut_it_all_down();
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
   while (1)
@@ -99,6 +99,7 @@ void HardFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+	  shut_it_all_down();
 #ifdef DBUG
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
@@ -120,6 +121,7 @@ void MemManage_Handler(void)
   {
     /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
 #ifdef DBUG
+	  shut_it_all_down();
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
 	  HAL_NVIC_SystemReset();
@@ -140,6 +142,7 @@ void BusFault_Handler(void)
   {
     /* USER CODE BEGIN W1_BusFault_IRQn 0 */
 #ifdef DBUG
+	  shut_it_all_down();
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
 	  HAL_NVIC_SystemReset();
@@ -160,6 +163,7 @@ void UsageFault_Handler(void)
   {
     /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
 #ifdef DBUG
+	  shut_it_all_down();
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
 	  HAL_NVIC_SystemReset();
@@ -200,6 +204,20 @@ void RTC_IRQHandler(void)
   /* USER CODE BEGIN RTC_IRQn 1 */
 
   /* USER CODE END RTC_IRQn 1 */
+}
+
+/**
+  * @brief This function handles IWDG global interrupt.
+  */
+void IWDG_IRQHandler(void)
+{
+  /* USER CODE BEGIN IWDG_IRQn 0 */
+
+  /* USER CODE END IWDG_IRQn 0 */
+  HAL_IWDG_IRQHandler(&hiwdg);
+  /* USER CODE BEGIN IWDG_IRQn 1 */
+
+  /* USER CODE END IWDG_IRQn 1 */
 }
 
 /**
@@ -273,20 +291,6 @@ void LPUART1_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles LPTIM1 global interrupt.
-  */
-void LPTIM1_IRQHandler(void)
-{
-  /* USER CODE BEGIN LPTIM1_IRQn 0 */
-
-  /* USER CODE END LPTIM1_IRQn 0 */
-  HAL_LPTIM_IRQHandler(&hlptim1);
-  /* USER CODE BEGIN LPTIM1_IRQn 1 */
-
-  /* USER CODE END LPTIM1_IRQn 1 */
-}
-
-/**
   * @brief This function handles TIM16 global interrupt.
   */
 void TIM16_IRQHandler(void)
@@ -314,7 +318,6 @@ void TIM17_IRQHandler(void)
   /* USER CODE END TIM17_IRQn 1 */
 }
 
-/* USER CODE BEGIN 1 */
 /**
   * @brief This function handles PWR wake up from Stop3 interrupt.
   */
@@ -328,4 +331,7 @@ void PWR_S3WU_IRQHandler(void)
 
   /* USER CODE END PWR_S3WU_IRQn 1 */
 }
+
+/* USER CODE BEGIN 1 */
+
 /* USER CODE END 1 */

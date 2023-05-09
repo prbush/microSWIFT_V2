@@ -47,7 +47,7 @@ typedef struct {
 	DMA_HandleTypeDef* Iridium_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
 	TIM_HandleTypeDef* iridium_timer;
-	LPTIM_HandleTypeDef* low_power_timer;
+	IWDG_HandleTypeDef* watchdog_handle;
 	uint32_t reset_reason;
 } device_handles_t;
 /* USER CODE END ET */
@@ -55,6 +55,7 @@ typedef struct {
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 #define DBUG //TODO: remove this!!!
+//#define DISABLE_IWDG
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

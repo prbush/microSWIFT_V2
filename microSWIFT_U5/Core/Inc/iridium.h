@@ -71,9 +71,7 @@ typedef enum {
 #define ASCII_ZERO 48
 #define ASCII_FIVE 53
 #define IRIDIUM_MAX_TRANSMIT_PERIOD 6 - 1
-#define MAX_SRAM4_MESSAGES 16384 / (IRIDIUM_MESSAGE_PAYLOAD_SIZE + 1)
-#define STORAGE_QUEUE_SIZE MAX_SRAM4_MESSAGES * (IRIDIUM_MESSAGE_PAYLOAD_SIZE  + 1)
-#define SRAM4_START_ADDR 0x28000000
+#define MAX_NUM_MSGS_STORED 24 * 7
 #define ERROR_MESSAGE_MAX_LENGTH 320
 #define IRIDIUM_TIMER_INSTANCE TIM17
 #define IRIDIUM_UART_INSTANCE UART5
@@ -131,7 +129,7 @@ typedef struct Iridium {
 	// pointer to the response array
 	uint8_t* response_buffer;
 	// Unsent message storage queue
-	struct Iridium_message_queue* storage_queue;
+	struct Iridium_message_storage* storage_queue;
 	// current lat/long (for future use)
 	float current_lat;
 	float current_lon;
@@ -146,7 +144,6 @@ typedef struct Iridium {
 	iridium_error_code_t (*store_in_flash)(struct Iridium* self);
 	iridium_error_code_t (*reset_uart)(struct Iridium* self, uint16_t baud_rate);
 	iridium_error_code_t (*reset_timer)(struct Iridium* self, uint8_t timeout_in_minutes);
-	void				 (*queue_create)(struct Iridium* self);
 	iridium_error_code_t (*queue_add)(struct Iridium* self, sbd_message_type_52* payload);
 	iridium_error_code_t (*queue_get)(struct Iridium* self, uint8_t* msg_index);
 	void                 (*queue_flush)(struct Iridium* self);
@@ -159,11 +156,11 @@ typedef struct Iridium_message {
 	bool valid;
 }Iridium_message;
 
-typedef struct Iridium_message_queue {
-	Iridium_message msg_queue [MAX_SRAM4_MESSAGES];
-//	uint8_t msg_queue [MAX_SRAM4_MESSAGES][IRIDIUM_MESSAGE_PAYLOAD_SIZE];
+typedef struct Iridium_message_storage {
+	// Store 7 days worth of messages
+	Iridium_message msg_queue [MAX_NUM_MSGS_STORED];
 	uint8_t num_msgs_enqueued;
-}Iridium_message_queue;
+}Iridium_message_storage;
 
 
 
@@ -172,7 +169,8 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* iridium_uart_handle, DMA_HandleTypeDef* iridium_rx_dma_handle,
 		TIM_HandleTypeDef* timer, DMA_HandleTypeDef* iridium_tx_dma_handle,
 		TX_EVENT_FLAGS_GROUP* event_flags, RTC_HandleTypeDef* rtc_handle,
-		sbd_message_type_52* current_message, uint8_t* error_message_buffer, uint8_t* response_buffer);
+		sbd_message_type_52* current_message, uint8_t* error_message_buffer,
+		uint8_t* response_buffer, Iridium_message_storage* storage_queue);
 iridium_error_code_t iridium_config(Iridium* self);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
@@ -182,7 +180,6 @@ void				 iridium_on_off(Iridium* self, GPIO_PinState pin_state);
 iridium_error_code_t iridium_store_in_flash(Iridium* self);
 iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rate);
 iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minutes);
-void				 iridium_storage_queue_create(Iridium* self);
 iridium_error_code_t iridium_storage_queue_add(Iridium* self,sbd_message_type_52* payload);
 iridium_error_code_t iridium_storage_queue_get(Iridium* self,uint8_t* msg_index);
 void                 iridium_storage_queue_flush(Iridium* self);

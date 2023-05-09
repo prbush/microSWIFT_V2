@@ -59,7 +59,7 @@
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
- typedef enum status_flags{
+typedef enum control_flags{
  	// Ready states
  	GNSS_READY = 1 << 0,
  	IMU_READY = 1 << 1,
@@ -72,26 +72,23 @@
  	CT_DONE = 1 << 7,
  	IRIDIUM_DONE = 1 << 8,
 	WAVES_DONE = 1 << 9,
- 	// Sleep states (for future use)
- 	SET_STOP_2 = 1 << 10,
- 	RESET_STOP_2 = 1 << 11,
- 	SET_SHUTDOWN = 1 << 12,
- 	RESET_SHUTDOWN = 1 << 13,
- 	// Error states
- 	GNSS_ERROR = 1 << 14,
- 	IMU_ERROR = 1 << 15,
- 	CT_ERROR = 1 << 16,
- 	MODEM_ERROR = 1 << 17,
- 	MEMORY_ALLOC_ERROR = 1 << 18,
- 	DMA_ERROR = 1 << 19,
- 	UART_ERROR = 1 << 20,
-	RTC_ERROR = 1 << 21,
-	// Misc
-	GNSS_CONFIG_RECVD = 1 << 22,
-	CT_MSG_RECVD = 1 << 23,
-	IRIDIUM_MSG_RECVD = 1 << 24,
-	UBX_QUEUE_FULL = 1 << 25
- }status_flags_t;
+	FULL_SAMPLE_WINDOW_COMPLETE = 1 << 10,
+	// DMA reception flags
+	GNSS_CONFIG_RECVD = 1 << 11,
+	CT_MSG_RECVD = 1 << 12,
+	IRIDIUM_MSG_RECVD = 1 << 13,
+}control_flags_t;
+
+typedef enum error_flags{
+ 	GNSS_ERROR = 1 << 1,
+ 	IMU_ERROR = 1 << 2,
+ 	CT_ERROR = 1 << 3,
+ 	MODEM_ERROR = 1 << 4,
+ 	MEMORY_ALLOC_ERROR = 1 << 5,
+ 	DMA_ERROR = 1 << 6,
+ 	UART_ERROR = 1 << 7,
+	RTC_ERROR = 1 << 8
+}error_flags_t;
 
 typedef enum led_sequence_t{
 	INITIAL_LED_SEQUENCE = 1,
@@ -100,7 +97,11 @@ typedef enum led_sequence_t{
 	TEST_CRITICAL_FAULT_LED_SEQUENCE = 4
 }led_sequence_t;
 
-
+typedef enum self_test_status_t{
+	SELF_TEST_PASSED = 0,
+	SELF_TEST_NON_CRITICAL_FAULT = 1,
+	SELF_TEST_CRITICAL_FAULT = 2
+}self_test_status_t;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -110,13 +111,16 @@ typedef enum led_sequence_t{
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-// Total number of samples in a sampling window
-// Sensor data arrays -> 2bytes * 8192 samples = 16384 bytes, which is 32 byte aligned.
-#define SENSOR_DATA_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(int16_t))
-// Waves arrays -> 4 bytes * 8192 samples = 32786 bytes, which is 32 byte aligned.
-#define WAVES_ARRAY_SIZE (TOTAL_SAMPLES_PER_WINDOW * sizeof(float))
+#define THREAD_EXTRA_LARGE_STACK_SIZE 4096
+#define THREAD_LARGE_STACK_SIZE 2048
+#define THREAD_MEDIUM_STACK_SIZE 1024
+#define THREAD_SMALL_STACK_SIZE 512
+#define THREAD_EXTRA_SMALL_STACK_SIZE 256
+
 // The max times we'll try to get a single peripheral up before sending reset vector
 #define MAX_SELF_TEST_RETRIES 3
+// The maximum amount of time (in milliseconds) a sample window could take
+#define MAX_POSSIBLE_WINDOW_TIME 1000 * 60 * 45
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

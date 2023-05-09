@@ -34,7 +34,8 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* iridium_uart_handle, DMA_HandleTypeDef* iridium_rx_dma_handle,
 		TIM_HandleTypeDef* timer, DMA_HandleTypeDef* iridium_tx_dma_handle,
 		TX_EVENT_FLAGS_GROUP* event_flags, RTC_HandleTypeDef* rtc_handle,
-		sbd_message_type_52* current_message, uint8_t* error_message_buffer, uint8_t* response_buffer)
+		sbd_message_type_52* current_message, uint8_t* error_message_buffer,
+		uint8_t* response_buffer, Iridium_message_storage* storage_queue)
 {
 	self->global_config = global_config;
 	self->iridium_uart_handle = iridium_uart_handle;
@@ -47,7 +48,7 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	self->error_message_buffer = error_message_buffer;
 	self->response_buffer = response_buffer;
 	// place the storage queue in SRAM 4
-	self->storage_queue = (Iridium_message_queue*) SRAM4_START_ADDR;
+	self->storage_queue = storage_queue;
 	self->current_lat = 0.0;
 	self->current_lon = 0.0;
 	self->timer_timeout = false;
@@ -61,7 +62,6 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	self->store_in_flash = iridium_store_in_flash;
 	self->reset_uart = iridium_reset_iridium_uart;
 	self->reset_timer = iridium_reset_timer;
-	self->queue_create = iridium_storage_queue_create;
 	self->queue_add = iridium_storage_queue_add;
 	self->queue_get = iridium_storage_queue_get;
 	self->queue_flush = iridium_storage_queue_flush;
@@ -263,13 +263,20 @@ iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minut
 	if (HAL_TIM_Base_DeInit(self->timer) != HAL_OK) {
 		return IRIDIUM_TIMER_ERROR;
 	}
+	// For debugging, not practical to set the timeout to 0
+	if (timeout_in_minutes <= 0) {
+		self->timer->Init.Period = 1;
+		self->timer->Init.RepetitionCounter = 0;
+	}
+	else {
+		self->timer->Init.Period = 59999;
+		self->timer->Init.RepetitionCounter = timeout_in_minutes - 1;
+	}
 
 	self->timer->Instance = IRIDIUM_TIMER_INSTANCE;
 	self->timer->Init.Prescaler = 12000;
 	self->timer->Init.CounterMode = TIM_COUNTERMODE_UP;
-	self->timer->Init.Period = 59999;
 	self->timer->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	self->timer->Init.RepetitionCounter = timeout_in_minutes - 1;
 	self->timer->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 	if (HAL_TIM_Base_Init(self->timer) != HAL_OK) {
 		return IRIDIUM_TIMER_ERROR;
@@ -285,25 +292,13 @@ iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minut
  *
  * @return iridium_error_code_t
  */
-void iridium_storage_queue_create(Iridium* self)
-{
-	// Zero out the queue space
-	memset(self->storage_queue->msg_queue, 0, STORAGE_QUEUE_SIZE);
-	self->storage_queue->num_msgs_enqueued = 0;
-}
-
-/**
- *
- *
- * @return iridium_error_code_t
- */
 iridium_error_code_t iridium_storage_queue_add(Iridium* self, sbd_message_type_52* payload)
 {
-	if (self->storage_queue->num_msgs_enqueued == MAX_SRAM4_MESSAGES) {
+	if (self->storage_queue->num_msgs_enqueued == MAX_NUM_MSGS_STORED) {
 		return IRIDIUM_STORAGE_QUEUE_FULL;
 	}
 
-	for (int i = 0; i < MAX_SRAM4_MESSAGES; i ++) {
+	for (int i = 0; i < MAX_NUM_MSGS_STORED; i ++) {
 		if (!self->storage_queue->msg_queue[i].valid) {
 			// copy the message over
 			memcpy(&(self->storage_queue->msg_queue[i].payload), payload,
@@ -337,7 +332,7 @@ iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index
 		return IRIDIUM_STORAGE_QUEUE_EMPTY;
 	}
 
-	for (int i = 0; i < MAX_SRAM4_MESSAGES; i++) {
+	for (int i = 0; i < MAX_NUM_MSGS_STORED; i++) {
 		if (self->storage_queue->msg_queue[i].valid) {
 			msg_wave_height = self->storage_queue->msg_queue[i].payload.Hs;
 			// Try following that! Gets the absolute value of msg_wave_height
@@ -361,7 +356,10 @@ iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index
  */
 void iridium_storage_queue_flush(Iridium* self)
 {
-	memset(self->storage_queue->msg_queue, 0, STORAGE_QUEUE_SIZE);
+	// Zero out the whole thing
+	for (int i = 0; i < MAX_NUM_MSGS_STORED; i++) {
+		self->storage_queue->msg_queue[i].valid = false;
+	}
 	self->storage_queue->num_msgs_enqueued = 0;
 }
 
@@ -472,18 +470,6 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		message_tx_success = return_code == IRIDIUM_SUCCESS;
 	}
 
-	// Message failed to send. If there is space in the queue, store it,
-	// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
-	if (self->timer_timeout && !message_tx_success) {
-
-			// reset the timer and clear the flag for the next time
-			HAL_TIM_Base_Stop_IT(self->timer);
-			self->timer_timeout = false;
-			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
-
-			return self->queue_add(self, self->current_message);
-	}
-
 	// If we made it here, there's still time left, try sending a queued message
 	// First, make sure we actually have messages in the queue
 	all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
@@ -492,6 +478,19 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		queue_return_code = send_msg_from_queue(self);
 		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 	}
+
+	// Message failed to send. If there is space in the queue, store it,
+	// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
+	if (self->timer_timeout && !message_tx_success) {
+		// reset the timer and clear the flag for the next time
+		HAL_TIM_Base_Stop_IT(self->timer);
+		self->timer_timeout = false;
+		__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+
+		return self->queue_add(self, self->current_message);
+	}
+
+
 
 	// reset the timer and clear the flag for the next time
 	HAL_TIM_Base_Stop_IT(self->timer);

@@ -63,7 +63,7 @@ static TX_BYTE_POOL waves_byte_pool;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-
+extern void shut_it_all_down(void);
 /* USER CODE END PFP */
 
   /**
@@ -84,12 +84,14 @@ VOID tx_application_define(VOID *first_unused_memory)
 		  TX_APP_MEM_POOL_SIZE - WAVES_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN TX_Byte_Pool_Error */
+	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
     /* USER CODE END TX_Byte_Pool_Error */
   }
   else if (memory_pool_init(&waves_byte_pool, waves_byte_pool_buffer, WAVES_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN TX_Byte_Pool_Error */
+	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
     /* USER CODE END TX_Byte_Pool_Error */
   }
@@ -105,6 +107,7 @@ VOID tx_application_define(VOID *first_unused_memory)
     {
       /* USER CODE BEGIN  App_ThreadX_Init_Error */
       // Something went wrong along the way, reset and try again
+    	shut_it_all_down();
     	HAL_NVIC_SystemReset();
       /* USER CODE END  App_ThreadX_Init_Error */
     }

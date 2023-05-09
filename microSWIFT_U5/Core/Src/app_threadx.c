@@ -47,11 +47,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define THREAD_EXTRA_LARGE_STACK_SIZE 4096
-#define THREAD_LARGE_STACK_SIZE 2048
-#define THREAD_MEDIUM_STACK_SIZE 1024
-#define THREAD_SMALL_STACK_SIZE 512
-#define UBX_QUEUE_SIZE 3
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -70,6 +66,7 @@ sbd_message_type_52 sbd_message;
 // The primary byte pool from which all memory is allocated from
 TX_BYTE_POOL *byte_pool;
 // Our threads
+TX_THREAD watchdog_thread;
 TX_THREAD startup_thread;
 TX_THREAD gnss_thread;
 TX_THREAD imu_thread;
@@ -78,14 +75,13 @@ TX_THREAD waves_thread;
 TX_THREAD iridium_thread;
 TX_THREAD teardown_thread;
 // We'll use flags to signal other threads to run/shutdown
-TX_EVENT_FLAGS_GROUP thread_flags;
+TX_EVENT_FLAGS_GROUP thread_control_flags;
+// Flags for errors
+TX_EVENT_FLAGS_GROUP error_flags;
 // The data structures for Waves
 emxArray_real32_T *north;
 emxArray_real32_T *east;
 emxArray_real32_T *down;
-//float* down;
-//float* east;
-//float* north;
 // The primary DMA buffer for GNSS UBX messages
 uint8_t* ubx_DMA_message_buf;
 // Buffer for messages ready to process
@@ -94,6 +90,7 @@ uint8_t* ubx_message_process_buf;
 uint8_t* iridium_message;
 uint8_t* iridium_response_message;
 uint8_t* iridium_error_message;
+Iridium_message_storage* sbd_message_queue;
 // GNSS and Iridium structs
 GNSS* gnss;
 Iridium* iridium;
@@ -115,12 +112,17 @@ ct_samples* samples_buf;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
+void watchdog_thread_entry(ULONG thread_input);
 void startup_thread_entry(ULONG thread_input);
 void gnss_thread_entry(ULONG thread_input);
 void waves_thread_entry(ULONG thread_input);
 void iridium_thread_entry(ULONG thread_input);
 void teardown_thread_entry(ULONG thread_input);
-static void shut_it_all_down(void);
+static self_test_status_t initial_power_on_self_test(void);
+static self_test_status_t subsequent_window_self_test(void);
+//static self_test_status_t software_reset_self_test(void);
+//static self_test_status_t watchdog_reset_self_test(void);
+void shut_it_all_down(void);
 // callback function to get GNSS DMA started
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
 
@@ -151,6 +153,18 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	CHAR *pointer = TX_NULL;
 
 	//
+	// Allocate stack for the watchdog thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_SMALL_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
+	// Create the startup thread. HIGHEST priority level and no preemption possible
+	ret = tx_thread_create(&watchdog_thread, "watchdog thread", watchdog_thread_entry, 0, pointer,
+			THREAD_EXTRA_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
+	//
 	// Allocate stack for the startup thread
 	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
@@ -158,7 +172,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the startup thread. HIGHEST priority level and no preemption possible
 	ret = tx_thread_create(&startup_thread, "startup thread", startup_thread_entry, 0, pointer,
-			THREAD_EXTRA_LARGE_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -170,7 +184,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the gnss thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&gnss_thread, "gnss thread", gnss_thread_entry, 0, pointer,
-		  THREAD_EXTRA_LARGE_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+		  THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -182,7 +196,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the waves thread. MID priority, no preemption-threshold
 	ret = tx_thread_create(&waves_thread, "waves thread", waves_thread_entry, 0, pointer,
-			THREAD_EXTRA_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -194,7 +208,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the Iridium thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&iridium_thread, "iridium thread", iridium_thread_entry, 0, pointer,
-			THREAD_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -212,7 +226,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	//
 	// Create the event flags we'll use for triggering threads
-	ret = tx_event_flags_create(&thread_flags, "thread_flags");
+	ret = tx_event_flags_create(&thread_control_flags, "thread flags");
+	if (ret != TX_SUCCESS) {
+	  return ret;
+	}
+	//
+	// Create the error flags we'll use for tracking errors
+	ret = tx_event_flags_create(&error_flags, "error flags");
 	if (ret != TX_SUCCESS) {
 	  return ret;
 	}
@@ -227,6 +247,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_message_process_buf, UBX_MESSAGE_SIZE * 2, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
+	}
+	//
+	// The gnss struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss, sizeof(GNSS), TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
 	}
 	//
 	// The Iridium message array -- add 2 to the size for the checksum
@@ -249,10 +275,10 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	  return ret;
 	}
 	//
-	// The gnss struct
-	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss, sizeof(GNSS), TX_NO_WAIT);
+	// The Iridium message storage
+	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message_queue, sizeof(Iridium_message_storage), TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
-		return ret;
+	  return ret;
 	}
 	//
 	// The iridium struct
@@ -299,7 +325,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the CT thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&ct_thread, "ct thread", ct_thread_entry, 0, pointer,
-		  THREAD_MEDIUM_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+		  THREAD_MEDIUM_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -326,12 +352,9 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
+
 	// Zero out the sbd message struct
 	memset(&sbd_message, 0, sizeof(sbd_message));
-
-	north = argInit_1xUnbounded_real32_T(&configuration); //get_waves_float_array(&configuration);
-	east  = argInit_1xUnbounded_real32_T(&configuration); //get_waves_float_array(&configuration);
-	down  = argInit_1xUnbounded_real32_T(&configuration); //get_waves_float_array(&configuration);
 #endif
   /* USER CODE END App_ThreadX_MEM_POOL */
 
@@ -367,7 +390,33 @@ void MX_ThreadX_Init(device_handles_t *handles)
 
 /* USER CODE BEGIN 1 */
 /**
-  * @brief  startup_thread_entry
+  * @brief  Watchdog thread entry
+  *         This thread will initialize and refresh the watchdog (IWDG) timer up until
+  *         a maximum time. If maximum time is exceeded, the watchdog will not be refreshed
+  *         and a system reset will be executed.
+  * @param  ULONG thread_input - unused
+  * @retval void
+  */
+void watchdog_thread_entry(ULONG thread_input)
+{
+	uint32_t start_time, elapsed_time = 0;
+
+	start_time = HAL_GetTick();
+
+	while (elapsed_time < MAX_POSSIBLE_WINDOW_TIME) {
+		HAL_IWDG_Refresh(device_handles->watchdog_handle);
+		// IWDG window is 3 seconds, refresh will occur once a second
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND - 1);
+		elapsed_time = HAL_GetTick() - start_time;
+	}
+
+	// If we made it here, the max time has elapsed. Do not refresh watchdog and let it initiate a reset
+	tx_thread_suspend(&watchdog_thread);
+}
+
+
+/**
+  * @brief  Startup thread entry
   *         This thread will start all peripherals and do a systems check to
   *         make sure we're good to start the processing cycle
   * @param  ULONG thread_input - unused
@@ -376,172 +425,43 @@ void MX_ThreadX_Init(device_handles_t *handles)
 void startup_thread_entry(ULONG thread_input){
 	// TODO: Check flash for first-time flag. If present, skip, otherwise run
 	// TODO: set event flags to "ready" for all threads
-	UINT threadx_return;
-	int fail_counter;
+	self_test_status_t self_test_status;
+
+	// These structs are being allocated to the waves_byte_pool, and have no overlap with tx_app_byte_pool
+	// Each struct has a float array written to by GNSS. These are freed after processing in waves thread.
+	north = argInit_1xUnbounded_real32_T(&configuration);
+	east  = argInit_1xUnbounded_real32_T(&configuration);
+	down  = argInit_1xUnbounded_real32_T(&configuration);
+
+	//TODO: remove this
+	shut_it_all_down();
 
 	// Initialize the structs
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-			&thread_flags, &(ubx_message_process_buf[0]), device_handles->hrtc, north->data,
+			&thread_control_flags, &(ubx_message_process_buf[0]), device_handles->hrtc, north->data,
 			east->data, down->data);
 	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
 					device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
-					device_handles->Iridium_tx_dma_handle, &thread_flags,
-					device_handles->hrtc, &sbd_message,
-					(uint8_t*)iridium_error_message,
-					(uint8_t*)iridium_response_message);
+					device_handles->Iridium_tx_dma_handle, &thread_control_flags,
+					device_handles->hrtc, &sbd_message, iridium_error_message,
+					iridium_response_message, (Iridium_message_storage*)0x20004964);
 #if CT_ENABLED
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
-					&thread_flags, ct_data, samples_buf);
+					&thread_control_flags, ct_data, samples_buf);
 #endif
 
 	// If the reset was from a software trigger, only test GNSS
 	if (device_handles->reset_reason & RCC_RESET_FLAG_SW) {
-		///////////////////////////////////////////////////////////////////////////////////////////////
-		/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-		// turn on the GNSS FET
-		gnss->on_off(gnss, GPIO_PIN_SET);
-		// Send the configuration commands to the GNSS unit.
-		fail_counter = 0;
-		while (fail_counter < MAX_SELF_TEST_RETRIES) {
-			if (gnss->config(gnss) != GNSS_SUCCESS) {
-				// Config didn't work, cycle power and try again
-				gnss->cycle_power(gnss);
-				fail_counter++;
-			} else {
-				break;
-			}
-		}
-
-		if (fail_counter == MAX_SELF_TEST_RETRIES){
+		self_test_status = software_reset_self_test();
+		if (self_test_status == SELF_TEST_CRITICAL_FAULT) {
+			shut_it_all_down();
 			HAL_NVIC_SystemReset();
 		}
-
-		// Wait until we get a series of good UBX_NAV_PVT messages and are
-		// tracking a good number of satellites before moving on
-		fail_counter = 0;
-		while (fail_counter < MAX_SELF_TEST_RETRIES) {
-			if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
-					!= GNSS_SUCCESS) {
-				// self_test failed, cycle power and try again
-				gnss->cycle_power(gnss);
-				fail_counter++;
-			} else {
-				gnss->is_configured = true;
-				break;
-			}
-
-		}
-
-		if (fail_counter == MAX_SELF_TEST_RETRIES){
-			HAL_NVIC_SystemReset();
-		}
-
-		// If we made it here, the self test passed and we're ready to process messages
-		threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
-
-		threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
-
-#if IMU_ENABLED
-		threadx_return = tx_event_flags_set(&thread_flags, IMU_READY, TX_OR);
-#endif
-
-#if CT_ENABLED
-		threadx_return = tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
-#endif
 	}
 
 	// This is first time power up, test everything and flash LED sequence
 	else {
-		///////////////////////////////////////////////////////////////////////////////////////////////
-		/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
-		// turn on the GNSS FET
-		gnss->on_off(gnss, GPIO_PIN_SET);
-		// Send the configuration commands to the GNSS unit.
-		fail_counter = 0;
-		while (fail_counter < MAX_SELF_TEST_RETRIES) {
-			if (gnss->config(gnss) != GNSS_SUCCESS) {
-				// Config didn't work, cycle power and try again
-				gnss->cycle_power(gnss);
-				fail_counter++;
-			} else {
-				break;
-			}
-		}
 
-		if (fail_counter == MAX_SELF_TEST_RETRIES){
-			while(1) {
-				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-			}
-		}
-
-		// Wait until we get a series of good UBX_NAV_PVT messages and are
-		// tracking a good number of satellites before moving on
-		fail_counter = 0;
-		while (fail_counter < MAX_SELF_TEST_RETRIES) {
-			if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
-					!= GNSS_SUCCESS) {
-				// self_test failed, cycle power and try again
-				gnss->cycle_power(gnss);
-				fail_counter++;
-			} else {
-				gnss->is_configured = true;
-				break;
-			}
-
-		}
-
-		if (fail_counter == MAX_SELF_TEST_RETRIES){
-			while(1) {
-				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-			}
-		}
-
-		// If we made it here, the self test passed and we're ready to process messages
-		threadx_return = tx_event_flags_set(&thread_flags, GNSS_READY, TX_OR);
-
-		///////////////////////////////////////////////////////////////////////////////////////////////
-		///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
-		// Only do this on initial power up, else leave it alone!
-		iridium->queue_create(iridium);
-		// See if we can get an ack message from the modem
-		if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
-			while(1) {
-				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-			}
-		}
-		// Send the configuration settings to the modem
-		if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
-			while(1) {
-				led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
-			}
-		}
-		// We'll keep power to the modem but put it to sleep
-		iridium->sleep(iridium, GPIO_PIN_RESET);
-
-		// We got an ack and were able to config the Iridium modem
-		threadx_return = tx_event_flags_set(&thread_flags, IRIDIUM_READY, TX_OR);
-
-#if IMU_ENABLED
-		///////////////////////////////////////////////////////////////////////////////////////////////
-		////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
-#endif
-
-#if CT_ENABLED
-		///////////////////////////////////////////////////////////////////////////////////////////////
-		/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
-		// Make sure we get good data from the CT sensor
-		if (ct->self_test(ct, false) != CT_SUCCESS) {
-			led_sequence(TEST_NON_CRITICAL_FAULT_LED_SEQUENCE);
-		}
-		// We can turn off the CT sensor for now
-		ct->on_off(ct, GPIO_PIN_RESET);
-
-		// We received a good message from the CT sensor
-		tx_event_flags_set(&thread_flags, CT_READY, TX_OR);
-#endif
-
-		// If we made it here, everything passed!
-		led_sequence(TEST_PASSED_LED_SEQUENCE);
 	}
 
 	// We're done, suspend this thread
@@ -550,7 +470,7 @@ void startup_thread_entry(ULONG thread_input){
 
 /**
   * @brief  gnss_thread_entry
-  *         Thread that governs the GNSS processing. Note that actuall message processing
+  *         Thread that governs the GNSS processing. Note that actual message processing
   *         happens in interrupt context, so this thread is just acting as the traffic cop.
   *
   * @param  ULONG thread_input - unused
@@ -560,11 +480,42 @@ void gnss_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	uint32_t timeout_start = 0, elapsed_time = 0;
 	uint32_t timeout = configuration.gnss_max_acquisition_wait_time * MILLISECONDS_PER_MINUTE;
-	// Packed struct fun times alignment
-	float __attribute__((aligned(1))) temp_lat = 0;
-	float __attribute__((aligned(1))) temp_lon = 0;
+	float last_lat = 0;
+	float last_lon = 0;
+	uint8_t sbd_port;
+
 	// Wait until we get the ready flag
-	tx_event_flags_get(&thread_flags, GNSS_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_control_flags, GNSS_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+
+
+	// Wait until we get a series of good UBX_NAV_PVT messages and are
+	// tracking a good number of satellites before moving on
+	fail_counter = 0;
+	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+				!= GNSS_SUCCESS) {
+			// self_test failed, cycle power and try again
+			gnss->cycle_power(gnss);
+			fail_counter++;
+		} else {
+			gnss->is_configured = true;
+			break;
+		}
+
+	}
+
+	if (fail_counter == MAX_SELF_TEST_RETRIES){
+		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
+			HAL_NVIC_SystemReset();
+		}
+
+		while(1) {
+			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+		}
+	}
+
+
+
 
 	while (!gnss->all_samples_processed) {
 
@@ -587,16 +538,16 @@ void gnss_thread_entry(ULONG thread_input){
 	HAL_UART_DeInit(gnss->gnss_uart_handle);
 	HAL_DMA_DeInit(gnss->gnss_dma_handle);
 
-	gnss->get_location(gnss, &temp_lat, &temp_lon);
+	gnss->get_location(gnss, &last_lat, &last_lon);
 	// Just to be overly sure about alignment
-	memcpy(&sbd_message.Lat, &temp_lat, sizeof(float));
-	memcpy(&sbd_message.Lon, &temp_lon, sizeof(float));
+	memcpy(&sbd_message.Lat, &last_lat, sizeof(float));
+	memcpy(&sbd_message.Lon, &last_lon, sizeof(float));
 	// We're using the "port" field to encode how many samples were averaged. If the number
-	// is greater than 255, then you just get 255.
-	uint8_t sbd_port = (gnss->total_samples_averaged > 255) ? 255 : gnss->total_samples_averaged;
+	// is >= 255, then you just get 255.
+	sbd_port = (gnss->total_samples_averaged > 255) ? 255 : gnss->total_samples_averaged;
 	memcpy(&sbd_message.port, &sbd_port, sizeof(uint8_t));
 
-	tx_event_flags_set(&thread_flags, GNSS_DONE, TX_OR);
+	tx_event_flags_set(&thread_control_flags, GNSS_DONE, TX_OR);
 
 	tx_thread_suspend(&gnss_thread);
 }
@@ -633,13 +584,13 @@ void ct_thread_entry(ULONG thread_input){
 	ct_error_code_t return_code;
 	uint32_t ct_parsing_error_counter = 0;
 
-	tx_event_flags_get(&thread_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_control_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	// If the CT sensor doesn't respond, set the error flag and quit
 	if (ct->self_test(ct, true) != CT_SUCCESS) {
-		tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
-		tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
-		tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+		tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
+		tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
+		tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
 
 #ifdef DBUG
 		for (int i = 0; i < 100; i++) {
@@ -656,9 +607,9 @@ void ct_thread_entry(ULONG thread_input){
 		if (return_code == CT_PARSING_ERROR) {
 			// If there are too many parsing errors, then there's something wrong
 			if (++ct_parsing_error_counter == 10) {
-				tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
-				tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
-				tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+				tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
+				tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
+				tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
 #ifdef DBUG
 				for (int i = 0; i < 100; i++) {
 					led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
@@ -678,8 +629,8 @@ void ct_thread_entry(ULONG thread_input){
 	return_code = ct->get_averages(ct);
 	// Make sure something didn't go terribly wrong
 	if (return_code == CT_NOT_ENOUGH_SAMPLES) {
-		tx_event_flags_set(&thread_flags, CT_ERROR, TX_OR);
-		tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
+		tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
+		tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
 		tx_thread_suspend(&ct_thread);
 	}
 
@@ -689,8 +640,8 @@ void ct_thread_entry(ULONG thread_input){
 	memcpy(&sbd_message.mean_salinity, &half_salinity, sizeof(real16_T));
 	memcpy(&sbd_message.mean_temp, &half_temp, sizeof(real16_T));
 
-	tx_event_flags_set(&thread_flags, CT_DONE, TX_OR);
-	tx_event_flags_set(&thread_flags, WAVES_READY, TX_OR);
+	tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
+	tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
 
 	tx_thread_suspend(&ct_thread);
 }
@@ -706,7 +657,7 @@ void ct_thread_entry(ULONG thread_input){
 void waves_thread_entry(ULONG thread_input){
 
 	ULONG actual_flags;
-	tx_event_flags_get(&thread_flags, WAVES_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_control_flags, WAVES_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
 	// Function return parameters
 	real16_T E[42];
@@ -743,7 +694,7 @@ void waves_thread_entry(ULONG thread_input){
 	memcpy(&(sbd_message.b2_array[0]), &(b2[0]), 42 * sizeof(signed char));
 	memcpy(&(sbd_message.cf_array[0]), &(check[0]), 42 * sizeof(unsigned char));
 
-	tx_event_flags_set(&thread_flags, WAVES_DONE, TX_OR);
+	tx_event_flags_set(&thread_control_flags, WAVES_DONE, TX_OR);
 
 	tx_thread_suspend(&waves_thread);
 }
@@ -759,7 +710,7 @@ void iridium_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	iridium_error_code_t return_code;
 
-	tx_event_flags_get(&thread_flags, WAVES_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_control_flags, WAVES_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	uint8_t ascii_7 = '7';
 	uint8_t sbd_type = 52;
@@ -796,7 +747,7 @@ void iridium_thread_entry(ULONG thread_input){
 #ifdef DBUG
 	int32_t elapsed_time = (HAL_GetTick() - start_time_millis) / 1000;
 #endif
-	tx_event_flags_set(&thread_flags, IRIDIUM_DONE, TX_OR);
+	tx_event_flags_set(&thread_control_flags, IRIDIUM_DONE, TX_OR);
 
 	tx_thread_suspend(&iridium_thread);
 
@@ -826,7 +777,7 @@ void teardown_thread_entry(ULONG thread_input){
 	required_flags |= IMU_DONE;
 #endif
 
-	tx_event_flags_get(&thread_flags, required_flags, TX_AND_CLEAR, &actual_flags, TX_WAIT_FOREVER);
+	tx_event_flags_get(&thread_control_flags, required_flags, TX_AND_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
 	// Just to be overly sure everything is off
 	shut_it_all_down();
@@ -852,7 +803,7 @@ void teardown_thread_entry(ULONG thread_input){
 	}
 	// Enable RTC interrupt
 	// This is being enabled here because of the RTC timer interrupt issue
-	// documented in the errata. We don't want any GPDMA, UART, LPUART IRQs
+	// documented in the errata. We don't want any GPDMA, UART, LPUART interrupts
 	// to trigger the RTC IRQ
 	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(RTC_IRQn);
@@ -868,8 +819,15 @@ void teardown_thread_entry(ULONG thread_input){
 
 	HAL_PWREx_EnterSTOP3Mode(PWR_STOPENTRY_WFI);
 
+	// Probably unsafe... but reset the systick counter to 0 to keep the watchdog happy
+	uwTick = 0;
+	HAL_ResumeTick();
+	HAL_ICACHE_Enable();
+	HAL_NVIC_DisableIRQ(RTC_IRQn);
 	// Make it easy and just reset
-	HAL_NVIC_SystemReset();
+	if (tx_thread_resume(&startup_thread) != TX_SUCCESS) {
+		HAL_NVIC_SystemReset();
+	}
 }
 
 // TODO: Register callbacks with each respective element
@@ -887,7 +845,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
 		if (!gnss->is_configured) {
 
-			tx_event_flags_set(&thread_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
+			tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
 
 		} else {
 			memcpy(&(gnss->ubx_process_buf[0]), &(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
@@ -897,12 +855,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 	// CT sensor
 	else if (huart->Instance == ct->ct_uart_handle->Instance) {
-		tx_event_flags_set(&thread_flags, CT_MSG_RECVD, TX_OR);
+		tx_event_flags_set(&thread_control_flags, CT_MSG_RECVD, TX_OR);
 	}
 
 	// Iridium modem
 	else if (huart->Instance == iridium->iridium_uart_handle->Instance) {
-		tx_event_flags_set(&thread_flags, IRIDIUM_MSG_RECVD, TX_OR);
+		tx_event_flags_set(&thread_control_flags, IRIDIUM_MSG_RECVD, TX_OR);
 	}
 }
 
@@ -1056,8 +1014,381 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 	return return_code;
 }
 
-static void shut_it_all_down(void)
+/**
+  * @brief  Power down all peripheral FETs and set RF switch to GNSS input
+  *
+  * @param  void
+  *
+  * @retval void
+  */
+void shut_it_all_down(void)
 {
+	__IO int dummy_variable = 0;
 
+	int32_t start_time = HAL_GetTick(), elapsed_time = 0;
+
+	// Want to make sure the GPIOs have time to change state and the FETs have switched off.
+	// This will take ~ 1 second @ 12mHz and will work absent SysTick
+	for (__IO int i = 0; i < 4000000; i++) {
+		// Compiler cannot optimize this loop away
+		i++;
+		dummy_variable = i;
+		i--;
+	}
+
+	elapsed_time = HAL_GetTick() - start_time;
+	HAL_Delay(100);
 }
+
+/**
+  * @brief  Test communication with each peripheral.
+  *
+  * @param  void
+  *
+  * @retval SELF_TEST_PASSED
+  * 		SELF_TEST_NON_CRITICAL_FAULT --> if CT or IMU failed
+  * 		SELF_TEST_CRITICAL_FAULT --> if GNSS or Iridium modem
+  */
+static self_test_status_t initial_power_on_self_test(void)
+{
+	self_test_status_t return_code = SELF_TEST_PASSED;
+	int fail_counter;
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+	// turn on the GNSS FET
+	gnss->on_off(gnss, GPIO_PIN_SET);
+	// Send the configuration commands to the GNSS unit.
+	fail_counter = 0;
+	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+		if (gnss->config(gnss) != GNSS_SUCCESS) {
+			// Config didn't work, cycle power and try again
+			gnss->cycle_power(gnss);
+			fail_counter++;
+		} else {
+			break;
+		}
+	}
+
+	if (fail_counter == MAX_SELF_TEST_RETRIES) {
+		return_code = SELF_TEST_CRITICAL_FAULT;
+		return return_code;
+	}
+
+	// If we made it here, the self test passed and we're ready to process messages
+	tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
+	// Only do this on initial power up, else leave it alone!
+	iridium->queue_flush(iridium);
+	// See if we can get an ack message from the modem
+	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
+		return_code = SELF_TEST_CRITICAL_FAULT;
+		return return_code;
+	}
+	// Send the configuration settings to the modem
+	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
+		return_code = SELF_TEST_CRITICAL_FAULT;
+		return return_code;
+	}
+	// We'll keep power to the modem but put it to sleep
+	iridium->sleep(iridium, GPIO_PIN_RESET);
+
+	// We got an ack and were able to config the Iridium modem
+	tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
+
+#if IMU_ENABLED
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
+#endif
+
+#if CT_ENABLED
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
+	// Make sure we get good data from the CT sensor
+	if (ct->self_test(ct, false) != CT_SUCCESS) {
+		return_code = SELF_TEST_NON_CRITICAL_FAULT;
+		tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
+	}
+	// We can turn off the CT sensor for now
+	ct->on_off(ct, GPIO_PIN_RESET);
+
+	// Regardless of if the self-test passed, we'll still set it as ready and try again
+	// in the sample window
+	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
+#endif
+
+	return return_code;
+}
+
+/**
+  * @brief  Test communication with and configure the GNSS sensor. Other peripherals will be skipped.
+  *
+  * @param  void
+  *
+  * @retval SELF_TEST_PASSED
+  * 		SELF_TEST_CRITICAL_FAULT --> if GNSS or Iridium modem
+  */
+static self_test_status_t subsequent_window_self_test(void)
+{
+	self_test_status_t return_code = SELF_TEST_PASSED;
+	int fail_counter;
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+	// turn on the GNSS FET
+	gnss->on_off(gnss, GPIO_PIN_SET);
+	// Send the configuration commands to the GNSS unit.
+	fail_counter = 0;
+	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+		if (gnss->config(gnss) != GNSS_SUCCESS) {
+			// Config didn't work, cycle power and try again
+			gnss->cycle_power(gnss);
+			HAL_Delay(13);
+			fail_counter++;
+		} else {
+			break;
+		}
+	}
+
+	if (fail_counter == MAX_SELF_TEST_RETRIES){
+		return_code = SELF_TEST_CRITICAL_FAULT;
+		return return_code;
+	}
+
+	// Wait until we get a series of good UBX_NAV_PVT messages and are
+	// tracking a good number of satellites before moving on
+	fail_counter = 0;
+	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+				!= GNSS_SUCCESS) {
+			// self_test failed, cycle power and try again
+			gnss->cycle_power(gnss);
+			fail_counter++;
+		} else {
+			gnss->is_configured = true;
+			break;
+		}
+
+	}
+
+	if (fail_counter == MAX_SELF_TEST_RETRIES){
+		return_code = SELF_TEST_CRITICAL_FAULT;
+		return return_code;
+	}
+
+	// If we made it here, the self test passed and we're ready to process messages
+	tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
+
+	tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
+
+#if IMU_ENABLED
+	threadx_return = tx_event_flags_set(&thread_control_flags, IMU_READY, TX_OR);
+#endif
+
+#if CT_ENABLED
+	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
+#endif
+
+	return return_code;
+}
+
+/**
+  * @brief  Test communication with and configure the GNSS sensor. Other peripherals will be skipped.
+  *
+  * @param  void
+  *
+  * @retval SELF_TEST_PASSED
+  * 		SELF_TEST_CRITICAL_FAULT --> if GNSS or Iridium modem
+  */
+//static self_test_status_t software_reset_self_test(void)
+//{
+//	self_test_status_t return_code = SELF_TEST_PASSED;
+//	int fail_counter;
+//
+//	///////////////////////////////////////////////////////////////////////////////////////////////
+//	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+//	// turn on the GNSS FET
+//	gnss->on_off(gnss, GPIO_PIN_SET);
+//	// Send the configuration commands to the GNSS unit.
+//	fail_counter = 0;
+//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+//		if (gnss->config(gnss) != GNSS_SUCCESS) {
+//			// Config didn't work, cycle power and try again
+//			gnss->cycle_power(gnss);
+//			HAL_Delay(13);
+//			fail_counter++;
+//		} else {
+//			break;
+//		}
+//	}
+//
+//	if (fail_counter == MAX_SELF_TEST_RETRIES){
+//		return_code = SELF_TEST_CRITICAL_FAULT;
+//		return return_code;
+//	}
+//
+//	// Wait until we get a series of good UBX_NAV_PVT messages and are
+//	// tracking a good number of satellites before moving on
+//	fail_counter = 0;
+//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+//		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+//				!= GNSS_SUCCESS) {
+//			// self_test failed, cycle power and try again
+//			gnss->cycle_power(gnss);
+//			fail_counter++;
+//		} else {
+//			gnss->is_configured = true;
+//			break;
+//		}
+//
+//	}
+//
+//	if (fail_counter == MAX_SELF_TEST_RETRIES){
+//		return_code = SELF_TEST_CRITICAL_FAULT;
+//		return return_code;
+//	}
+//
+//	// If we made it here, the self test passed and we're ready to process messages
+//	tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
+//
+//	tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
+//
+//#if IMU_ENABLED
+//	threadx_return = tx_event_flags_set(&thread_control_flags, IMU_READY, TX_OR);
+//#endif
+//
+//#if CT_ENABLED
+//	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
+//#endif
+//
+//	return return_code;
+//}
+
+/**
+  * @brief  Test communication with each peripheral. Same as initial_power_on_self_test,
+  * 		but without flushing the Iridium queue.
+  *
+  * @param  void
+  *
+  * @retval SELF_TEST_PASSED
+  * 		SELF_TEST_NON_CRITICAL_FAULT --> if CT or IMU failed
+  * 		SELF_TEST_CRITICAL_FAULT --> if GNSS or Iridium modem
+  */
+//static self_test_status_t watchdog_reset_self_test(void)
+//{
+//	self_test_status_t return_code = SELF_TEST_PASSED;
+//	int fail_counter;
+//
+//	///////////////////////////////////////////////////////////////////////////////////////////////
+//	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
+//	// turn on the GNSS FET
+//	gnss->on_off(gnss, GPIO_PIN_SET);
+//	// Send the configuration commands to the GNSS unit.
+//	fail_counter = 0;
+//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+//		if (gnss->config(gnss) != GNSS_SUCCESS) {
+//			// Config didn't work, cycle power and try again
+//			gnss->cycle_power(gnss);
+//			fail_counter++;
+//		} else {
+//			break;
+//		}
+//	}
+//
+//	if (fail_counter == MAX_SELF_TEST_RETRIES) {
+//
+//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
+//			HAL_NVIC_SystemReset();
+//		}
+//
+//		while(1) {
+//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+//		}
+//	}
+//
+//	// Wait until we get a series of good UBX_NAV_PVT messages and are
+//	// tracking a good number of satellites before moving on
+//	fail_counter = 0;
+//	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+//		if (gnss->self_test(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+//				!= GNSS_SUCCESS) {
+//			// self_test failed, cycle power and try again
+//			gnss->cycle_power(gnss);
+//			fail_counter++;
+//		} else {
+//			gnss->is_configured = true;
+//			break;
+//		}
+//
+//	}
+//
+//	if (fail_counter == MAX_SELF_TEST_RETRIES){
+//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
+//			HAL_NVIC_SystemReset();
+//		}
+//
+//		while(1) {
+//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+//		}
+//	}
+//
+//	// If we made it here, the self test passed and we're ready to process messages
+//	threadx_return = tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
+//
+//	///////////////////////////////////////////////////////////////////////////////////////////////
+//	///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
+//	// Only do this on initial power up, else leave it alone!
+//	iridium->queue_flush(iridium);
+//	// See if we can get an ack message from the modem
+//	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
+//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
+//			HAL_NVIC_SystemReset();
+//		}
+//
+//		while(1) {
+//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+//		}
+//	}
+//	// Send the configuration settings to the modem
+//	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
+//		if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
+//			HAL_NVIC_SystemReset();
+//		}
+//
+//		while(1) {
+//			led_sequence(TEST_CRITICAL_FAULT_LED_SEQUENCE);
+//		}
+//	}
+//	// We'll keep power to the modem but put it to sleep
+//	iridium->sleep(iridium, GPIO_PIN_RESET);
+//
+//	// We got an ack and were able to config the Iridium modem
+//	threadx_return = tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
+//
+//#if IMU_ENABLED
+//	///////////////////////////////////////////////////////////////////////////////////////////////
+//	////////////////////////// IMU STARTUP SEQUENCE ///////////////////////////////////////////////
+//#endif
+//
+//#if CT_ENABLED
+//	///////////////////////////////////////////////////////////////////////////////////////////////
+//	/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
+//	// Make sure we get good data from the CT sensor
+//	if (ct->self_test(ct, false) != CT_SUCCESS) {
+//		led_sequence(TEST_NON_CRITICAL_FAULT_LED_SEQUENCE);
+//	}
+//	// We can turn off the CT sensor for now
+//	ct->on_off(ct, GPIO_PIN_RESET);
+//
+//	// We received a good message from the CT sensor
+//	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
+//#endif
+//
+//	// If we made it here, everything passed!
+//	led_sequence(TEST_PASSED_LED_SEQUENCE);
+//
+//	return return_code;
+//}
 /* USER CODE END 1 */

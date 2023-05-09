@@ -46,7 +46,7 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
 
-LPTIM_HandleTypeDef hlptim1;
+IWDG_HandleTypeDef hiwdg;
 
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart4;
@@ -76,9 +76,9 @@ static void MX_UART5_Init(void);
 static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
-static void MX_LPTIM1_Init(void);
+static void MX_IWDG_Init(void);
 /* USER CODE BEGIN PFP */
-
+extern void shut_it_all_down(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -154,12 +154,10 @@ int main(void)
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
-  MX_LPTIM1_Init();
+#ifndef DISABLE_IWDG
+  MX_IWDG_Init();
+#endif
   /* USER CODE BEGIN 2 */
-
-  // Enable sleep 3 mode interrupt
-  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
 
@@ -176,16 +174,20 @@ int main(void)
   handles.Iridium_tx_dma_handle = &handle_GPDMA1_Channel2;
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
-  handles.low_power_timer = &hlptim1;
+  handles.watchdog_handle = &hiwdg;
   handles.reset_reason = reset_reason;
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
+
+
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  shut_it_all_down();
+	  HAL_NVIC_SystemReset();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -213,27 +215,20 @@ void SystemClock_Config(void)
   /** Configure LSE Drive Capability
   */
   HAL_PWR_EnableBkUpAccess();
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_MEDIUMHIGH);
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSE
-                              |RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI
+                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_0;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLMBOOST = RCC_PLLMBOOST_DIV4;
-  RCC_OscInitStruct.PLL.PLLM = 3;
-  RCC_OscInitStruct.PLL.PLLN = 9;
-  RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 2;
-  RCC_OscInitStruct.PLL.PLLR = 6;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLLVCIRANGE_1;
-  RCC_OscInitStruct.PLL.PLLFRACN = 0;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_3;
+  RCC_OscInitStruct.LSIDiv = RCC_LSI_DIV1;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -244,8 +239,8 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
                               |RCC_CLOCKTYPE_PCLK3;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
@@ -300,8 +295,9 @@ static void SystemPower_Config(void)
   HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE6_STOP_RETENTION);
   HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE7_STOP_RETENTION);
   HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_PAGE8_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+  HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+  HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+
 
   /*
    * Switch to SMPS regulator instead of LDO
@@ -310,6 +306,9 @@ static void SystemPower_Config(void)
   {
     Error_Handler();
   }
+  /* PWR_S3WU_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 }
 
 /**
@@ -347,6 +346,7 @@ static void MX_ADC4_Init(void)
   hadc4.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc4.Init.DMAContinuousRequests = DISABLE;
   hadc4.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
+  hadc4.Init.VrefProtection = ADC_VREF_PPROT_NONE;
   hadc4.Init.Overrun = ADC_OVR_DATA_PRESERVED;
   hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_1CYCLE_5;
   hadc4.Init.SamplingTimeCommon2 = ADC4_SAMPLETIME_1CYCLE_5;
@@ -444,37 +444,32 @@ static void MX_ICACHE_Init(void)
 }
 
 /**
-  * @brief LPTIM1 Initialization Function
+  * @brief IWDG Initialization Function
   * @param None
   * @retval None
   */
-static void MX_LPTIM1_Init(void)
+static void MX_IWDG_Init(void)
 {
 
-  /* USER CODE BEGIN LPTIM1_Init 0 */
+  /* USER CODE BEGIN IWDG_Init 0 */
 
-  /* USER CODE END LPTIM1_Init 0 */
+  /* USER CODE END IWDG_Init 0 */
 
-  /* USER CODE BEGIN LPTIM1_Init 1 */
+  /* USER CODE BEGIN IWDG_Init 1 */
 
-  /* USER CODE END LPTIM1_Init 1 */
-  hlptim1.Instance = LPTIM1;
-  hlptim1.Init.Clock.Source = LPTIM_CLOCKSOURCE_APBCLOCK_LPOSC;
-  hlptim1.Init.Clock.Prescaler = LPTIM_PRESCALER_DIV128;
-  hlptim1.Init.Trigger.Source = LPTIM_TRIGSOURCE_SOFTWARE;
-  hlptim1.Init.Period = 15360;
-  hlptim1.Init.UpdateMode = LPTIM_UPDATE_IMMEDIATE;
-  hlptim1.Init.CounterSource = LPTIM_COUNTERSOURCE_INTERNAL;
-  hlptim1.Init.Input1Source = LPTIM_INPUT1SOURCE_GPIO;
-  hlptim1.Init.Input2Source = LPTIM_INPUT2SOURCE_GPIO;
-  hlptim1.Init.RepetitionCounter = 0;
-  if (HAL_LPTIM_Init(&hlptim1) != HAL_OK)
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_512;
+  hiwdg.Init.Window = 188;
+  hiwdg.Init.Reload = 4095;
+  hiwdg.Init.EWI = 0;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN LPTIM1_Init 2 */
+  /* USER CODE BEGIN IWDG_Init 2 */
 
-  /* USER CODE END LPTIM1_Init 2 */
+  /* USER CODE END IWDG_Init 2 */
 
 }
 
@@ -634,7 +629,7 @@ static void MX_RTC_Init(void)
   /* USER CODE END RTC_Init 0 */
 
   RTC_PrivilegeStateTypeDef privilegeState = {0};
-//  RTC_AlarmTypeDef sAlarm = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -670,23 +665,6 @@ static void MX_RTC_Init(void)
   /** Initialize RTC and set the Time and Date
   */
   if (HAL_RTCEx_SetSSRU_IT(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Enable the Alarm A
-  */
-//  sAlarm.AlarmTime.SubSeconds = 0x0;
-//  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
-//  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
-//  sAlarm.Alarm = RTC_ALARM_A;
-//  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BIN) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-  /* USER CODE BEGIN RTC_Init 2 */
-  /* Set Calendar Ultra-Low power mode */
-  if (HAL_RTCEx_SetLowPowerCalib(&hrtc, RTC_LPCAL_SET) != HAL_OK)
   {
     Error_Handler();
   }
@@ -812,9 +790,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA0 PA1 PA4 PA5
-                           PA6 PA7 PA8 UCPD1_CC1_Pin */
+                           PA7 PA8 UCPD1_CC1_Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|UCPD1_CC1_Pin;
+                          |GPIO_PIN_7|GPIO_PIN_8|UCPD1_CC1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
