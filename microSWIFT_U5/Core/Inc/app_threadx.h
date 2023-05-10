@@ -40,6 +40,7 @@
 #include "gnss.h"
 #include "battery.h"
 #include "ct_sensor.h"
+#include "rf_switch.h"
 #include "imu.h"
 #include "iridium.h"
 #include "log.h"

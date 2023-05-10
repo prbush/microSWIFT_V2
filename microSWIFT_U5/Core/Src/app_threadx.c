@@ -436,7 +436,7 @@ void startup_thread_entry(ULONG thread_input){
 	}
 
 	rf_switch_init(&rf_switch);
-	rf_switch->set_gnss_port();
+	rf_switch->set_gnss_port(rf_switch);
 
 	// Initialize the structs
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
@@ -497,7 +497,7 @@ void gnss_thread_entry(ULONG thread_input){
 	tx_event_flags_get(&thread_control_flags, GNSS_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
 	// Just to be overly sure GNSS has the RF switch
-	rf_switch->set_gnss_port();
+	rf_switch->set_gnss_port(rf_switch);
 
 	// Wait until we get a series of good UBX_NAV_PVT messages and are
 	// tracking a good number of satellites before moving on
@@ -586,7 +586,7 @@ void gnss_thread_entry(ULONG thread_input){
 	tx_event_flags_set(&thread_control_flags, GNSS_DONE, TX_OR);
 
 	// Port the RF switch to the modem
-	rf_switch->set_iridium_port();
+	rf_switch->set_iridium_port(rf_switch);
 
 	tx_thread_terminate(&gnss_thread);
 }
@@ -752,7 +752,7 @@ void iridium_thread_entry(ULONG thread_input){
 	tx_event_flags_get(&thread_control_flags, WAVES_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	// Port the RF switch to the modem
-	rf_switch->set_iridium_port();
+	rf_switch->set_iridium_port(rf_switch);
 
 	uint8_t ascii_7 = '7';
 	uint8_t sbd_type = 52;
@@ -789,7 +789,7 @@ void iridium_thread_entry(ULONG thread_input){
 	tx_event_flags_set(&thread_control_flags, IRIDIUM_DONE, TX_OR);
 
 	// Turn the RF switch back over to the GNSS port
-	rf_switch->set_gnss_port();
+	rf_switch->set_gnss_port(rf_switch);
 
 	tx_thread_terminate(&iridium_thread);
 }

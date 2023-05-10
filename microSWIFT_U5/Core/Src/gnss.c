@@ -247,7 +247,6 @@ void gnss_process_message(GNSS* self)
 		// Make sure we don't overflow our arrays
 		if (self->total_samples == self->global_config->samples_per_window) {
 			HAL_UART_DMAStop(self->gnss_uart_handle);
-//			HAL_NVIC_DisableIRQ(GPDMA1_Channel0_IRQn);
 			self->sample_window_stop_time = HAL_GetTick();
 			self->all_samples_processed = true;
 			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
