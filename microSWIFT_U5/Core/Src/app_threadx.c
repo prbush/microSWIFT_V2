@@ -418,8 +418,6 @@ void watchdog_thread_entry(ULONG thread_input)
   * @retval void
   */
 void startup_thread_entry(ULONG thread_input){
-	// TODO: Check flash for first-time flag. If present, skip, otherwise run
-	// TODO: set event flags to "ready" for all threads
 	self_test_status_t self_test_status;
 	ULONG actual_flags = 0;
 
@@ -431,11 +429,8 @@ void startup_thread_entry(ULONG thread_input){
 	east  = argInit_1xUnbounded_real32_T(&configuration);
 	down  = argInit_1xUnbounded_real32_T(&configuration);
 
-	if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG){
-		HAL_Delay(10);
-	}
-
-	rf_switch_init(&rf_switch);
+	// Initialize the RF switch and set it to the GNSS port
+	rf_switch_init(rf_switch);
 	rf_switch->set_gnss_port(rf_switch);
 
 	// Initialize the structs
@@ -465,10 +460,34 @@ void startup_thread_entry(ULONG thread_input){
 
 	// This is first time power up, test everything and flash LED sequence
 	else {
+		// Flash some lights to let the user know its on and working
+		led_sequence(INITIAL_LED_SEQUENCE);
+
 		self_test_status = initial_power_on_self_test();
-		if (self_test_status == SELF_TEST_CRITICAL_FAULT) {
-			shut_it_all_down();
-			HAL_NVIC_SystemReset();
+
+		switch (self_test_status){
+			case SELF_TEST_PASSED:
+				led_sequence(TEST_PASSED_LED_SEQUENCE);
+				break;
+
+			case SELF_TEST_NON_CRITICAL_FAULT:
+				led_sequence(TEST_NON_CRITICAL_FAULT_LED_SEQUENCE);
+				break;
+
+			case SELF_TEST_CRITICAL_FAULT:
+				shut_it_all_down();
+				// Stay stuck here
+				while (1) {
+					led_sequence(SELF_TEST_CRITICAL_FAULT);
+				}
+
+			default:
+				// If we got here, there's probably a memory corruption
+				shut_it_all_down();
+				// Stay stuck here
+				while (1) {
+					led_sequence(SELF_TEST_CRITICAL_FAULT);
+				}
 		}
 	}
 
@@ -806,6 +825,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	ULONG actual_flags, required_flags;
 	required_flags =  	GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
 	RTC_AlarmTypeDef alarm = {0};
+	RTC_TimeTypeDef initial_rtc_time;
 	RTC_TimeTypeDef rtc_time;
 	RTC_DateTypeDef rtc_date;
 
@@ -831,16 +851,27 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 		HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
 
-		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
+		HAL_RTC_GetTime(device_handles->hrtc, &initial_rtc_time, RTC_FORMAT_BIN);
 		// Must call GetDate to keep the RTC happy, even if you don't use it
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
-		uint32_t minute = rtc_time.Minutes >= 58 ? (rtc_time.Minutes + 2) - 60 : (rtc_time.Minutes + 2);
+
+#ifdef DBUG
+		uint32_t minute = initial_rtc_time.Minutes >= 58 ? (rtc_time.Minutes + 2) - 60 : (rtc_time.Minutes + 2);
 
 		while (rtc_time.Minutes != minute) {
+#else
+		while (rtc_time.Minutes != 0){
+#endif
 			HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 			// Get the date and time
 			HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 			HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+
+			// We should be restarting the window at the top of the hour. If the initial time and just checked time
+			// differ in hours, then we should start a new window. This should never occur, but just as a second safety
+			if (initial_rtc_time.Hours != rtc_time.Hours){
+				break;
+			}
 
 			// Set the alarm to occur in 4 seconds
 			alarm.Alarm = RTC_ALARM_A;
@@ -877,6 +908,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_NVIC_DisableIRQ(RTC_IRQn);
 
 		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
 		// Clear out all control event flags
 		tx_event_flags_set(&thread_control_flags, 0, TX_AND);
 		// Set cycle complete flag
@@ -907,7 +939,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	}
 }
 
-// TODO: Register callbacks with each respective element
 /**
   * @brief  UART ISR callback
   *
@@ -915,10 +946,9 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
   * @retval void
   */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-//	static uint8_t* read_ptr = &(gnss->ubx_process_buf[0]);
-//	static write_ptr = &(gnss->ubx_process_buf[0]);
-	HAL_StatusTypeDef HAL_return;
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	// Context is saved/restored in upstream Interrupt call chain
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
 		if (!gnss->is_configured) {
 
@@ -1006,6 +1036,7 @@ void HAL_Delay(uint32_t Delay)
   *
   * @retval Void
   */
+#ifdef DBUG
 static void led_sequence(led_sequence_t sequence)
 {
 	switch (sequence) {
@@ -1057,6 +1088,55 @@ static void led_sequence(led_sequence_t sequence)
 			break;
 	}
 }
+#else
+static void led_sequence(led_sequence_t sequence)
+{
+	switch (sequence) {
+		case INITIAL_LED_SEQUENCE:
+			for (int i = 0; i < 10; i++){
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
+				HAL_Delay(250);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
+				HAL_Delay(250);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+				HAL_Delay(250);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+				HAL_Delay(250);
+			}
+			break;
+
+		case TEST_PASSED_LED_SEQUENCE:
+			for (int i = 0; i < 5; i++){
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
+				HAL_Delay(1000);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+				HAL_Delay(1000);
+			}
+			break;
+
+		case TEST_NON_CRITICAL_FAULT_LED_SEQUENCE:
+			for (int i = 0; i < 20; i++){
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
+				HAL_Delay(250);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+				HAL_Delay(250);
+			}
+			break;
+
+		case TEST_CRITICAL_FAULT_LED_SEQUENCE:
+			for (int i = 0; i < 10; i++){
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+				HAL_Delay(500);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
+				HAL_Delay(500);
+			}
+			break;
+
+		default:
+			break;
+	}
+}
+#endif
 
 /**
   * @brief  callback function to start GNSS UART DMA reception. Passed to GNSS->self_test

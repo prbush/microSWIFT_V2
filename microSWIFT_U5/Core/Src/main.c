@@ -162,6 +162,11 @@ int main(void)
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
 
+  if (reset_reason & RCC_RESET_FLAG_IWDG) {
+	  HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+	  while(1) {}
+  }
+
   device_handles_t handles;
 
   handles.hrtc = &hrtc;
