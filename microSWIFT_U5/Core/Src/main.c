@@ -102,6 +102,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  // Force the reset of the RTC and clear anything in the backup domain
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_BACKUPRESET_FORCE();
   __HAL_RCC_BACKUPRESET_RELEASE();
@@ -154,7 +155,9 @@ int main(void)
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
+#ifndef DBUG
   MX_IWDG_Init();
+#endif
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -174,6 +177,8 @@ int main(void)
   handles.iridium_timer = &htim17;
   handles.watchdog_handle = &hiwdg;
   handles.reset_reason = reset_reason;
+
+  HAL_Delay(2000);
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
@@ -289,9 +294,6 @@ static void SystemPower_Config(void)
   {
     Error_Handler();
   }
-  /* PWR_S3WU_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 }
 
 /**
@@ -435,7 +437,8 @@ static void MX_IWDG_Init(void)
 {
 
   /* USER CODE BEGIN IWDG_Init 0 */
-
+  // 5 second window
+  uint32_t watchdog_window = 313;
   /* USER CODE END IWDG_Init 0 */
 
   /* USER CODE BEGIN IWDG_Init 1 */
@@ -443,8 +446,8 @@ static void MX_IWDG_Init(void)
   /* USER CODE END IWDG_Init 1 */
   hiwdg.Instance = IWDG;
   hiwdg.Init.Prescaler = IWDG_PRESCALER_512;
-  hiwdg.Init.Window = 188;
-  hiwdg.Init.Reload = 4095;
+  hiwdg.Init.Window = 0;
+  hiwdg.Init.Reload = 313;
   hiwdg.Init.EWI = 0;
   if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
   {
@@ -615,7 +618,8 @@ static void MX_RTC_Init(void)
   RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
-
+  RTC_DateTypeDef rtc_date;
+  RTC_TimeTypeDef rtc_time;
   /* USER CODE END RTC_Init 1 */
 
   /** Initialize RTC Only
@@ -651,9 +655,24 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
-
   /* USER CODE BEGIN RTC_Init 2 */
 
+  rtc_date.Date = 2;
+  rtc_date.Month = 2;
+  rtc_date.WeekDay = RTC_WEEKDAY_MONDAY;
+  rtc_date.Year = 23;
+  rtc_time.Hours = 2;
+  rtc_time.Minutes = 2;
+  rtc_time.Seconds = 2;
+  rtc_time.SecondFraction = 0;
+
+  if (HAL_RTC_SetDate(&hrtc, &rtc_date, RTC_FORMAT_BIN) != HAL_OK) {
+	  Error_Handler();
+  }
+
+  if (HAL_RTC_SetTime(&hrtc, &rtc_time, RTC_FORMAT_BIN) != HAL_OK) {
+	  Error_Handler();
+  }
   /* USER CODE END RTC_Init 2 */
 
 }

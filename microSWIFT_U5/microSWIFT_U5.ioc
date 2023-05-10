@@ -560,4 +560,4 @@ VREF+.Mode=InternalMode
 VREF+.Signal=VREFBUF_OUT
 board=NUCLEO-U575ZI-Q
 boardIOC=true
-isbadioc=true
+isbadioc=false

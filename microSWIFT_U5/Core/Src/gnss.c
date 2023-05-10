@@ -34,9 +34,9 @@ static void reset_struct_fields(GNSS* self);
  */
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, uint8_t* ubx_process_buf,
-		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
-		float* GNSS_D_Array)
+		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
+		uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
+		float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array)
 {
 	// initialize everything
 	self->global_config = global_config;
@@ -47,10 +47,11 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 	self->GNSS_E_Array = GNSS_E_Array;
 	self->GNSS_D_Array = GNSS_D_Array;
 	reset_struct_fields(self);
-	self->event_flags = event_flags;
+	self->control_flags = control_flags;
+	self->error_flags = error_flags;
 	self->ubx_process_buf = ubx_process_buf;
 	self->config = gnss_config;
-	self->self_test = gnss_self_test;
+	self->sync_and_start_reception = gnss_sync_and_start_reception;
 	self->get_location = gnss_get_location;
 	self->get_running_average_velocities = gnss_get_running_average_velocities;
 	self->process_message = gnss_process_message;
@@ -111,12 +112,11 @@ gnss_error_code_t gnss_config(GNSS* self){
 }
 
 /**
- * Called by app_threadx::startup_thread to ensure that good
- * messages are coming across.
+ *
  *
  * @return gnss_error_code_t
  */
-gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
+gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
 		uint8_t* buffer, size_t msg_size)
 {
 	gnss_error_code_t return_code = GNSS_SELF_TEST_FAILED;
@@ -136,7 +136,7 @@ gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS
 				INITIAL_STAGES_BUFFER_SIZE);
 		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
 
-		if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+		if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
 				&actual_flags, MAX_THREADX_WAIT_TICKS_FOR_CONFIG) != TX_SUCCESS) {
 			// Insert a prime number delay to sync up UART reception
 			HAL_Delay(3);
@@ -166,9 +166,9 @@ gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS
 		HAL_UART_DMAStop(self->gnss_uart_handle);
 		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		memset(&(buffer[0]), 0, msg_size);
-	}
 
-	return return_code;
+		tx_event_flags_set(self->error_flags, GNSS_ERROR, TX_OR);
+	}
 
 	return return_code;
 }
@@ -474,7 +474,14 @@ gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
 	uint8_t min = msg_payload[UBX_NAV_PVT_MINUTE_INDEX];
 	uint8_t sec = msg_payload[UBX_NAV_PVT_SECONDS_INDEX];
 	uint8_t time_flags = msg_payload[UBX_NAV_PVT_VALID_FLAGS_INDEX];
+
 	time_flags &= LOWER_4_BITS_MASK;
+
+	if (time_flags != FULLY_RESOLVED_AND_VALID_TIME) {
+		return_code = GNSS_TIME_RESOLUTION_ERROR;
+		return return_code;
+	}
+
 	// Set the date
 	rtc_date.Date = day;
 	rtc_date.Month = month;
@@ -485,6 +492,7 @@ gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
 	if (HAL_RTC_SetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BIN) != HAL_OK) {
 		return_code = GNSS_RTC_ERROR;
 		self->rtc_error = true;
+		tx_event_flags_set(self->error_flags, RTC_ERROR, TX_OR);
 		return return_code;
 	}
 	// Set the time
@@ -495,15 +503,12 @@ gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload)
 	if (HAL_RTC_SetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BIN) != HAL_OK) {
 		return_code = GNSS_RTC_ERROR;
 		self->rtc_error = true;
+		tx_event_flags_set(self->error_flags, RTC_ERROR, TX_OR);
 		return return_code;
 	}
 
-	// We'll only call the clock as set when the valid flags indicate fully resolved,
-	// otherwise we'll still set it, it will just be off by some amount
-	if (time_flags == FULLY_RESOLVED_AND_VALID_TIME) {
-		self->is_clock_set = true;
-		self->rtc_error = false;
-	}
+	self->is_clock_set = true;
+	self->rtc_error = false;
 
 	return return_code;
 }
@@ -545,7 +550,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 			HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
 				sizeof(msg_buf));
 			__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
-			if (tx_event_flags_get(self->event_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+			if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
 					&actual_flags, TX_TIMER_TICKS_PER_SECOND + 2) != TX_SUCCESS) {
 				self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 				HAL_Delay(10);

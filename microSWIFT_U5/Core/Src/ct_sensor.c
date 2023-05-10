@@ -21,8 +21,8 @@ static const char* salinity_units = "PSU";
  * @return void
  */
 void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeDef* ct_uart_handle,
-		DMA_HandleTypeDef* ct_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf,
-		ct_samples* samples_buf)
+		DMA_HandleTypeDef* ct_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
+		TX_EVENT_FLAGS_GROUP* error_flags, char* data_buf, ct_samples* samples_buf)
 {
 //	for (int i = 0; i < global_config->total_ct_samples; i++) {
 //		self->samples_buf[i].conductivity = 0.0;
@@ -32,7 +32,8 @@ void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeD
 	self->global_config = global_config;
 	self->ct_uart_handle = ct_uart_handle;
 	self->ct_dma_handle = ct_dma_handle;
-	self->event_flags = event_flags;
+	self->control_flags = control_flags;
+	self->error_flags = error_flags;
 	self->data_buf = data_buf;
 	self->samples_buf = samples_buf;
 	self->parse_sample = ct_parse_sample;
@@ -74,7 +75,7 @@ ct_error_code_t ct_parse_sample(CT* self)
 
 	while(++fail_counter < 10) {
 		// See if we got the message, otherwise retry
-		if (tx_event_flags_get(self->event_flags, CT_MSG_RECVD, TX_OR_CLEAR,
+		if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
 				&actual_flags, required_ticks_to_get_message) != TX_SUCCESS)
 		{
 			HAL_UART_DMAStop(self->ct_uart_handle);
@@ -186,7 +187,7 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 
 		}
 
-		if (tx_event_flags_get(self->event_flags, CT_MSG_RECVD, TX_OR_CLEAR,
+		if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
 				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS) {
 			HAL_UART_DMAStop(self->ct_uart_handle);
 			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
@@ -228,7 +229,6 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 		}
 
 		return_code = CT_SUCCESS;
-
 		break;
 	}
 

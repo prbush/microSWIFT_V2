@@ -107,7 +107,8 @@ typedef struct GNSS {
 	// Handle to the RTC
 	RTC_HandleTypeDef* rtc_handle;
 	// Event flags
-	TX_EVENT_FLAGS_GROUP* event_flags;
+	TX_EVENT_FLAGS_GROUP* control_flags;
+	TX_EVENT_FLAGS_GROUP* error_flags;
 	// UBX message process buffer filled from DMA ISR
 	uint8_t* ubx_process_buf;
 	// Velocity sample array pointers
@@ -144,7 +145,7 @@ typedef struct GNSS {
 	bool all_samples_processed;
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
-	gnss_error_code_t (*self_test)(struct GNSS* self,
+	gnss_error_code_t (*sync_and_start_reception)(struct GNSS* self,
 				gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
 				uint8_t* buffer, size_t msg_size);
 	gnss_error_code_t (*get_location)(struct GNSS* self, float* latitude,
@@ -161,11 +162,11 @@ typedef struct GNSS {
 /* Function declarations */
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, uint8_t* ubx_process_buf,
-		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array,
-		float* GNSS_D_Array);
+		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
+		uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
+		float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
-gnss_error_code_t gnss_self_test(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
+gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
 		uint8_t* buffer, size_t msg_size);
 gnss_error_code_t gnss_get_location(GNSS* self, float* latitude, float* longitude);
 gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);

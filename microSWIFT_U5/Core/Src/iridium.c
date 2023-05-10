@@ -33,16 +33,18 @@ static const char* send_sbd = "AT+SBDI\r";
 void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* iridium_uart_handle, DMA_HandleTypeDef* iridium_rx_dma_handle,
 		TIM_HandleTypeDef* timer, DMA_HandleTypeDef* iridium_tx_dma_handle,
-		TX_EVENT_FLAGS_GROUP* event_flags, RTC_HandleTypeDef* rtc_handle,
-		sbd_message_type_52* current_message, uint8_t* error_message_buffer,
-		uint8_t* response_buffer, Iridium_message_storage* storage_queue)
+		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
+		RTC_HandleTypeDef* rtc_handle, sbd_message_type_52* current_message,
+		uint8_t* error_message_buffer, uint8_t* response_buffer,
+		Iridium_message_storage* storage_queue)
 {
 	self->global_config = global_config;
 	self->iridium_uart_handle = iridium_uart_handle;
 	self->iridium_rx_dma_handle = iridium_rx_dma_handle;
 	self->iridium_tx_dma_handle = iridium_tx_dma_handle;
 	self->timer = timer;
-	self->event_flags = event_flags;
+	self->control_flags = control_flags;
+	self->error_flags = error_flags;
 	self->rtc_handle = rtc_handle;
 	self->current_message = current_message;
 	self->error_message_buffer = error_message_buffer;
@@ -77,6 +79,7 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 iridium_error_code_t iridium_config(Iridium* self)
 {
 	int fail_counter;
+	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
 		// Get an ack message
@@ -114,7 +117,13 @@ iridium_error_code_t iridium_config(Iridium* self)
 	}
 
 	self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-	return (fail_counter == MAX_RETRIES) ? IRIDIUM_UART_ERROR : IRIDIUM_SUCCESS;
+
+	if (fail_counter == MAX_RETRIES) {
+		return_code = IRIDIUM_UART_ERROR;
+		tx_event_flags_set(self->error_flags, MODEM_ERROR, TX_OR);
+	}
+
+	return return_code;
 }
 
 /**
@@ -126,6 +135,7 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 {
 	int fail_counter;
 	uint32_t start_time = 0, elapsed_time = 0;
+	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	// Power the unit by pulling the sleep pin to ground.
 	self->on_off(self, GPIO_PIN_SET);
 	self->sleep(self, GPIO_PIN_SET);
@@ -147,7 +157,12 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 		}
 	}
 
-	return (fail_counter == MAX_RETRIES) ? IRIDIUM_UART_ERROR : IRIDIUM_SUCCESS;
+	if (fail_counter == MAX_RETRIES) {
+		return_code = IRIDIUM_UART_ERROR;
+		tx_event_flags_set(self->error_flags, MODEM_ERROR, TX_OR);
+	}
+
+	return return_code;
 }
 
 /**

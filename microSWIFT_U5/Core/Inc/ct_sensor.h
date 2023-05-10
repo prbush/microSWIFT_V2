@@ -48,7 +48,8 @@ typedef struct CT{
 	UART_HandleTypeDef* ct_uart_handle;
 	DMA_HandleTypeDef* ct_dma_handle;
 	// Event flags
-	TX_EVENT_FLAGS_GROUP* event_flags;
+	TX_EVENT_FLAGS_GROUP* control_flags;
+	TX_EVENT_FLAGS_GROUP* error_flags;
 	// The buffer written to by CT sensor
 	char* data_buf;
 	// Arrays to hold conductivity/temp values
@@ -65,8 +66,8 @@ typedef struct CT{
 } CT;
 
 void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeDef* ct_uart_handle,
-		DMA_HandleTypeDef* ct_dma_handle, TX_EVENT_FLAGS_GROUP* event_flags, char* data_buf,
-		ct_samples* samples_buf);
+		DMA_HandleTypeDef* ct_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
+		TX_EVENT_FLAGS_GROUP* error_flags, char* data_buf, ct_samples* samples_buf);
 ct_error_code_t ct_parse_sample(CT* self);
 ct_error_code_t ct_get_averages(CT* self);
 void 			ct_on_off(CT* self, GPIO_PinState pin_state);

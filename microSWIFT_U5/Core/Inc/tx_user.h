@@ -239,7 +239,7 @@ void App_ThreadX_LowPower_Timer_Setup(unsigned long count);
 #define TX_LOW_POWER_TIMER_SETUP(_count) App_ThreadX_LowPower_Timer_Setup(_count)
 
 /* Define the TX_LOW_POWER_TICKLESS to disable the internal ticks */
-//#define TX_LOW_POWER_TICKLESS
+#define TX_LOW_POWER_TICKLESS
 
 /* A user defined macro to make the system enter low power mode */
 void App_ThreadX_LowPower_Enter(void);
