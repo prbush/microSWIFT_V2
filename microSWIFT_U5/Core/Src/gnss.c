@@ -238,6 +238,25 @@ void gnss_process_message(GNSS* self)
 		self->current_latitude = lat;
 		self->current_longitude = lon;
 
+		// Was this the first sample?
+		if (self->total_samples == 0) {
+			self->all_resolution_stages_complete = true;
+			self->sample_window_start_time = HAL_GetTick();
+		}
+
+		// Make sure we don't overflow our arrays
+		if (self->total_samples == self->global_config->samples_per_window) {
+			HAL_UART_DMAStop(self->gnss_uart_handle);
+//			HAL_NVIC_DisableIRQ(GPDMA1_Channel0_IRQn);
+			self->sample_window_stop_time = HAL_GetTick();
+			self->all_samples_processed = true;
+			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
+					(((double)(self->sample_window_stop_time - self->sample_window_start_time) /
+					1000.0)));
+
+			return;
+		}
+
 		// Grab velocities, start by checking speed accuracy estimate (sAcc)
 		if (sAcc > MAX_ACCEPTABLE_SACC) {
 			// This message was not within acceptable parameters,
@@ -260,23 +279,6 @@ void gnss_process_message(GNSS* self)
 			buf_length -= buf_end - buf_start;
 			buf_start = buf_end;
 			continue;
-		}
-
-		// Was this the first sample?
-		if (self->total_samples == 1) {
-			self->all_resolution_stages_complete = true;
-			self->sample_window_start_time = HAL_GetTick();
-		}
-		// Make sure we don't overflow our arrays
-		else if (self->total_samples == self->global_config->samples_per_window) {
-			HAL_UART_DMAStop(self->gnss_uart_handle);
-			self->sample_window_stop_time = HAL_GetTick();
-			self->all_samples_processed = true;
-			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
-					(((double)(self->sample_window_stop_time - self->sample_window_start_time) /
-					1000.0)));
-
-			return;
 		}
 
 		// All velocity values are good to go

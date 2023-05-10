@@ -22,6 +22,7 @@
 "./Core/Src/mean.o"
 "./Core/Src/mem_replacements.o"
 "./Core/Src/nullAssignment.o"
+"./Core/Src/rf_switch.o"
 "./Core/Src/rtGetInf.o"
 "./Core/Src/rtGetNaN.o"
 "./Core/Src/rt_nonfinite.o"
@@ -224,4 +225,3 @@
 "./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.o"
 "./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.o"
 "./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_timer_interrupt.o"
-"./Middlewares/ST/threadx/utility/low_power/tx_low_power.o"

@@ -76,7 +76,7 @@ typedef enum control_flags{
 	// DMA reception flags
 	GNSS_CONFIG_RECVD = 1 << 11,
 	CT_MSG_RECVD = 1 << 12,
-	IRIDIUM_MSG_RECVD = 1 << 13,
+	IRIDIUM_MSG_RECVD = 1 << 13
 }control_flags_t;
 
 typedef enum error_flags{

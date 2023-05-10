@@ -19,7 +19,11 @@
 #include "stdbool.h"
 
 // 20,000 milliseconds -> 20 seconds
+#ifdef DBUG
+#define WARMUP_TIME 20
+#else
 #define WARMUP_TIME 20000
+#endif
 // The total length of a response sentence from the sensor
 #define CT_DATA_ARRAY_SIZE 291
 #define CT_DEFAULT_BAUD_RATE 9600
