@@ -56,8 +56,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-// Used in the watchdog thread to keep track of a sample window total duration
-RTC_TimeTypeDef initial_rtc_time;
+TX_SEMAPHORE window_started_semaphone;
 // Our DMA linked list queue needed to use circular mode with GNSS UART DMA
 extern DMA_QListTypeDef GNSS_LL_Queue;
 // The configuration struct
@@ -236,6 +235,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	  return ret;
 	}
 	//
+	// Create the watchdog window started semaphone
+	ret = tx_semaphore_create(&window_started_semaphone, "window started semaphore", 0);
+	if (ret != TX_SUCCESS) {
+	  return ret;
+	}
+	//
 	// The rf switch struct
 	ret = tx_byte_allocate(byte_pool, (VOID**) &rf_switch, sizeof(RF_Switch), TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
@@ -398,19 +403,46 @@ void MX_ThreadX_Init(device_handles_t *handles)
   * @brief  Watchdog thread entry
   *         This thread will initialize and refresh the watchdog (IWDG) timer up until
   *         a maximum time. If maximum time is exceeded, the watchdog will not be refreshed
-  *         and a system reset will be executed.
+  *         and a system reset will be executed. If the semaphone window_started_semaphone
+  *         is not put within the first minute of program execution, this thread will
+  *         terminate and a reset will be forced.
   * @param  ULONG thread_input - unused
   * @retval void
   */
 void watchdog_thread_entry(ULONG thread_input)
 {
-	while(1) {
+	UINT tx_return;
+	uint32_t window_start_time = 0;
+	uint32_t elapsed_time = 0;
+	// 50 minutes in milliseconds
+	uint32_t max_sample_window_duration = MAX_POSSIBLE_WINDOW_TIME_IN_MINUTES * 60 * 1000;
+	// 49 minutes in milliseconds
+	uint32_t max_initial_wait_time = (MAX_POSSIBLE_WINDOW_TIME_IN_MINUTES - 1) * 60 * 1000;
+
+	while(elapsed_time < max_sample_window_duration) {
+
+		tx_return = tx_semaphone_get(&window_started_semaphone, TX_NO_WAIT);
+
+		if (tx_return == TX_SUCCESS) {
+			window_start_time = HAL_GetTick();
+		}
+
+		if (window_start_time == 0) {
+			elapsed_time = HAL_GetTick() + max_initial_wait_time;
+		} else {
+			elapsed_time = HAL_GetTick() - window_start_time;
+		}
+
 #ifndef DBUG
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
 #endif
 		// We'll refresh the watchdog once a second
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
 	}
+
+	// In no case should an hour elapse between starting a window and the next window starting,
+	// so we will terminate this thread to prevent the watchdog from being refreshed
+	tx_thread_terminate(&watchdog_thread);
 
 }
 
@@ -430,6 +462,8 @@ void startup_thread_entry(ULONG thread_input){
 #ifdef DBUG
 	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
 #endif
+	// Put this semaphore to set the window start time with the watchdog thread
+	tx_semaphore_put(&window_started_semaphone);
 
 	// These structs are being allocated to the waves_byte_pool, and have no overlap with tx_app_byte_pool
 	// Each struct has a float array written to by GNSS. These are freed after processing in waves thread.
@@ -801,12 +835,15 @@ void iridium_thread_entry(ULONG thread_input){
 	memcpy(&iridium->current_lat, &sbd_message.Lat, sizeof(float));
 	memcpy(&iridium->current_lon, &sbd_message.Lon, sizeof(float));
 
+#ifdef DBUG
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
+#endif
 
 	return_code = iridium->transmit_message(iridium);
 	// TODO: do something if the return code is not success?
-
+#ifdef DBUG
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
+#endif
 	// Turn off the modem
 	iridium->sleep(iridium, GPIO_PIN_RESET);
 	iridium->on_off(iridium, GPIO_PIN_RESET);

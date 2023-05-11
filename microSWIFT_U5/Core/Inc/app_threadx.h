@@ -121,7 +121,7 @@ typedef enum self_test_status{
 // The max times we'll try to get a single peripheral up before sending reset vector
 #define MAX_SELF_TEST_RETRIES 3
 // The maximum amount of time (in milliseconds) a sample window could take
-#define MAX_POSSIBLE_WINDOW_TIME 1000 * 60 * 45
+#define MAX_POSSIBLE_WINDOW_TIME_IN_MINUTES 50
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
