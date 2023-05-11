@@ -15,7 +15,7 @@
 // and transmission will be spent in sleep mode
 #define DUTY_CYCLE 60
 
-#ifdef DBUG
+#ifdef DEBUGGING_FAST_CYCLE
 
 #define TOTAL_SAMPLES_PER_WINDOW 256
 #define IRIDIUM_MAX_TRANSMIT_TIME 2

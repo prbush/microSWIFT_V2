@@ -17,12 +17,6 @@
   ******************************************************************************
   ******************************************************************************
   *
-  *TODO: update macros to be adjustable by some config.h file
-  *TODO: update array size macros once known
-  *TODO: write error handler function and call it in:
-  	  	  - self test
-  	  	  - hard fault
-  	  	  - any other condition where bad things happen
   */
 /* USER CODE END Header */
 
@@ -414,14 +408,14 @@ void watchdog_thread_entry(ULONG thread_input)
 	UINT tx_return;
 	uint32_t window_start_time = 0;
 	uint32_t elapsed_time = 0;
-	// 50 minutes in milliseconds
-	uint32_t max_sample_window_duration = MAX_POSSIBLE_WINDOW_TIME_IN_MINUTES * 60 * 1000;
-	// 49 minutes in milliseconds
-	uint32_t max_initial_wait_time = (MAX_POSSIBLE_WINDOW_TIME_IN_MINUTES - 1) * 60 * 1000;
+	// 60 minutes in milliseconds
+	uint32_t max_sample_window_duration = MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES * 60 * 1000;
+	// 59 minutes in milliseconds
+	uint32_t max_initial_wait_time = (MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES - 1) * 60 * 1000;
 
 	while(elapsed_time < max_sample_window_duration) {
 
-		tx_return = tx_semaphone_get(&window_started_semaphone, TX_NO_WAIT);
+		tx_return = tx_semaphore_get(&window_started_semaphone, TX_NO_WAIT);
 
 		if (tx_return == TX_SUCCESS) {
 			window_start_time = HAL_GetTick();
@@ -433,11 +427,9 @@ void watchdog_thread_entry(ULONG thread_input)
 			elapsed_time = HAL_GetTick() - window_start_time;
 		}
 
-#ifndef DBUG
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
-#endif
-		// We'll refresh the watchdog once a second
-		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
+		// We'll refresh the watchdog once every 4 seconds
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 4);
 	}
 
 	// In no case should an hour elapse between starting a window and the next window starting,
@@ -659,7 +651,7 @@ void gnss_thread_entry(ULONG thread_input){
 void imu_thread_entry(ULONG thread_input){
 	/*
 	 * Currently disabled.
-	 * TODO: enable this function
+	 *
 	 */
 //	ULONG actual_flags;
 //	tx_event_flags_get(&thread_flags, IMU_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
@@ -777,8 +769,6 @@ void waves_thread_entry(ULONG thread_input){
 	/* Call the entry-point 'NEDwaves_memlight'. */
 	NEDwaves_memlight(north, east, down, gnss->sample_window_freq, &Hs, &Tp, &Dp, E,
 					&b_fmin, &b_fmax, a1, b1, a2, b2, check);
-	// TODO: create a function to assemble the Iridium payload here, to include
-	//       changing the endianess of array E
 
 	emxDestroyArray_real32_T(down);
 	emxDestroyArray_real32_T(east);
@@ -840,7 +830,7 @@ void iridium_thread_entry(ULONG thread_input){
 #endif
 
 	return_code = iridium->transmit_message(iridium);
-	// TODO: do something if the return code is not success?
+
 #ifdef DBUG
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 #endif
@@ -975,9 +965,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			HAL_Delay(500);
 #endif
 
-#ifndef DBUG
 			HAL_IWDG_Refresh(device_handles->watchdog_handle);
-#endif
 		}
 
 		// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
@@ -1269,8 +1257,7 @@ void shut_it_all_down(void)
 	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, GPIO_PIN_RESET);
 	// Shut down CT sensor
 	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, GPIO_PIN_RESET);
-	// Disable RF switch GPIOs
-	//TODO: check this
+	// Disable RF switch GPIOs. This will set it to be ported to the modem
 	HAL_GPIO_WritePin(GPIOG, RF_SWITCH_VCTL_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOG, RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
 }

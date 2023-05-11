@@ -4,13 +4,6 @@
  *  Created on: Oct 28, 2022
  *      Author: Phil
  *
- *`TODO: Figure out how to set the RTC
- *`TODO: Update to pull from global_config
- *`TODO: Change arrays to be the same used by waves
- *`TODO: Update gnss_get_running_average_velocities for the no-samples case
- *`TODO: Update velocity rejection criteria
- *`TODO: test that setting the RTC in self-test works
- *`TODO: hunt down the other TODOs
  */
 
 

@@ -634,11 +634,6 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 					delay_time --;
 				}
 
-				network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
-				while (network_available == false && !self->timer_timeout) {
-					network_available = HAL_GPIO_ReadPin(GPIOD, IRIDIUM_NetAv_Pin);
-					HAL_Delay(1);
-				}
 				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 				return_code = IRIDIUM_TRANSMIT_ERROR;
 				continue;

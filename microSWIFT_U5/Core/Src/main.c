@@ -14,11 +14,7 @@
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
-  *TODO: create a struct to pass to threadx with all required pointers
-  */
 
-// TODO: create a struct with all the required handles, variables, etc that
-//       can be passed to app_threadx.c via MX_ThreadX_Init()
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -155,9 +151,7 @@ int main(void)
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
-#ifndef DBUG
   MX_IWDG_Init();
-#endif
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();

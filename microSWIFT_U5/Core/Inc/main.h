@@ -54,7 +54,7 @@ typedef struct {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-//#define DBUG //TODO: remove this!!!
+#define DBUG //TODO: remove this!!!
 //#define DISABLE_IWDG
 /* USER CODE END EC */
 

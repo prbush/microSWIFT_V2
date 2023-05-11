@@ -4,13 +4,6 @@
  *  Created on: Oct 28, 2022
  *      Author: Phil
  *
- *  TODO:Define error code macros
- *       Define macros
- *       Finish setting RTC time in processMessage
- *       Finish setting Lat/Long in processMessage
- *       Figure out power pins -- this will be tied to board design
- *       TIMER!! need a dedicated timer
- *       Remove testFunct in production
  */
 
 #ifndef SRC_GPS_H_
@@ -62,7 +55,6 @@ typedef enum gnss_error_code{
 #define INITIAL_STAGES_BUFFER_SIZE 500
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define UBX_ACK_MESSAGE_LENGTH 10
-#define MAX_ACCEPTABLE_TACC 50 // TODO: figure out a good value for this
 #define MAX_ACCEPTABLE_SACC 250 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 1000 // (units = 0.01) greater than 10 means fair fix accuracy
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
