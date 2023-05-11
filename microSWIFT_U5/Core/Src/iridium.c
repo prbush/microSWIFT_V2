@@ -49,7 +49,6 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	self->current_message = current_message;
 	self->error_message_buffer = error_message_buffer;
 	self->response_buffer = response_buffer;
-	// place the storage queue in SRAM 4
 	self->storage_queue = storage_queue;
 	self->current_lat = 0.0;
 	self->current_lon = 0.0;

@@ -11,8 +11,6 @@
 #include "stdbool.h"
 #include "stdint.h"
 
-#define DBUG//TODO:remove this
-
 // Time in minutes representing a sample period. Any time left after sampling
 // and transmission will be spent in sleep mode
 #define DUTY_CYCLE 60
@@ -42,7 +40,7 @@
 // If there is a CT sensor present
 #define CT_ENABLED true
 
-typedef struct microSWIFT_configuration {
+typedef struct microSWIFT_configuration{
 	uint32_t duty_cycle;
 	uint32_t samples_per_window;
 	uint32_t iridium_max_transmit_time;

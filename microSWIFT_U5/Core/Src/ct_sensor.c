@@ -55,6 +55,7 @@ ct_error_code_t ct_parse_sample(CT* self)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_PARSING_ERROR;
+	uint32_t start_time = 0, elapsed_time = 0, max_sample_time = 0;
 	int fail_counter = 0;
 	double temperature, salinity;
 	char* index;
@@ -73,7 +74,17 @@ ct_error_code_t ct_parse_sample(CT* self)
 		(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
 	__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
 
-	while(++fail_counter < 10) {
+	start_time = HAL_GetTick();
+	max_sample_time = (SAMPLE_TIME_IN_MILLISECONDS + 1) * MAX_RETRIES;
+
+	while(++fail_counter < MAX_RETRIES) {
+		elapsed_time = HAL_GetTick() - start_time;
+		// Make sure this isn't taking too long
+		if (elapsed_time > max_sample_time) {
+			return CT_PARSING_ERROR;
+		}
+
+
 		// See if we got the message, otherwise retry
 		if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
 				&actual_flags, required_ticks_to_get_message) != TX_SUCCESS)
@@ -285,8 +296,8 @@ static void reset_ct_struct_fields(CT* self)
 {
 	// We will know if the CT sensor fails by the value 9999 in the
 	// iridium message
-	self->averages.salinity = 9999;
-	self->averages.temp = 9999;
+	self->averages.salinity = CT_AVERAGED_VALUE_ERROR_CODE;
+	self->averages.temp = CT_AVERAGED_VALUE_ERROR_CODE;
 	self->total_samples = 0;
 }
 

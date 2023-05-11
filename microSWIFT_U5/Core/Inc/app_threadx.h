@@ -91,14 +91,14 @@ typedef enum error_flags{
 	RTC_ERROR = 1 << 8
 }error_flags_t;
 
-typedef enum led_sequence_t{
+typedef enum led_sequence{
 	INITIAL_LED_SEQUENCE = 1,
 	TEST_PASSED_LED_SEQUENCE = 2,
 	TEST_NON_CRITICAL_FAULT_LED_SEQUENCE = 3,
 	TEST_CRITICAL_FAULT_LED_SEQUENCE = 4
 }led_sequence_t;
 
-typedef enum self_test_status_t{
+typedef enum self_test_status{
 	SELF_TEST_PASSED = 0,
 	SELF_TEST_NON_CRITICAL_FAULT = 1,
 	SELF_TEST_CRITICAL_FAULT = 2

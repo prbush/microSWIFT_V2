@@ -21,8 +21,7 @@
 #include "stdbool.h"
 
 // Return codes
-typedef enum {
-	// Error/ success codes
+typedef enum iridium_error_code{
 	IRIDIUM_SUCCESS = 0,
 	IRIDIUM_UNKNOWN_ERROR = -1,
 	IRIDIUM_UART_ERROR = -2,
@@ -37,11 +36,7 @@ typedef enum {
 } iridium_error_code_t;
 
 // Macros
-#ifdef DBUG
-#define IRIDIUM_CAP_CHARGE_TIME 20
-#else
 #define IRIDIUM_CAP_CHARGE_TIME 20000
-#endif
 #define MAX_RETRIES 10
 #define ACK_MESSAGE_SIZE 9
 #define DISABLE_FLOW_CTRL_SIZE 12

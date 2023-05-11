@@ -31,7 +31,7 @@
 #include "u_error_common.h"
 
 // Return codes
-typedef enum {
+typedef enum gnss_error_code{
 	// Error/ success codes
 	GNSS_SUCCESS = 0,
 	GNSS_UNKNOWN_ERROR = -1,
