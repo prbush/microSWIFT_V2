@@ -105,16 +105,12 @@ VOID tx_application_define(VOID *first_unused_memory)
 #else
 
 !!!!!!!!!!!!!!!!!!!!!!
-Lengthy list of TODOs:
-	* Go through all files and satisfy any remaining TODOs
-	* Ensure no issues moving CT sampling to after GNSS complete
-	* Figure out data exchange between GNSS, CT, Iridium
-	* Fill out configuration.h and associated struct
-	* Full length test!!!
-	* Impliment watchdog timer
-	* Figure out one-shot self-test and per-window self-test
-		- Include some blinky lights for one-shot
-	* Figure out sleep between windows
-	* Figure out configuration header file and associated config struct
-	* Figure out error message (Type 99) reporting
-	* Handle queue full condition
+TODOs:
+	* Add a thread_control_flags push/get for watchdog and end_of_cycle_thread -- make sure the watchdog can continue to keep track of total elapsed time
+	* Fix GNSS process_message relating to first sample
+		* Change gnss_sync_and_start_reception to look for both number of satellites AND to resolve time. This will limit gnss_thread complexity greatly
+	* Have some persistent indication of error flags to prevent sending more thn 1 error message per failure
+	* Check if there is a busy bit for UART which can be used to sync Tx for CT, GNSS
+	* Revist the timer with CT sensor and GNSS -- make sure these are useful and not too restrictive. They're probably best removed
+	* !!! Must check that config is still good for GNSS if power cycled. VBCKP is ties directly to 3v3 bus and should retain config
+	* Figure out how to setup binary mix mode for RTC in CubeMx and check for accuracy against external time source
