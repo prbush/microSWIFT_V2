@@ -231,8 +231,8 @@ void gnss_process_message(GNSS* self)
 		self->current_latitude = lat;
 		self->current_longitude = lon;
 
-		// Was this the first sample?
-		if (self->total_samples == 0) {
+		// Did we have at least 1 good sample?
+		if (self->total_samples == 1) {
 			self->all_resolution_stages_complete = true;
 			self->sample_window_start_time = HAL_GetTick();
 		}
