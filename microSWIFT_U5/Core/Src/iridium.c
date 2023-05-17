@@ -386,18 +386,18 @@ void iridium_storage_queue_flush(Iridium* self)
 static iridium_error_code_t send_msg_from_queue(Iridium* self)
 {
 	iridium_error_code_t return_code;
-	uint8_t* payload_index = 0;
-	return_code = self->queue_get(self, payload_index);
+	uint8_t payload_index = 0;
+	return_code = self->queue_get(self, &payload_index);
 	if (return_code == IRIDIUM_STORAGE_QUEUE_EMPTY) {
 		return return_code;
 	}
 	// try transmitting the message
 	return_code = internal_transmit_message(self,
-			(uint8_t*)&self->storage_queue->msg_queue[*payload_index].payload,
+			(uint8_t*)&(self->storage_queue->msg_queue[payload_index].payload),
 			sizeof(sbd_message_type_52));
 	// If the message successfully transmitted, mark it as invalid
 	if (return_code == IRIDIUM_SUCCESS) {
-		self->storage_queue->msg_queue[*payload_index].valid = false;
+		self->storage_queue->msg_queue[payload_index].valid = false;
 		self->storage_queue->num_msgs_enqueued--;
 	}
 	return return_code;
@@ -529,7 +529,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 static iridium_error_code_t internal_transmit_message(Iridium* self,
 		uint8_t* payload, uint16_t payload_size)
 {
-	iridium_error_code_t return_code;
+	iridium_error_code_t return_code = IRIDIUM_TRANSMIT_TIMEOUT;
 	char* needle;
 	char payload_size_str[4];
 	char load_sbd[15] = "AT+SBDWB=";
@@ -539,7 +539,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	bool network_available = false;
 	uint32_t adaptive_delay_time[5] = {ONE_SECOND * 3, ONE_SECOND * 5,
 			ONE_SECOND * 30, ONE_SECOND * 60, ONE_SECOND * 180};
-	uint32_t delay_time;
+	int delay_time;
 
 	// Assemble the load_sbd string
 	itoa(payload_size, payload_size_str, 10);
@@ -630,8 +630,8 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 				delay_time = adaptive_delay_time[fail_counter % 5];
 				// Wait the prescribed time, but check that we haven't timed out
 				while (!self->timer_timeout && delay_time > 0) {
-					HAL_Delay(1);
-					delay_time --;
+					HAL_Delay(10);
+					delay_time -= 10;
 				}
 
 				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
@@ -713,8 +713,6 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
 			HAL_TIM_Base_Stop_IT(self->timer);
 			self->timer_timeout = false;
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
-
-			return_code = IRIDIUM_TRANSMIT_ERROR;
 	}
 
 	return return_code;

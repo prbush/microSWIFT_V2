@@ -114,25 +114,31 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 {
 	gnss_error_code_t return_code = GNSS_SELF_TEST_FAILED;
 	uint8_t fail_counter = 0;
+	uint32_t max_fails = self->global_config->gnss_max_acquisition_wait_time * 60; // max acquisition time in seconds
 	ULONG actual_flags;
 	uint8_t msg_buf[INITIAL_STAGES_BUFFER_SIZE];
 	memset(&(msg_buf[0]), 0, INITIAL_STAGES_BUFFER_SIZE);
 
 	self->on_off(self, GPIO_PIN_SET);
 
-    // We'll try for a little over 2 mins to get good data before failing out
-	while (fail_counter++ < 120) {
+    // Grabbing and processing 5 samples takes ~ 1 second, so we'll keep trying until we hit
+	// the gnss_max_acquisition_wait_time
+	while (++fail_counter <= max_fails) {
 		// Grab 5 UBX_NAV_PVT messages
 		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-		HAL_Delay(3);
+		// Put a short delay between resetting UART and starting a DMA transfer
+		HAL_Delay(1);
 		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
 				INITIAL_STAGES_BUFFER_SIZE);
 		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
 
 		if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
 				&actual_flags, MAX_THREADX_WAIT_TICKS_FOR_CONFIG) != TX_SUCCESS) {
-			// Insert a prime number delay to sync up UART reception
-			HAL_Delay(3);
+			// If we didn't receive the needed messaged in time, cycle the GNSS sensor
+			self->cycle_power(self);
+			HAL_UART_DMAStop(self->gnss_uart_handle);
+			// Insert a short, prime number delay to sync up UART reception
+			HAL_Delay(13);
 			continue;
 		}
 
@@ -147,6 +153,10 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 			return_code = GNSS_SUCCESS;
 			break;
 		}
+	}
+
+	if (fail_counter == max_fails){
+		return return_code;
 	}
 
 	// Just to be overly sure we're starting the sampling window from a fresh slate
@@ -183,7 +193,7 @@ void gnss_process_message(GNSS* self)
 	int32_t num_payload_bytes = 0;
 	int32_t lat, lon, sAcc, vnorth, veast, vdown;
 	int16_t pDOP;
-	bool is_ubx_nav_pvt_msg, velocities_exceed_max;
+	bool is_ubx_nav_pvt_msg, velocities_exceed_max, sAcc_exceeded_max;
 
 	// Really gross for loop that processes msgs in each iteration
 	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
@@ -231,8 +241,16 @@ void gnss_process_message(GNSS* self)
 		self->current_latitude = lat;
 		self->current_longitude = lon;
 
+		// vAcc was within acceptable range, still need to check
+		// individual velocities are less than MAX_POSSIBLE_VELOCITY
+		velocities_exceed_max = (vnorth > MAX_POSSIBLE_VELOCITY) ||
+								(veast > MAX_POSSIBLE_VELOCITY) ||
+								(vdown > MAX_POSSIBLE_VELOCITY);
+
+		sAcc_exceeded_max = sAcc > MAX_ACCEPTABLE_SACC;
+
 		// Did we have at least 1 good sample?
-		if (self->total_samples == 1) {
+		if (self->total_samples == 0 && !velocities_exceed_max & !sAcc_exceeded_max) {
 			self->all_resolution_stages_complete = true;
 			self->sample_window_start_time = HAL_GetTick();
 		}
@@ -249,24 +267,9 @@ void gnss_process_message(GNSS* self)
 			return;
 		}
 
-		// Grab velocities, start by checking speed accuracy estimate (sAcc)
-		if (sAcc > MAX_ACCEPTABLE_SACC) {
+		// Check if the velocity values are any good
+		if (sAcc_exceeded_max | velocities_exceed_max) {
 			// This message was not within acceptable parameters,
-			self->get_running_average_velocities(self);
-			buf_length -= buf_end - buf_start;
-			buf_start = buf_end;
-			continue;
-		}
-
-		// vAcc was within acceptable range, still need to check
-		// individual velocities are less than MAX_POSSIBLE_VELOCITY
-		velocities_exceed_max = (vnorth > MAX_POSSIBLE_VELOCITY) ||
-								(veast > MAX_POSSIBLE_VELOCITY) ||
-								(vdown > MAX_POSSIBLE_VELOCITY);
-
-		if (velocities_exceed_max) {
-			// One or more velocity component was greater than the
-			// max possible velocity. Loop around and try again
 			self->get_running_average_velocities(self);
 			buf_length -= buf_end - buf_start;
 			buf_start = buf_end;
@@ -394,9 +397,9 @@ void gnss_on_off(GNSS* self, GPIO_PinState pin_state)
 void gnss_cycle_power(GNSS* self)
 {
 	self->on_off(self, GPIO_PIN_RESET);
-	HAL_Delay(100);
+	HAL_Delay(25);
 	self->on_off(self, GPIO_PIN_SET);
-	HAL_Delay(100);
+	HAL_Delay(25);
 }
 
 /**

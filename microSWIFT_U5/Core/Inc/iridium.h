@@ -32,7 +32,8 @@ typedef enum iridium_error_code{
 	IRIDIUM_FLASH_STORAGE_ERROR = -7,
 	IRIDIUM_STORAGE_QUEUE_FULL = -8,
 	IRIDIUM_STORAGE_QUEUE_EMPTY = -9,
-	IRIDIUM_TIMER_ERROR = -10
+	IRIDIUM_TIMER_ERROR = -10,
+	IRIDIUM_TRANSMIT_TIMEOUT = -11
 } iridium_error_code_t;
 
 // Macros

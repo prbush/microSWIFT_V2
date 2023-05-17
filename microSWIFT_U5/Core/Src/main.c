@@ -436,7 +436,7 @@ static void MX_IWDG_Init(void)
 
   /* USER CODE BEGIN IWDG_Init 0 */
   // 5 second window
-  uint32_t watchdog_window = 313;
+  uint32_t watchdog_reload = 313;
   /* USER CODE END IWDG_Init 0 */
 
   /* USER CODE BEGIN IWDG_Init 1 */
@@ -445,7 +445,7 @@ static void MX_IWDG_Init(void)
   hiwdg.Instance = IWDG;
   hiwdg.Init.Prescaler = IWDG_PRESCALER_512;
   hiwdg.Init.Window = IWDG_WINDOW_DISABLE;
-  hiwdg.Init.Reload = 313;
+  hiwdg.Init.Reload = 4095; //watchdog_reload;
   hiwdg.Init.EWI = 0;
   if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
   {
