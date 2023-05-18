@@ -12,14 +12,14 @@
 #include "stdbool.h"
 #include "stdint.h"
 
-#define DEBUGGING_FAST_CYCLE
-#undef DEBUGGING_FAST_CYCLE
-
 // Time in minutes representing a sample period. Any time left after sampling
 // and transmission will be spent in sleep mode
 #define DUTY_CYCLE 60
 
-#ifdef DBUG
+#define DEBUGGING_FAST_CYCLE
+#undef DEBUGGING_FAST_CYCLE
+
+#ifdef DEBUGGING_FAST_CYCLE
 
 #define TOTAL_SAMPLES_PER_WINDOW 256
 #define IRIDIUM_MAX_TRANSMIT_TIME 2

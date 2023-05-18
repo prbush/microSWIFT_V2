@@ -421,10 +421,9 @@ void watchdog_thread_entry(ULONG thread_input)
 	uint32_t window_start_time = 0;
 	uint32_t elapsed_time = 0;
 	// 60 minutes in milliseconds
-	uint32_t max_sample_window_duration = MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES * SECONDS_IN_MIN
-			* MILLISECONDS_PER_MINUTE;
+	uint32_t max_sample_window_duration = MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES * MILLISECONDS_PER_MINUTE;
 	// 1 minute in milliseconds
-	uint32_t max_initial_wait_time = 1 * SECONDS_IN_MIN * MILLISECONDS_PER_MINUTE;
+	uint32_t max_initial_wait_time = 1 * MILLISECONDS_PER_MINUTE;
 
 	while(elapsed_time < max_sample_window_duration) {
 
@@ -435,10 +434,13 @@ void watchdog_thread_entry(ULONG thread_input)
 		}
 
 		if (window_start_time == 0) {
-			elapsed_time = HAL_GetTick() + max_initial_wait_time;
-		} else {
-			elapsed_time = HAL_GetTick() - window_start_time;
+			elapsed_time = HAL_GetTick();
+			if (elapsed_time > max_initial_wait_time) {
+				tx_thread_terminate(&watchdog_thread);
+			}
 		}
+
+		elapsed_time = HAL_GetTick() - window_start_time;
 
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
 		// We'll refresh the watchdog once every second
@@ -477,21 +479,27 @@ void startup_thread_entry(ULONG thread_input){
 	east  = argInit_1xUnbounded_real32_T(&configuration);
 	down  = argInit_1xUnbounded_real32_T(&configuration);
 
+	// Initialize the structs
+	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
+			&thread_control_flags, &error_flags, &(ubx_message_process_buf[0]), device_handles->hrtc,
+			north->data, east->data, down->data);
+	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
+					device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
+					device_handles->Iridium_tx_dma_handle, &thread_control_flags, &error_flags,
+					device_handles->hrtc, &sbd_message, iridium_error_message,
+					iridium_response_message, sbd_message_queue);
+#if CT_ENABLED
+	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
+					&thread_control_flags, &error_flags, ct_data, samples_buf);
+#endif
+
 	tx_return = tx_event_flags_get(&thread_control_flags, FULL_CYCLE_COMPLETE, TX_OR_CLEAR,
 			&actual_flags, TX_NO_WAIT);
 	// If this is a subsequent window, just setup the GNSS, skip the rest
 	if (tx_return == TX_SUCCESS) {
-
-		// Initialize the GNSS struct to reassign array pointers and clear out all struct fields
-		gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-						&thread_control_flags, &error_flags, &(ubx_message_process_buf[0]),
-						device_handles->hrtc, north->data, east->data, down->data);
-
 		rf_switch->set_gnss_port(rf_switch);
-
 		// Configuration is retained in subsequent windows, no need to configure GNSS
 		tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
-
 		tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
 
 	#if IMU_ENABLED
@@ -501,13 +509,6 @@ void startup_thread_entry(ULONG thread_input){
 	#if CT_ENABLED
 		tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
 	#endif
-
-
-//		self_test_status = subsequent_window_self_test();
-//		if (self_test_status == SELF_TEST_CRITICAL_FAULT) {
-//			shut_it_all_down();
-//			HAL_NVIC_SystemReset();
-//		}
 	}
 	// This is first time power up, test everything and flash LED sequence
 	else
@@ -521,19 +522,6 @@ void startup_thread_entry(ULONG thread_input){
 		// Initialize the RF switch and set it to the GNSS port
 		rf_switch_init(rf_switch);
 
-		// Initialize the structs
-		gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-				&thread_control_flags, &error_flags, &(ubx_message_process_buf[0]), device_handles->hrtc,
-				north->data, east->data, down->data);
-		iridium_init(iridium, &configuration, device_handles->Iridium_uart,
-						device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
-						device_handles->Iridium_tx_dma_handle, &thread_control_flags, &error_flags,
-						device_handles->hrtc, &sbd_message, iridium_error_message,
-						iridium_response_message, sbd_message_queue);
-	#if CT_ENABLED
-		ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
-						&thread_control_flags, &error_flags, ct_data, samples_buf);
-	#endif
 		// Set the RF switch to the GNSS port
 		rf_switch->set_gnss_port(rf_switch);
 
@@ -741,6 +729,7 @@ void ct_thread_entry(ULONG thread_input){
 	if (return_code == CT_NOT_ENOUGH_SAMPLES) {
 		tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
 		tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
+		tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
 		tx_thread_terminate(&ct_thread);
 	}
 
@@ -879,6 +868,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_TimeTypeDef initial_rtc_time;
 	RTC_TimeTypeDef rtc_time;
 	RTC_DateTypeDef rtc_date;
+	uint32_t wake_up_minute;
 
 #if CT_ENABLED
 	error_occured_flags |= CT_ERROR;
@@ -935,13 +925,14 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 #ifdef DBUG
-		uint32_t minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 :
+		wake_up_minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 :
 				(initial_rtc_time.Minutes + 2);
-
-		while (rtc_time.Minutes != minute) {
 #else
-		while (rtc_time.Minutes != 0){
+		wake_up_minute = 0;
 #endif
+
+		while (rtc_time.Minutes != wake_up_minute) {
+
 #ifdef NUCLEO_LIGHT_SHOW
 			HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 #endif
