@@ -419,7 +419,8 @@ void watchdog_thread_entry(ULONG thread_input)
 	uint32_t window_start_time = 0;
 	uint32_t elapsed_time = 0;
 	// 60 minutes in milliseconds
-	uint32_t max_sample_window_duration = MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES * SECONDS_IN_MIN * MILLISECONDS_PER_MINUTE;
+	uint32_t max_sample_window_duration = MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES * SECONDS_IN_MIN
+			* MILLISECONDS_PER_MINUTE;
 	// 1 minute in milliseconds
 	uint32_t max_initial_wait_time = 1 * SECONDS_IN_MIN * MILLISECONDS_PER_MINUTE;
 
@@ -481,8 +482,8 @@ void startup_thread_entry(ULONG thread_input){
 
 		// Initialize the GNSS struct to reassign array pointers and clear out all struct fields
 		gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-						&thread_control_flags, &error_flags, &(ubx_message_process_buf[0]), device_handles->hrtc,
-						north->data, east->data, down->data);
+						&thread_control_flags, &error_flags, &(ubx_message_process_buf[0]),
+						device_handles->hrtc, north->data, east->data, down->data);
 
 		rf_switch->set_gnss_port(rf_switch);
 
@@ -566,7 +567,7 @@ void startup_thread_entry(ULONG thread_input){
 
 	}
 
-	// We're done, suspend this thread
+	// We're done, terminate this thread
 	tx_thread_terminate(&startup_thread);
 }
 
@@ -1262,11 +1263,10 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 void shut_it_all_down(void)
 {
 	// Shut down Iridium modem
-	HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, GPIO_PIN_RESET);
-	// Wait 10ms between powering 5V bus FET and the Iridium power FET
-	HAL_Delay(10);
 	HAL_GPIO_WritePin(GPIOD, IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, GPIO_PIN_RESET);
+	HAL_Delay(10);
+	HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, GPIO_PIN_RESET);
 	// Shut down GNSS
 	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, GPIO_PIN_RESET);
 	// Shut down CT sensor

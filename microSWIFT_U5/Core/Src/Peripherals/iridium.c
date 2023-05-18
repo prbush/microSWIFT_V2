@@ -200,6 +200,7 @@ void iridium_on_off(Iridium* self, GPIO_PinState pin_state)
 		HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
 	} else {
 		HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
+		HAL_Delay(10);
 		HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, pin_state);
 	}
 }
