@@ -32,30 +32,29 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "main.h"
+#include <math.h>
 #include "stm32u5xx_hal.h"
 #include "stm32u5xx_ll_dma.h"
 #include "stdint.h"
 #include "stdbool.h"
 #include "string.h"
-#include "gnss.h"
-#include "battery.h"
-#include "ct_sensor.h"
-#include "rf_switch.h"
-#include "imu.h"
-#include "iridium.h"
-#include "log.h"
-#include "math.h"
-#include "mem_replacements.h"
+#include "Peripherals/gnss.h"
+#include "Peripherals/battery.h"
+#include "Peripherals/ct_sensor.h"
+#include "Peripherals/rf_switch.h"
+#include "Peripherals/imu.h"
+#include "Peripherals/iridium.h"
+#include "NEDWaves/mem_replacements.h"
 #include "configuration.h"
 #include "linked_list.h"
 
 // Waves files
-#include "NEDwaves_memlight.h"
-#include "NEDwaves_memlight_emxAPI.h"
-#include "NEDwaves_memlight_terminate.h"
-#include "NEDwaves_memlight_types.h"
-#include "rt_nonfinite.h"
-#include "rtwhalf.h"
+#include "NEDWaves/NEDwaves_memlight.h"
+#include "NEDWaves/NEDwaves_memlight_emxAPI.h"
+#include "NEDWaves/NEDwaves_memlight_terminate.h"
+#include "NEDWaves/NEDwaves_memlight_types.h"
+#include "NEDWaves/rt_nonfinite.h"
+#include "NEDWaves/rtwhalf.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

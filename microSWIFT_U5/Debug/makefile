@@ -13,6 +13,8 @@ RM := rm -rf
 -include Middlewares/ST/threadx/common/src/subdir.mk
 -include Drivers/STM32U5xx_HAL_Driver/Src/subdir.mk
 -include Core/Startup/subdir.mk
+-include Core/Src/Peripherals/subdir.mk
+-include Core/Src/NEDWaves/subdir.mk
 -include Core/Src/subdir.mk
 -include AZURE_RTOS/App/subdir.mk
 -include objects.mk

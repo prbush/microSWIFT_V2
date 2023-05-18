@@ -32,6 +32,8 @@ CPP_DEPS :=
 # Every subdirectory with source files must be described here
 SUBDIRS := \
 AZURE_RTOS/App \
+Core/Src/NEDWaves \
+Core/Src/Peripherals \
 Core/Src \
 Core/Startup \
 Drivers/STM32U5xx_HAL_Driver/Src \

@@ -8,16 +8,18 @@
 #ifndef INC_CONFIGURATION_H_
 #define INC_CONFIGURATION_H_
 
+#include "main.h"
 #include "stdbool.h"
 #include "stdint.h"
 
 #define DEBUGGING_FAST_CYCLE
+#undef DEBUGGING_FAST_CYCLE
 
 // Time in minutes representing a sample period. Any time left after sampling
 // and transmission will be spent in sleep mode
 #define DUTY_CYCLE 60
 
-#ifdef DEBUGGING_FAST_CYCLE
+#ifdef DBUG
 
 #define TOTAL_SAMPLES_PER_WINDOW 256
 #define IRIDIUM_MAX_TRANSMIT_TIME 2

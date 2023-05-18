@@ -31,7 +31,11 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-//#include "stm32u5xx_nucleo.h"
+#define DBUG
+#undef DBUG
+// For testing purposed, use the Nucleo onboard LEDs
+#define NUCLEO_LIGHT_SHOW
+// #undef NUCLEO_LIGHT_SHOW TODO: uncomment this
 #include "configuration.h"
 /* USER CODE END Includes */
 
@@ -54,8 +58,7 @@ typedef struct {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define DBUG //TODO: remove this!!!
-//#define DISABLE_IWDG
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

@@ -111,10 +111,10 @@ ULONG done_flags;
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
 static self_test_status_t initial_power_on_self_test(void);
-static self_test_status_t subsequent_window_self_test(void);
-static void enter_stop_2_mode(bool suspend_systick);
-static void exit_stop_2_mode(bool resume_systick);
-static void SystemClock_Restore(void);
+static self_test_status_t subsequent_window_self_test(void)__attribute__((unused));
+static void enter_stop_2_mode(bool suspend_systick)__attribute__((unused));
+static void exit_stop_2_mode(bool resume_systick)__attribute__((unused));
+static void SystemClock_Restore(void)__attribute__((unused));
 static void led_sequence(uint8_t sequence);
 static void jump_to_end_of_window(ULONG done_flags, TX_THREAD* thread_to_terminate);
 static void send_error_message(ULONG error_flags);
@@ -460,9 +460,9 @@ void startup_thread_entry(ULONG thread_input){
 	self_test_status_t self_test_status;
 	ULONG actual_flags = 0;
 	UINT tx_return;
-	RTC_DateTypeDef rtc_date; // unused
+	RTC_DateTypeDef rtc_date __attribute__((unused)); // unused
 
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
 #endif
 	// Put this semaphore to set the window start time with the watchdog thread
@@ -560,6 +560,10 @@ void startup_thread_entry(ULONG thread_input){
 					led_sequence(SELF_TEST_CRITICAL_FAULT);
 				}
 		}
+#ifdef NUCLEO_LIGHT_SHOW
+		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+#endif
+
 	}
 
 	// We're done, suspend this thread
@@ -809,7 +813,7 @@ void waves_thread_entry(ULONG thread_input){
   */
 void iridium_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
-	iridium_error_code_t return_code;
+	iridium_error_code_t return_code __attribute__((unused));
 
 	tx_event_flags_get(&thread_control_flags, WAVES_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
@@ -834,13 +838,13 @@ void iridium_thread_entry(ULONG thread_input){
 	memcpy(&iridium->current_lat, &sbd_message.Lat, sizeof(float));
 	memcpy(&iridium->current_lon, &sbd_message.Lon, sizeof(float));
 
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
 #endif
 
 	return_code = iridium->transmit_message(iridium);
 
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 #endif
 	// Turn off the modem
@@ -911,7 +915,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 
 
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 #endif
 
@@ -932,7 +936,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 #else
 		while (rtc_time.Minutes != 0){
 #endif
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 			HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 #endif
 			// Get the date and time
@@ -971,7 +975,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			HAL_IWDG_Refresh(device_handles->watchdog_handle);
 			HAL_ResumeTick();
 			HAL_ICACHE_Enable();
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 			HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
 			HAL_Delay(500);
 #endif
@@ -982,7 +986,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
 		HAL_NVIC_DisableIRQ(RTC_IRQn);
 		HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
 #endif
@@ -1049,7 +1053,7 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
 
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 	static uint32_t trigger = 0;
 	HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, ((trigger % 2 == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET));
 	trigger++;
@@ -1089,7 +1093,7 @@ void HAL_Delay(uint32_t Delay)
   *
   * @retval Void
   */
-#ifdef DBUG
+#ifdef NUCLEO_LIGHT_SHOW
 static void led_sequence(led_sequence_t sequence)
 {
 	switch (sequence) {
