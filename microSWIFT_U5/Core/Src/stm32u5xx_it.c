@@ -80,6 +80,7 @@ void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
   shut_it_all_down();
+  HAL_NVIC_SystemReset();
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
   while (1)
@@ -99,10 +100,11 @@ void HardFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-	  shut_it_all_down();
 #ifdef DBUG
+	  shut_it_all_down();
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
+	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
 #endif
     /* USER CODE END W1_HardFault_IRQn 0 */
@@ -124,6 +126,7 @@ void MemManage_Handler(void)
 	  shut_it_all_down();
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
+	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
 #endif
     /* USER CODE END W1_MemoryManagement_IRQn 0 */
@@ -145,6 +148,7 @@ void BusFault_Handler(void)
 	  shut_it_all_down();
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
+	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
 #endif
     /* USER CODE END W1_BusFault_IRQn 0 */
@@ -166,6 +170,7 @@ void UsageFault_Handler(void)
 	  shut_it_all_down();
 	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
 #else
+	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
 #endif
     /* USER CODE END W1_UsageFault_IRQn 0 */

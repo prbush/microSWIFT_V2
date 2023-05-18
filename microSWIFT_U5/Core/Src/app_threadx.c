@@ -1267,7 +1267,6 @@ void shut_it_all_down(void)
 	HAL_Delay(10);
 	HAL_GPIO_WritePin(GPIOD, IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, GPIO_PIN_RESET);
-
 	// Shut down GNSS
 	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, GPIO_PIN_RESET);
 	// Shut down CT sensor
@@ -1275,6 +1274,7 @@ void shut_it_all_down(void)
 	// Reset RF switch GPIOs. This will set it to be ported to the modem (safe case)
 	HAL_GPIO_WritePin(GPIOG, RF_SWITCH_VCTL_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOG, RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
+	HAL_Delay(10);
 }
 
 static void start_a_new_window(void)
