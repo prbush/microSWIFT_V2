@@ -213,8 +213,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	  return ret;
 	}
 	// Create the teardown thread. HIGHEST priority, no preemption-threshold
-	ret = tx_thread_create(&end_of_cycle_thread, "end of cycle thread", end_of_cycle_thread_entry, 0, pointer,
-			THREAD_LARGE_STACK_SIZE, LOWEST, LOWEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+	ret = tx_thread_create(&end_of_cycle_thread, "end of cycle thread", end_of_cycle_thread_entry,
+			0, pointer, THREAD_LARGE_STACK_SIZE, LOWEST, LOWEST, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -262,27 +262,29 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	//
 	// The Iridium message array -- add 2 to the size for the checksum
-	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_message, IRIDIUM_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH,
-			TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_message, IRIDIUM_MESSAGE_PAYLOAD_SIZE
+			+ IRIDIUM_CHECKSUM_LENGTH, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	//
 	// The Iridium error message payload array
-	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_error_message, IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH,
-				TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_error_message, IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE
+			+ IRIDIUM_CHECKSUM_LENGTH, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	//
 	// The Iridium response message array
-	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_response_message, IRIDIUM_MAX_RESPONSE_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_response_message, IRIDIUM_MAX_RESPONSE_SIZE,
+			TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	//
 	// The Iridium message storage
-	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message_queue, sizeof(Iridium_message_storage), TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message_queue, sizeof(Iridium_message_storage),
+			TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -717,7 +719,8 @@ void ct_thread_entry(ULONG thread_input){
 	while (ct->total_samples < configuration.total_ct_samples) {
 		return_code = ct_parse_sample(ct);
 		if (return_code == CT_PARSING_ERROR && ++ct_parsing_error_counter == 10) {
-			// If there are too many parsing errors, then something isn't working and we should just continue
+			// If there are too many parsing errors, then something isn't working and we should
+			// just continue
 			tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
 			tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
 			tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
@@ -906,7 +909,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		}
 
 		if (actual_error_flags & RTC_ERROR) {
-			// If something went wrong with the RTC, we'll reset it and start a new sample window, hope for the best
+			// If something went wrong with the RTC, we'll reset it and start a new sample window,
+			// hope for the best
 			HAL_PWR_EnableBkUpAccess();
 			__HAL_RCC_BACKUPRESET_FORCE();
 			__HAL_RCC_BACKUPRESET_RELEASE();
@@ -931,7 +935,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 #ifdef DBUG
-		uint32_t minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 : (initial_rtc_time.Minutes + 2);
+		uint32_t minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 :
+				(initial_rtc_time.Minutes + 2);
 
 		while (rtc_time.Minutes != minute) {
 #else
@@ -944,8 +949,9 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 			HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
-			// We should be restarting the window at the top of the hour. If the initial time and just checked time
-			// differ in hours, then we should start a new window. This should never occur, but just as a second safety
+			// We should be restarting the window at the top of the hour. If the initial time and just
+			// checked time differ in hours, then we should start a new window. This should never occur,
+			// but just as a second safety
 			if (initial_rtc_time.Hours != rtc_time.Hours){
 				break;
 			}
@@ -980,8 +986,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
 			HAL_Delay(500);
 #endif
-
-
 		}
 
 		// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
@@ -1032,6 +1036,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   * @note   This function is called  when TIM16 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
   * a global variable "uwTick" used as application time base.
+  *
   * @param  htim : TIM handle
   * @retval None
   */
@@ -1277,6 +1282,13 @@ void shut_it_all_down(void)
 	HAL_Delay(10);
 }
 
+/**
+  * @brief  Set the event flags and reset/resume all the threads.
+  *
+  * @param  void
+  *
+  * @retval void
+  */
 static void start_a_new_window(void)
 {
 	// Clear out all control event flags
@@ -1524,11 +1536,6 @@ static void send_error_message(ULONG error_flags)
 	}
 	// No need to send CT error message -- we'll know when the SBD message contains 9999 for
 	// salinity & temp
-//#if CT_ENABLED
-//	else if (error_flags & CT_ERROR) {
-//		iridium->transmit_error_message(iridium, "CT FAILURE");
-//	}
-//#endif
 #if IMU_ENABLED
 	else if (error_flags & IMU_ERROR) {
 		iridium->transmit_error_message(iridium, "IMU FAILURE");
