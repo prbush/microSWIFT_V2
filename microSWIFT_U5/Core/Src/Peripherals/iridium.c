@@ -640,7 +640,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 					// force outer loop to break
 					fail_counter = MAX_RETRIES;
 					return_code = IRIDIUM_SUCCESS;
-					break;
+					return return_code;
 
 				case 2: // Message Tx unsuccessful, try again
 #ifdef NUCLEO_LIGHT_SHOW

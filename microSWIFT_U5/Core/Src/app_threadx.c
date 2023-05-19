@@ -473,6 +473,15 @@ void startup_thread_entry(ULONG thread_input){
 	// Put this semaphore to set the window start time with the watchdog thread
 	tx_semaphore_put(&window_started_semaphone);
 
+	// Set the watchdog reset or software reset flags
+	if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG){
+		tx_event_flags_set(&error_flags, WATCHDOG_RESET, TX_OR);
+	}
+
+	if (device_handles->reset_reason & RCC_RESET_FLAG_SW){
+		tx_event_flags_set(&error_flags, SOFTWARE_RESET, TX_OR);
+	}
+
 	// These structs are being allocated to the waves_byte_pool, and have no overlap with tx_app_byte_pool
 	// Each struct has a float array written to by GNSS. These are freed after processing in waves thread.
 	north = argInit_1xUnbounded_real32_T(&configuration);
@@ -872,7 +881,8 @@ void iridium_thread_entry(ULONG thread_input){
   */
 void end_of_cycle_thread_entry(ULONG thread_input){
 	ULONG actual_flags = 0, actual_error_flags = 0;
-	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | DMA_ERROR | UART_ERROR | RTC_ERROR;
+	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR |
+			DMA_ERROR | UART_ERROR | RTC_ERROR | WATCHDOG_RESET;
 	RTC_AlarmTypeDef alarm = {0};
 	RTC_TimeTypeDef initial_rtc_time;
 	RTC_TimeTypeDef rtc_time;
@@ -1515,23 +1525,43 @@ static void jump_to_end_of_window(ULONG done_flags, TX_THREAD* thread_to_termina
 
 static void send_error_message(ULONG error_flags)
 {
-	if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG) {
-		iridium->transmit_error_message(iridium, "WATCHDOG RESET");
+	if (error_flags & WATCHDOG_RESET) {
+		if (iridium->transmit_error_message(iridium, "WATCHDOG RESET")
+				== IRIDIUM_SUCCESS)
+		{
+			// Only want to send this message once, so clear reset_reason
+			device_handles->reset_reason = 0;
+		}
+
 	}
 
-	if (error_flags & GNSS_ERROR) {
+	else if (error_flags & SOFTWARE_RESET) {
+		if (iridium->transmit_error_message(iridium, "SOFTWARE RESET, FAULT CONDITION OCCURED")
+				== IRIDIUM_SUCCESS)
+		{
+			// Only want to send this message once, so clear reset_reason
+			device_handles->reset_reason = 0;
+		}
+
+	}
+
+	else if (error_flags & GNSS_ERROR)
+	{
 		iridium->transmit_error_message(iridium, "GNSS FAILURE");
 	}
 
-	else if (error_flags & DMA_ERROR) {
+	else if (error_flags & DMA_ERROR)
+	{
 		iridium->transmit_error_message(iridium, "DMA FAILURE");
 	}
 
-	else if (error_flags & UART_ERROR) {
+	else if (error_flags & UART_ERROR)
+	{
 		iridium->transmit_error_message(iridium, "UART FAILURE");
 	}
 
-	else if (error_flags & RTC_ERROR) {
+	else if (error_flags & RTC_ERROR)
+	{
 		iridium->transmit_error_message(iridium, "RTC FAILURE");
 	}
 	// No need to send CT error message -- we'll know when the SBD message contains 9999 for

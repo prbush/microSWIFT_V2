@@ -87,7 +87,9 @@ typedef enum error_flags{
  	MEMORY_ALLOC_ERROR = 1 << 5,
  	DMA_ERROR = 1 << 6,
  	UART_ERROR = 1 << 7,
-	RTC_ERROR = 1 << 8
+	RTC_ERROR = 1 << 8,
+	WATCHDOG_RESET = 1 << 9,
+	SOFTWARE_RESET = 1 << 10
 }error_flags_t;
 
 typedef enum led_sequence{
