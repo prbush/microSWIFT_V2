@@ -537,119 +537,156 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	char SBDWB_response_code;
 	int SBDI_response_code;
 	int fail_counter;
+	int transmit_fail_counter = 0;
+	int adaptive_delay_index;
 	uint32_t adaptive_delay_time[5] = {ONE_SECOND * 3, ONE_SECOND * 5,
 			ONE_SECOND * 30, ONE_SECOND * 60, ONE_SECOND * 180};
 	int delay_time;
+	bool sleep_break;
+	bool checksum_match;
 
 	// Assemble the load_sbd string
 	itoa(payload_size, payload_size_str, 10);
 	strcat(load_sbd, payload_size_str);
 	load_sbd[12] = '\r';
 
-	// get the checksum
-	get_checksum((uint8_t*)payload, payload_size);
+	while (!self->timer_timeout) {
+		// get the checksum
+		get_checksum((uint8_t*)payload, payload_size);
+		// reset flags
+		sleep_break = false;
+		checksum_match = true;
 
-	// Tell the modem we want to send a message
-	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
-		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(load_sbd[0]),
-				strlen(load_sbd), ONE_SECOND);
+		// Tell the modem we want to send a message
+		for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
+			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(load_sbd[0]),
+					strlen(load_sbd), ONE_SECOND);
 
-		HAL_UART_Receive(self->iridium_uart_handle,
-				&(self->response_buffer[0]), SBDWB_READY_RESPONSE_SIZE, ONE_SECOND);
+			HAL_UART_Receive(self->iridium_uart_handle,
+					&(self->response_buffer[0]), SBDWB_READY_RESPONSE_SIZE, ONE_SECOND);
 
-		needle = strstr((char*)&(self->response_buffer[0]), "READY");
-		// Success case
-		if (needle != NULL) {
-			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-			break;
-		}
-
-		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-	}
-
-	if (fail_counter == MAX_RETRIES) { return IRIDIUM_UART_ERROR;}
-
-	// Send over the payload + checksum
-	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
-		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(payload[0]),
-				payload_size + IRIDIUM_CHECKSUM_LENGTH, ONE_SECOND * 2);
-
-		HAL_UART_Receive(self->iridium_uart_handle,
-				&(self->response_buffer[0]), SBDWB_LOAD_RESPONSE_SIZE, ONE_SECOND);
-
-		SBDWB_response_code = self->response_buffer[SBDWB_RESPONSE_CODE_INDEX];
-		// Success case
-		if (SBDWB_response_code == '0') {
-			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-			break;
-		}
-
-		// Response of 2 means checksum didn't match, so try calculating it again
-		if (SBDWB_response_code == '2') {
-			get_checksum((uint8_t*)payload, payload_size);
-		}
-
-		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-	}
-
-	if (fail_counter == MAX_RETRIES) { return IRIDIUM_UART_ERROR;}
-
-	// Tell the modem to send the message
-	for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
-		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
-				strlen(send_sbd), ONE_SECOND);
-		// We will only grab the response up to and including MO status
-		HAL_UART_Receive(self->iridium_uart_handle,
-				&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 30);
-		// Grab the MO status
-		SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
-
-		switch (SBDI_response_code) {
-
-			case 0: // No message transfered to modem
-				return_code = IRIDIUM_UART_ERROR;
-				// force outer loop to break
-				fail_counter = MAX_RETRIES;
+			needle = strstr((char*)&(self->response_buffer[0]), "READY");
+			// Success case
+			if (needle != NULL) {
+				memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
 				break;
+			}
+			// Clear the response buffer and reset UART for the next step
+			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+		}
 
-			case 1: // success case
-				if (send_basic_command_message(self, clear_MO, SBDD_RESPONSE_SIZE, ONE_SECOND * 10) ==
-						IRIDIUM_COMMAND_RESPONSE_ERROR) {
+		if (fail_counter == MAX_RETRIES) {
+			return_code = IRIDIUM_UART_ERROR;
+			continue;
+		}
+
+		// Send over the payload + checksum
+		for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
+			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(payload[0]),
+					payload_size + IRIDIUM_CHECKSUM_LENGTH, ONE_SECOND * 2);
+
+			HAL_UART_Receive(self->iridium_uart_handle,
+					&(self->response_buffer[0]), SBDWB_LOAD_RESPONSE_SIZE, ONE_SECOND);
+
+			SBDWB_response_code = self->response_buffer[SBDWB_RESPONSE_CODE_INDEX];
+			// Success case
+			if (SBDWB_response_code == '0') {
+				memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+				checksum_match = true;
+				break;
+			}
+
+			// Response of 2 means checksum didn't match, loop around and try again
+			if (SBDWB_response_code == '2') {
+				checksum_match = false;
+				break;
+			}
+			// Clear the response buffer and reset UART for the next step
+			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+		}
+
+		if ((fail_counter == MAX_RETRIES) || (!checksum_match)) {
+			return_code = IRIDIUM_UART_ERROR;
+			continue;
+		}
+
+		// Tell the modem to send the message
+		for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
+			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
+					strlen(send_sbd), ONE_SECOND);
+			// We will only grab the response up to and including MO status
+			HAL_UART_Receive(self->iridium_uart_handle,
+					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 30);
+			// Grab the MO status
+			SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
+
+			switch (SBDI_response_code) {
+
+				case 0: // No message transfered to modem
+					return_code = IRIDIUM_UART_ERROR;
+					// force outer loop to break
+					fail_counter = MAX_RETRIES;
+					break;
+
+				case 1: // success case
+					if (send_basic_command_message(self, clear_MO, SBDD_RESPONSE_SIZE, ONE_SECOND * 10) ==
+							IRIDIUM_COMMAND_RESPONSE_ERROR) {
+						cycle_power(self);
+					}
+					// force outer loop to break
+					fail_counter = MAX_RETRIES;
+					return_code = IRIDIUM_SUCCESS;
+					break;
+
+				case 2: // Message Tx unsuccessful, try again
+#ifdef NUCLEO_LIGHT_SHOW
+					HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+#endif
+					transmit_fail_counter++;
+					adaptive_delay_index = transmit_fail_counter % 6;
+					delay_time = adaptive_delay_time[adaptive_delay_index];
+
+					// If the delay is going to be 30 seconds or more, put the modem to sleep
+					if (adaptive_delay_index >= 3) {
+						self->sleep(self, GPIO_PIN_RESET);
+						sleep_break = true;
+					} else {
+						sleep_break = false;
+					}
+
+					// Wait the prescribed time, but check that we haven't timed out
+					while (!self->timer_timeout && delay_time > 0) {
+						HAL_Delay(10);
+						delay_time -= 10;
+					}
+
+#ifdef NUCLEO_LIGHT_SHOW
+					HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+#endif
+
+					self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+					return_code = IRIDIUM_TRANSMIT_ERROR;
+
+					if (sleep_break) {
+						// Wake the modem back up
+						self->sleep(self, GPIO_PIN_SET);
+						HAL_Delay(10);
+						break;
+					} else {
+						continue;
+					}
+
+				default: // Response didn't make sense
+					// Since response was unexpected, cycle power and reset UART
+					return_code = IRIDIUM_UNKNOWN_ERROR;
 					cycle_power(self);
-				}
-				// force outer loop to break
-				fail_counter = MAX_RETRIES;
-				return_code = IRIDIUM_SUCCESS;
-				break;
-
-			case 2: // Message Tx unsuccessful, try again
-#ifdef NUCLEO_LIGHT_SHOW
-				HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
-#endif
-				delay_time = adaptive_delay_time[fail_counter % 5];
-				// Wait the prescribed time, but check that we haven't timed out
-				while (!self->timer_timeout && delay_time > 0) {
-					HAL_Delay(10);
-					delay_time -= 10;
-				}
-#ifdef NUCLEO_LIGHT_SHOW
-				HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
-#endif
-
-				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-				return_code = IRIDIUM_TRANSMIT_ERROR;
-				continue;
-
-			default: // Response didn't make sense
-				// Since response was unexpected, cycle power and reset UART
-				return_code = IRIDIUM_UNKNOWN_ERROR;
-				cycle_power(self);
-				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-				break;
+					self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+					break;
+			}
 		}
 	}
 

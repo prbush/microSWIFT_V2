@@ -250,13 +250,13 @@ void gnss_process_message(GNSS* self)
 		sAcc_exceeded_max = sAcc > MAX_ACCEPTABLE_SACC;
 
 		// Did we have at least 1 good sample?
-		if (self->total_samples == 0 && !velocities_exceed_max & !sAcc_exceeded_max) {
+		if ((self->total_samples == 0) && (!velocities_exceed_max) && (!sAcc_exceeded_max)) {
 			self->all_resolution_stages_complete = true;
 			self->sample_window_start_time = HAL_GetTick();
 		}
 
 		// Make sure we don't overflow our arrays
-		if (self->total_samples == self->global_config->samples_per_window) {
+		if (self->total_samples >= self->global_config->samples_per_window) {
 			HAL_UART_DMAStop(self->gnss_uart_handle);
 			self->sample_window_stop_time = HAL_GetTick();
 			self->all_samples_processed = true;

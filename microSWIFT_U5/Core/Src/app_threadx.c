@@ -706,14 +706,23 @@ void ct_thread_entry(ULONG thread_input){
 	// Take our samples
 	while (ct->total_samples < configuration.total_ct_samples) {
 		return_code = ct_parse_sample(ct);
-		if (return_code == CT_PARSING_ERROR && ++ct_parsing_error_counter == 10) {
-			// If there are too many parsing errors, then something isn't working and we should
-			// just continue
+
+		if (return_code == CT_PARSING_ERROR) {
+			ct_parsing_error_counter++;
+		}
+
+		if ((ct_parsing_error_counter >= 10) || (return_code == CT_UART_ERROR)) {
+			// If there are too many parsing errors or a UART error occurs, then
+			// stop trying and
 			tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
 			tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
 			tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
 
 			tx_thread_terminate(&ct_thread);
+		}
+
+		if (return_code == CT_DONE_SAMPLING) {
+			break;
 		}
 	}
 
@@ -835,7 +844,7 @@ void iridium_thread_entry(ULONG thread_input){
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
 #endif
 
-	return_code = iridium->transmit_message(iridium);
+	iridium->transmit_message(iridium);
 
 #ifdef NUCLEO_LIGHT_SHOW
 	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
@@ -924,7 +933,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		// Must call GetDate to keep the RTC happy, even if you don't use it
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
-#ifdef DBUG
+#ifdef DEBUGGING_FAST_CYCLE
 		wake_up_minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 :
 				(initial_rtc_time.Minutes + 2);
 #else

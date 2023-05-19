@@ -54,13 +54,13 @@ void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeD
 ct_error_code_t ct_parse_sample(CT* self)
 {
 	ULONG actual_flags;
-	ct_error_code_t return_code = CT_PARSING_ERROR;
+	ct_error_code_t return_code = CT_SUCCESS;
 	uint32_t start_time = 0, elapsed_time = 0, max_sample_time = 0;
 	int fail_counter = 0;
 	double temperature, salinity;
 	char* index;
 	// Sensor sends a message every 2 seconds @ 9600 baud, takes 0.245 seconds to get it out
-	int required_ticks_to_get_message = (TX_TIMER_TICKS_PER_SECOND * 2) + 3;
+	int required_ticks_to_get_message = TX_TIMER_TICKS_PER_SECOND * 3;
 
 	// Samples array overflow safety check
 	if (self->total_samples >= self->global_config->total_ct_samples) {
@@ -68,38 +68,29 @@ ct_error_code_t ct_parse_sample(CT* self)
 		return return_code;
 	}
 
-	reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
-	HAL_Delay(1);
-	HAL_UART_Receive_DMA(self->ct_uart_handle,
-		(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
-	__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
-
-	start_time = HAL_GetTick();
-	max_sample_time = (SAMPLE_TIME_IN_MILLISECONDS + 1) * MAX_RETRIES;
-
 	while(++fail_counter < MAX_RETRIES) {
-		elapsed_time = HAL_GetTick() - start_time;
-		// Make sure this isn't taking too long
-		if (elapsed_time > max_sample_time) {
-			return CT_PARSING_ERROR;
-		}
-
-
+		reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+		HAL_Delay(1);
+		HAL_UART_Receive_DMA(self->ct_uart_handle,
+			(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
+		// Disable half transfer interrupt
+		__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
 		// See if we got the message, otherwise retry
 		if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
 				&actual_flags, required_ticks_to_get_message) != TX_SUCCESS)
 		{
-			HAL_UART_DMAStop(self->ct_uart_handle);
-			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
-			HAL_UART_Receive_DMA(self->ct_uart_handle,
-				(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
-			__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
+			// If we didn't get a sample inside of required_ticks_to_get_message
+			// time, then something is wrong with the sensor. We'll still try again.
+			return_code = CT_UART_ERROR;
 			continue;
 		}
 
 		index = strstr(self->data_buf, temp_units);
 		// Make the message was received in the right alignment
 		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
+			// If this evaluates to true, we're out of sync. Insert a short delay
+			return_code = CT_PARSING_ERROR;
+			HAL_Delay(250);
 			continue;
 		}
 		index += TEMP_OFFSET_FROM_UNITS;
