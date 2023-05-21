@@ -534,63 +534,63 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 	// The configuration message, type UBX_CFG_VALSET
 
     while (fail_counter++ < 10) {
-    		// Start with a blank msg_buf -- this will short cycle the for loop
-    		// below if a message was not received in 10 tries
-    		memset(&(msg_buf[0]),0,sizeof(msg_buf));
-    		// Send over the configuration settings
-    		HAL_UART_Transmit(self->gnss_uart_handle, &(config_array[0]),
-    				message_size, ONE_SECOND);
+		// Start with a blank msg_buf -- this will short cycle the for loop
+		// below if a message was not received in 10 tries
+		memset(&(msg_buf[0]),0,sizeof(msg_buf));
+		// Send over the configuration settings
+		HAL_UART_Transmit(self->gnss_uart_handle, &(config_array[0]),
+				message_size, ONE_SECOND);
 
-    		// Grab the acknowledgment message
-			HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
-				sizeof(msg_buf));
-			__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
-			if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-					&actual_flags, TX_TIMER_TICKS_PER_SECOND + 2) != TX_SUCCESS) {
-				self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-				HAL_Delay(10);
-				continue;
+		// Grab the acknowledgment message
+		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
+			sizeof(msg_buf));
+		__HAL_DMA_DISABLE_IT(self->gnss_dma_handle, DMA_IT_HT);
+		if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
+				&actual_flags, TX_TIMER_TICKS_PER_SECOND + 2) != TX_SUCCESS) {
+			self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+			HAL_Delay(10);
+			continue;
+		}
+
+
+
+		/* The ack/nak message is guaranteed to be sent within one second, but
+		 * we may receive a few navigation messages before the ack is received,
+		 * so we have to sift through at least one second worth of messages */
+		for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
+				&message_class, &message_id, payload, sizeof(payload), &buf_end);
+				num_payload_bytes > 0;
+				num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
+				&message_class, &message_id, payload, sizeof(payload), &buf_end))
+		{
+			if (message_class == 0x05) {
+				// Msg class 0x05 is either an ACK or NAK
+				if (message_id == 0x00) {
+					// This is a NAK msg, the config did not go through properly
+					break;
+				}
+
+				if (message_id == 0x01) {
+					// This is an ACK message, we're good
+					reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+					return GNSS_SUCCESS;
+				}
 			}
+			// Adjust pointers to continue searching the buffer
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
+		}
 
-
-
-    		/* The ack/nak message is guaranteed to be sent within one second, but
-    		 * we may receive a few navigation messages before the ack is received,
-    		 * so we have to sift through at least one second worth of messages */
-    		for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-    				&message_class, &message_id, payload, sizeof(payload), &buf_end);
-    				num_payload_bytes > 0;
-    				num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
-    				&message_class, &message_id, payload, sizeof(payload), &buf_end))
-    		{
-    			if (message_class == 0x05) {
-    				// Msg class 0x05 is either an ACK or NAK
-    				if (message_id == 0x00) {
-    					// This is a NAK msg, the config did not go through properly
-    					break;
-    				}
-
-    				if (message_id == 0x01) {
-    					// This is an ACK message, we're good
-    					reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-    					return GNSS_SUCCESS;
-    				}
-    			}
-    			// Adjust pointers to continue searching the buffer
-    			buf_length -= buf_end - buf_start;
-    			buf_start = buf_end;
-    		}
-
-    		// Reinitialize the UART port and restart DMA receive
-    		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-    		// Zero out the buffer to prevent reading old values
-    		memset(&(msg_buf[0]),0,sizeof(msg_buf));
-    		buf_start = (const char*)&(msg_buf[0]);
-    		buf_end = buf_start;
-    	}
-    	// If we made it here, config failed 10 attempts
-    	reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-    	return GNSS_CONFIG_ERROR;
+		// Reinitialize the UART port and restart DMA receive
+		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+		// Zero out the buffer to prevent reading old values
+		memset(&(msg_buf[0]),0,sizeof(msg_buf));
+		buf_start = (const char*)&(msg_buf[0]);
+		buf_end = buf_start;
+	}
+	// If we made it here, config failed 10 attempts
+	reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+	return GNSS_CONFIG_ERROR;
 }
 
 /**

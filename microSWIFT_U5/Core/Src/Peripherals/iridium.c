@@ -647,11 +647,11 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 					HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
 #endif
 					transmit_fail_counter++;
-					adaptive_delay_index = transmit_fail_counter % 6;
+					adaptive_delay_index = transmit_fail_counter % 5;
 					delay_time = adaptive_delay_time[adaptive_delay_index];
 
 					// If the delay is going to be 30 seconds or more, put the modem to sleep
-					if (adaptive_delay_index >= 3) {
+					if (adaptive_delay_index >= 2) {
 						self->sleep(self, GPIO_PIN_RESET);
 						sleep_break = true;
 					} else {

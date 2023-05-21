@@ -118,6 +118,9 @@
 
 #define TX_DISABLE_PREEMPTION_THRESHOLD
 
+#define TX_ENABLE_STACK_CHECKING
+#define TX_MAX_PRIORITIES 32
+
 /* Determine if global ThreadX variables should be cleared. If the compiler startup code clears
    the .bss section prior to ThreadX running, the define can be used to eliminate unnecessary
    clearing of ThreadX global variables.  */
