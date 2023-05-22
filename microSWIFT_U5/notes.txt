@@ -3,6 +3,9 @@ main.c
   MX_ThreadX_Init(&handles);
   
     hrtc.Init.BinMode = RTC_BINARY_MIX;
+    
+    Delete RTC alarm config
+    Delete Timer IRQ callback
 --------------------------------------------------------------------------------
 
 

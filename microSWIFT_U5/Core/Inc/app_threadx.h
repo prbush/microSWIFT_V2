@@ -89,7 +89,8 @@ typedef enum error_flags{
  	UART_ERROR = 1 << 7,
 	RTC_ERROR = 1 << 8,
 	WATCHDOG_RESET = 1 << 9,
-	SOFTWARE_RESET = 1 << 10
+	SOFTWARE_RESET = 1 << 10,
+	GNSS_RESOLUTION_ERROR = 1 << 11
 }error_flags_t;
 
 typedef enum led_sequence{
@@ -127,6 +128,7 @@ typedef enum self_test_status{
 
 /* Exported functions prototypes ---------------------------------------------*/
 UINT App_ThreadX_Init(VOID *memory_ptr);
+
 /* USER CODE BEGIN EFP */
 void MX_ThreadX_Init(device_handles_t *handles);
 void watchdog_thread_entry(ULONG thread_input);

@@ -21,9 +21,9 @@
 
 #ifdef DEBUGGING_FAST_CYCLE
 
-#define TOTAL_SAMPLES_PER_WINDOW 8192
+#define TOTAL_SAMPLES_PER_WINDOW 256
 #define IRIDIUM_MAX_TRANSMIT_TIME 1
-#define GNSS_MAX_ACQUISITION_WAIT_TIME 3
+#define GNSS_MAX_ACQUISITION_WAIT_TIME 1
 
 #else
 // Number of samples in each sampling window
