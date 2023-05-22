@@ -9,10 +9,21 @@
 
 TX_BYTE_POOL* memory_pool;
 
-int memory_pool_init(TX_BYTE_POOL* pool, VOID* pool_start, size_t pool_size)
+void waves_memory_pool_init(TX_BYTE_POOL* pool)
 {
 	memory_pool = pool;
+}
+
+UINT waves_memory_pool_create(VOID* pool_start, size_t pool_size)
+{
 	UINT ret = tx_byte_pool_create(memory_pool, "waves mem pool", pool_start, pool_size);
+
+	return ret;
+}
+
+UINT waves_memory_pool_delete()
+{
+	UINT ret = tx_byte_pool_delete(memory_pool);
 
 	return ret;
 }

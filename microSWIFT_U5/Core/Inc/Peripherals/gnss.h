@@ -50,6 +50,8 @@ typedef enum gnss_error_code{
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
 #define UBX_NAV_PVT_MESSAGE_LENGTH 100
+#define UBX_CFG_VALSET_CLASS 0x06
+#define UBX_CFG_VALSET_ID 0x8A
 #define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
 #define UBX_BUFFER_SIZE (10 * UBX_MESSAGE_SIZE)
 #define INITIAL_STAGES_BUFFER_SIZE 500
@@ -88,6 +90,8 @@ typedef enum gnss_error_code{
 #define UBX_NAV_PVT_V_DOWN_INDEX 56
 #define UBX_NAV_PVT_SACC_INDEX 68
 #define UBX_NAV_PVT_PDOP_INDEX 76
+#define UBX_ACK_ACK_CLSID_INDEX 0
+#define UBX_ACK_ACK_MSGID_INDEX 1
 
 // GNSS struct definition -- packed for good organization, not memory efficiency
 typedef struct GNSS {

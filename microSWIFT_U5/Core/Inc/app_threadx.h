@@ -127,7 +127,6 @@ typedef enum self_test_status{
 
 /* Exported functions prototypes ---------------------------------------------*/
 UINT App_ThreadX_Init(VOID *memory_ptr);
-
 /* USER CODE BEGIN EFP */
 void MX_ThreadX_Init(device_handles_t *handles);
 void watchdog_thread_entry(ULONG thread_input);

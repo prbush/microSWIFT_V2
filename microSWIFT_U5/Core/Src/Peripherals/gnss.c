@@ -531,6 +531,8 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
     int32_t message_class = 0;
     int32_t message_id = 0;
     int32_t num_payload_bytes = 0;
+    uint8_t response_msg_class;
+    uint8_t response_msg_id;
 	// The configuration message, type UBX_CFG_VALSET
 
     while (fail_counter++ < 10) {
@@ -571,9 +573,17 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 				}
 
 				if (message_id == 0x01) {
-					// This is an ACK message, we're good
-					reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
-					return GNSS_SUCCESS;
+					// This is an ACK message
+					response_msg_class = payload[UBX_ACK_ACK_CLSID_INDEX];
+					response_msg_id = payload[UBX_ACK_ACK_MSGID_INDEX];
+
+					// Make sure this is an ack for the CFG_VALSET message type
+					if (response_msg_class == UBX_CFG_VALSET_CLASS &&
+							response_msg_id == UBX_CFG_VALSET_ID) {
+						// This is an acknowledgement of our configuration message
+						reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+						return GNSS_SUCCESS;
+					}
 				}
 			}
 			// Adjust pointers to continue searching the buffer

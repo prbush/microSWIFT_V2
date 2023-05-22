@@ -81,7 +81,6 @@ uint8_t* ubx_DMA_message_buf;
 // Buffer for messages ready to process
 uint8_t* ubx_message_process_buf;
 // Iridium buffers
-uint8_t* iridium_message;
 uint8_t* iridium_response_message;
 uint8_t* iridium_error_message;
 // Messages that failed to send are stored here
@@ -104,8 +103,7 @@ CT* ct;
 CHAR* ct_data;
 ct_samples* samples_buf;
 #endif
-// Flags that indicate the sample window is done. Used to jump to end_of_cycle_thread
-ULONG done_flags;
+
 
 #define WAVES_MEM_POOL_SIZE 600000
 __ALIGN_BEGIN UCHAR waves_byte_pool_buffer[WAVES_MEM_POOL_SIZE] __ALIGN_END;
@@ -120,12 +118,11 @@ static void enter_stop_2_mode(bool suspend_systick)__attribute__((unused));
 static void exit_stop_2_mode(bool resume_systick)__attribute__((unused));
 static void SystemClock_Restore(void)__attribute__((unused));
 static void led_sequence(uint8_t sequence);
-static void jump_to_end_of_window(ULONG done_flags, TX_THREAD* thread_to_terminate);
+static void jump_to_end_of_window(TX_THREAD* thread_to_terminate);
 static void send_error_message(ULONG error_flags);
 void shut_it_all_down(void);
 static void start_a_new_window(void);
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
-void clear_all_data_structures(void);
 
 void stack_error_handler(TX_THREAD* thread_ptr);
 
@@ -177,7 +174,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the startup thread. HIGHEST priority level and no preemption possible
 	ret = tx_thread_create(&startup_thread, "startup thread", startup_thread_entry, 0, pointer,
-			THREAD_EXTRA_LARGE_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -189,7 +186,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the gnss thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&gnss_thread, "gnss thread", gnss_thread_entry, 0, pointer,
-		  THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+		  THREAD_EXTRA_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -201,7 +198,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the waves thread. MID priority, no preemption-threshold
 	ret = tx_thread_create(&waves_thread, "waves thread", waves_thread_entry, 0, pointer,
-			THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -213,7 +210,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the Iridium thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&iridium_thread, "iridium thread", iridium_thread_entry, 0, pointer,
-			THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -225,7 +222,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the end of cycle thread. Priority and preemption is low to allow no preemption
 	ret = tx_thread_create(&end_of_cycle_thread, "end of cycle thread", end_of_cycle_thread_entry,
-			0, pointer, THREAD_EXTRA_LARGE_STACK_SIZE, LOWEST, LOWEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+			0, pointer, THREAD_EXTRA_LARGE_STACK_SIZE, VERY_HIGH, VERY_HIGH, TX_NO_TIME_SLICE, TX_AUTO_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -270,13 +267,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss, sizeof(GNSS)+ 100, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 		return ret;
-	}
-	//
-	// The Iridium message array -- add 2 to the size for the checksum
-	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium_message, IRIDIUM_MESSAGE_PAYLOAD_SIZE + 100
-			+ IRIDIUM_CHECKSUM_LENGTH, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
 	}
 	//
 	// The Iridium error message payload array
@@ -372,8 +362,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	  return ret;
 	}
 
-	// Zero out the sbd message struct
-	memset(&sbd_message, 0, sizeof(sbd_message));
 #endif
   /* USER CODE END App_ThreadX_MEM_POOL */
 
@@ -437,14 +425,14 @@ void watchdog_thread_entry(ULONG thread_input)
 			window_start_time = HAL_GetTick();
 		}
 
+		elapsed_time = HAL_GetTick() - window_start_time;
+
 		if (window_start_time == 0) {
-			elapsed_time = HAL_GetTick();
 			if (elapsed_time > max_initial_wait_time) {
+				shut_it_all_down();
 				tx_thread_terminate(&watchdog_thread);
 			}
 		}
-
-		elapsed_time = HAL_GetTick() - window_start_time;
 
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
 		// We'll refresh the watchdog once every second
@@ -453,6 +441,7 @@ void watchdog_thread_entry(ULONG thread_input)
 
 	// In no case should an hour elapse between starting a window and the next window starting,
 	// so we will terminate this thread to prevent the watchdog from being refreshed
+	shut_it_all_down();
 	tx_thread_terminate(&watchdog_thread);
 
 }
@@ -470,13 +459,10 @@ void startup_thread_entry(ULONG thread_input){
 	ULONG actual_flags = 0;
 	UINT tx_return;
 	RTC_DateTypeDef rtc_date __attribute__((unused)); // unused
-	done_flags = GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
-	#if CT_ENABLED
-	  done_flags |= CT_DONE;
-	#endif
-	#if IMU_ENABLED
-	  done_flags |= IMU_DONE;
-	#endif
+
+
+	// Zero out the sbd message struct
+	memset(&sbd_message, 0, sizeof(sbd_message));
 
 #ifdef NUCLEO_LIGHT_SHOW
 	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
@@ -493,8 +479,11 @@ void startup_thread_entry(ULONG thread_input){
 		tx_event_flags_set(&error_flags, SOFTWARE_RESET, TX_OR);
 	}
 
-	if (memory_pool_init(&waves_byte_pool, waves_byte_pool_buffer, WAVES_MEM_POOL_SIZE) != TX_SUCCESS){
-		HAL_Delay(1000);
+	waves_memory_pool_init(&waves_byte_pool);
+
+	if (waves_memory_pool_create(&(waves_byte_pool_buffer[0]), WAVES_MEM_POOL_SIZE) != TX_SUCCESS){
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
 	}
 
 	// These structs are being allocated to the waves_byte_pool, and have no overlap with tx_app_byte_pool
@@ -523,11 +512,22 @@ void startup_thread_entry(ULONG thread_input){
 			&actual_flags, TX_NO_WAIT);
 	// If this is a subsequent window, just setup the GNSS, skip the rest
 	if (tx_return == TX_SUCCESS) {
+
+		// Restart the end_of_cycle_thread
+		if (tx_thread_reset(&end_of_cycle_thread) != TX_SUCCESS){
+			shut_it_all_down();
+			HAL_NVIC_SystemReset();
+		}
+		if (tx_thread_resume(&end_of_cycle_thread) != TX_SUCCESS){
+			shut_it_all_down();
+			HAL_NVIC_SystemReset();
+		}
+
 		rf_switch->set_gnss_port(rf_switch);
 		// Configuration is retained in subsequent windows, no need to configure GNSS
 		tx_event_flags_set(&thread_control_flags, GNSS_READY, TX_OR);
 		tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
-		//TODO: write a function to memset everything and call it here
+
 	#if IMU_ENABLED
 		threadx_return = tx_event_flags_set(&thread_control_flags, IMU_READY, TX_OR);
 	#endif
@@ -536,9 +536,6 @@ void startup_thread_entry(ULONG thread_input){
 		tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
 	#endif
 
-		// Restart the end_of_cycle_thread
-		tx_thread_reset(&end_of_cycle_thread);
-		tx_thread_resume(&end_of_cycle_thread);
 	}
 
 	// This is first time power up, test everything and flash LED sequence
@@ -619,7 +616,7 @@ void gnss_thread_entry(ULONG thread_input){
 		// If we were unable to get good GNSS reception and start the DMA transfer loop, then
 		// go to sleep until the top of the next hour. Sleep will be handled in end_of_cycle_thread
 		gnss->on_off(gnss, GPIO_PIN_RESET);
-		jump_to_end_of_window(done_flags, &gnss_thread);
+		jump_to_end_of_window(&gnss_thread);
 	} else {
 		gnss->is_configured = true;
 	}
@@ -635,11 +632,11 @@ void gnss_thread_entry(ULONG thread_input){
 	// Sleep will be handled in end_of_cycle_thread
 	if (!gnss->all_resolution_stages_complete) {
 		gnss->on_off(gnss, GPIO_PIN_RESET);
-		jump_to_end_of_window(done_flags, &gnss_thread);
+		jump_to_end_of_window(&gnss_thread);
 	}
 
-	// Maximum amount of time it should take to get all the samples (plus a small buffer)
-	max_sampling_time = ((configuration.samples_per_window + 3) / configuration.gnss_sampling_rate)
+	// Maximum amount of time it should take to get all the samples (plus a one minute buffer)
+	max_sampling_time = ((configuration.samples_per_window + 300) / configuration.gnss_sampling_rate)
 			* ONE_SECOND;
 	// Wait until all the samples have been processed
 	while (!gnss->all_samples_processed){
@@ -649,7 +646,7 @@ void gnss_thread_entry(ULONG thread_input){
 		if (elapsed_time > max_sampling_time) {
 			tx_event_flags_set(&error_flags, GNSS_ERROR, TX_OR);
 			gnss->on_off(gnss, GPIO_PIN_RESET);
-			jump_to_end_of_window(done_flags, &gnss_thread);
+			jump_to_end_of_window(&gnss_thread);
 		}
 	}
 
@@ -814,10 +811,9 @@ void waves_thread_entry(ULONG thread_input){
 	emxDestroyArray_real32_T(east);
 	emxDestroyArray_real32_T(north);
 
-	if (tx_byte_pool_delete(&waves_byte_pool) != TX_SUCCESS) {
-		while(1){
-			HAL_Delay(1000);
-		}
+	if (waves_memory_pool_delete() != TX_SUCCESS) {
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
 	}
 
 	memcpy(&sbd_message.Hs, &Hs, sizeof(real16_T));
@@ -888,7 +884,7 @@ void iridium_thread_entry(ULONG thread_input){
 	HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
 	HAL_DMA_DeInit(iridium->iridium_tx_dma_handle);
 
-	tx_event_flags_set(&thread_control_flags, done_flags, TX_OR);
+	tx_event_flags_set(&thread_control_flags, IRIDIUM_DONE, TX_OR);
 
 	tx_thread_terminate(&iridium_thread);
 }
@@ -902,6 +898,13 @@ void iridium_thread_entry(ULONG thread_input){
   * @retval void
   */
 void end_of_cycle_thread_entry(ULONG thread_input){
+	ULONG done_flags = GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
+	#if CT_ENABLED
+	  done_flags |= CT_DONE;
+	#endif
+	#if IMU_ENABLED
+	  done_flags |= IMU_DONE;
+	#endif
 	ULONG actual_flags = 0, actual_error_flags = 0;
 	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR |
 			DMA_ERROR | UART_ERROR | RTC_ERROR | WATCHDOG_RESET;
@@ -939,11 +942,9 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	}
 
 	if (actual_error_flags & RTC_ERROR) {
-		// If something went wrong with the RTC, we'll reset it and start a new sample window,
-		// hope for the best
-		HAL_PWR_EnableBkUpAccess();
-		__HAL_RCC_BACKUPRESET_FORCE();
-		__HAL_RCC_BACKUPRESET_RELEASE();
+		// If something went wrong with the RTC, we'll reset
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
 
 		start_a_new_window();
 	}
@@ -965,8 +966,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 #ifdef DEBUGGING_FAST_CYCLE
-	wake_up_minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 :
-			(initial_rtc_time.Minutes + 2);
+	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
+			(initial_rtc_time.Minutes + 1);
 #else
 	wake_up_minute = 0;
 #endif
@@ -998,10 +999,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		// If something goes wrong setting the alarm, force an RTC reset and go to the next window.
 		// With luck, the RTC will get set again on the next window and everything will be cool.
 		if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN) != HAL_OK) {
-			  HAL_PWR_EnableBkUpAccess();
-			  __HAL_RCC_BACKUPRESET_FORCE();
-			  __HAL_RCC_BACKUPRESET_RELEASE();
-			  break;
+			shut_it_all_down();
+			HAL_NVIC_SystemReset();
 		}
 
 		// See errata regarding ICACHE access on wakeup, section 2.2.11
@@ -1018,6 +1017,11 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_Delay(500);
 #endif
 	}
+
+	HAL_Delay(10);
+	SystemClock_Restore();
+	HAL_DeInit();
+	HAL_Init();
 
 	// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
 	HAL_NVIC_DisableIRQ(RTC_IRQn);
@@ -1301,36 +1305,6 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 	return return_code;
 }
 
-void clear_all_data_structures(void)
-{
-
-	memset(&rf_switch, 0, sizeof(RF_Switch) + 100);
-
-	memset(ubx_DMA_message_buf, 0, (UBX_MESSAGE_SIZE * 2)+ 100);
-
-	memset(ubx_message_process_buf, 0, (UBX_MESSAGE_SIZE * 2)+ 100);
-
-	memset(&gnss, 0, sizeof(GNSS)+ 100);
-
-	memset(iridium_message, 0, IRIDIUM_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH + 100);
-
-	memset(iridium_error_message, 0, IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH + 100);
-
-	memset(iridium_response_message, 0, IRIDIUM_MAX_RESPONSE_SIZE + 100);
-
-	memset(&sbd_message_queue, 0, sizeof(Iridium_message_storage) + 100);
-
-	memset(&iridium, 0, sizeof(Iridium) + 100);
-
-	memset(&ct, 0, sizeof(CT) + 100);
-
-	memset(&ct_data, 0, CT_DATA_ARRAY_SIZE + 100);
-
-	memset(&samples_buf, 0, TOTAL_CT_SAMPLES * sizeof(ct_samples) + 100);
-
-	memset(&sbd_message, 0, sizeof(sbd_message));
-}
-
 /**
   * @brief  Power down all peripheral FETs and set RF switch to GNSS input
   *
@@ -1565,25 +1539,37 @@ static void exit_stop_2_mode(bool resume_systick)
 	}
 }
 
-static void jump_to_end_of_window(ULONG done_flags, TX_THREAD* thread_to_terminate)
+static void jump_to_end_of_window(TX_THREAD* thread_to_terminate)
 {
-	// Clear all flags;
-	tx_event_flags_set(&thread_control_flags, 0, TX_AND);
-	// Set the done flags so control will go to end_of_cycle_thread
-	tx_event_flags_set(&thread_control_flags, done_flags, TX_OR);
+	ULONG done_flags = GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
+	#if CT_ENABLED
+	  done_flags |= CT_DONE;
+	#endif
+	#if IMU_ENABLED
+	  done_flags |= IMU_DONE;
+	#endif
 	// Terminate this thread
 	if (strcmp(thread_to_terminate->tx_thread_name, "gnss thread") == 0) {
 		tx_thread_terminate(&ct_thread);
 		tx_thread_terminate(&iridium_thread);
 		tx_thread_terminate(&waves_thread);
+		// Clear all flags;
+		tx_event_flags_set(&thread_control_flags, 0, TX_AND);
+		// Set the done flags so control will go to end_of_cycle_thread
+		tx_event_flags_set(&thread_control_flags, done_flags, TX_OR);
 		tx_thread_terminate(&gnss_thread);
 	}
 	else {
 		tx_thread_terminate(&iridium_thread);
 		tx_thread_terminate(&waves_thread);
 		tx_thread_terminate(&gnss_thread);
+		// Clear all flags;
+		tx_event_flags_set(&thread_control_flags, 0, TX_AND);
+		// Set the done flags so control will go to end_of_cycle_thread
+		tx_event_flags_set(&thread_control_flags, done_flags, TX_OR);
 		tx_thread_terminate(&ct_thread);
 	}
+
 }
 
 static void send_error_message(ULONG error_flags)
@@ -1645,77 +1631,98 @@ static void send_error_message(ULONG error_flags)
   */
 static void SystemClock_Restore(void)
 {
-	  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-	  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-	  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
+	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+	RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
 
-	  /* Deinitialize the RCC */
-	  HAL_RCC_DeInit();
+	/* Deinitialize the RCC */
+	HAL_RCC_DeInit();
 
-	  /* Enable Power Clock */
-	  __HAL_RCC_PWR_CLK_ENABLE();
+	/* Enable Power Clock */
+	__HAL_RCC_PWR_CLK_ENABLE();
 
-	  /** Configure the main internal regulator output voltage
-	  */
-	  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE3) != HAL_OK)
-	  {
-	    Error_Handler();
-	  }
+	/** Configure the main internal regulator output voltage
+	*/
+	if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE3) != HAL_OK)
+	{
+	Error_Handler();
+	}
 
-	  /** Configure LSE Drive Capability
-	  */
-	  HAL_PWR_EnableBkUpAccess();
-	  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
+	/** Configure LSE Drive Capability
+	*/
+	HAL_PWR_EnableBkUpAccess();
+	__HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
 
-	  /** Initializes the CPU, AHB and APB buses clocks
-	  */
-	  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI
-	                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
-	  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-	  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-	  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
-	  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
-	  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
-	  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_3;
-	  RCC_OscInitStruct.LSIDiv = RCC_LSI_DIV1;
-	  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-	  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-	  {
-	    Error_Handler();
-	  }
+	/** Initializes the CPU, AHB and APB buses clocks
+	*/
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
+							  |RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE;
+	RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+	RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+	RCC_OscInitStruct.LSIDiv = RCC_LSI_DIV1;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+	{
+	Error_Handler();
+	}
 
-	  /** Initializes the CPU, AHB and APB buses clocks
-	  */
-	  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-	                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
-	                              |RCC_CLOCKTYPE_PCLK3;
-	  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
-	  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-	  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-	  RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
+	/** Initializes the CPU, AHB and APB buses clocks
+	*/
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+							  |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
+							  |RCC_CLOCKTYPE_PCLK3;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+	RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
 
-	  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-	  {
-	    Error_Handler();
-	  }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+	{
+	Error_Handler();
+	}
 
-	  /** Enable the SYSCFG APB clock
-	  */
-	  __HAL_RCC_CRS_CLK_ENABLE();
+	/** Enable the SYSCFG APB clock
+	*/
+	__HAL_RCC_CRS_CLK_ENABLE();
 
-	  /** Configures CRS
-	  */
-	  RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
-	  RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_LSE;
-	  RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-	  RCC_CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,32768);
-	  RCC_CRSInitStruct.ErrorLimitValue = 34;
-	  RCC_CRSInitStruct.HSI48CalibrationValue = 32;
+	/** Configures CRS
+	*/
+	RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
+	RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_LSE;
+	RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
+	RCC_CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,32768);
+	RCC_CRSInitStruct.ErrorLimitValue = 34;
+	RCC_CRSInitStruct.HSI48CalibrationValue = 32;
 
-	  HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
+	HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
 
-	  __HAL_RCC_PWR_CLK_DISABLE();
+	__HAL_RCC_PWR_CLK_DISABLE();
+
+	HAL_PWREx_EnableVddIO2();
+
+	/*
+	* Disable the internal Pull-Up in Dead Battery pins of UCPD peripheral
+	*/
+	HAL_PWREx_DisableUCPDDeadBattery();
+
+	/*
+	* SRAM Power Down In Stop Mode Config
+	*/
+	HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+	HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+
+	/*
+	* Switch to SMPS regulator instead of LDO
+	*/
+	if (HAL_PWREx_ConfigSupply(PWR_SMPS_SUPPLY) != HAL_OK)
+	{
+	Error_Handler();
+	}
+
 }
 
 /* USER CODE END 1 */

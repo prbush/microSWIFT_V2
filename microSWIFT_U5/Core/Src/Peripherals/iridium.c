@@ -646,8 +646,8 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 #ifdef NUCLEO_LIGHT_SHOW
 					HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
 #endif
-					transmit_fail_counter++;
 					adaptive_delay_index = transmit_fail_counter % 5;
+					transmit_fail_counter++;
 					delay_time = adaptive_delay_time[adaptive_delay_index];
 
 					// If the delay is going to be 30 seconds or more, put the modem to sleep

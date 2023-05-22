@@ -1,32 +1,46 @@
 main.c
+--------------------------------------------------------------------------------
   MX_ThreadX_Init(&handles);
   
     hrtc.Init.BinMode = RTC_BINARY_MIX;
-  
+--------------------------------------------------------------------------------
+
+
 app_azure_rtos_config.h
+--------------------------------------------------------------------------------
 #define TX_APP_MEM_POOL_SIZE                     744032
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+tx_user.h
+#define TX_ENABLE_STACK_CHECKING
+#define TX_MAX_PRIORITIES 32
+#define TX_INLINE_THREAD_RESUME_SUSPEND
+--------------------------------------------------------------------------------
 
 
 app_threadx.c
+--------------------------------------------------------------------------------
 void MX_ThreadX_Init(device_handles_t *handles)
+--------------------------------------------------------------------------------
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  if (htim->Instance == TIM16) {
-    HAL_IncTick();
-  }
-  if (htim->Instance == TIM17) {
-	iridium->timer_timeout = true;
-  }
-}
+
 
 app_threadx.h
+--------------------------------------------------------------------------------
 void MX_ThreadX_Init(device_handles_t *handles)
+--------------------------------------------------------------------------------
+
 
 tx_user.h
+--------------------------------------------------------------------------------
 #define TX_TIMER_TICKS_PER_SECOND                5 <or whatever>
+--------------------------------------------------------------------------------
+
 
 app_azure_rtos.c
+--------------------------------------------------------------------------------
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 #define WAVES_MEM_POOL_SIZE 600000
@@ -103,18 +117,11 @@ VOID tx_application_define(VOID *first_unused_memory)
   }
 
 #else
+--------------------------------------------------------------------------------
 
 !!!!!!!!!!!!!!!!!!!!!!
 TODOs:
 	* Add a thread_control_flags push/get for watchdog and end_of_cycle_thread -- make sure the watchdog can continue to keep track of total elapsed time
-	* Fix GNSS process_message relating to first sample
-		* Change gnss_sync_and_start_reception to look for both number of satellites AND to resolve time. This will limit gnss_thread complexity greatly
 	* Have some persistent indication of error flags to prevent sending more thn 1 error message per failure
 	* Check if there is a busy bit for UART which can be used to sync Tx for CT, GNSS
-	* Revist the timer with CT sensor and GNSS -- make sure these are useful and not too restrictive. They're probably best removed
 	* !!! Must check that config is still good for GNSS if power cycled. VBCKP is ties directly to 3v3 bus and should retain config
-<<<<<<< HEAD
-	* Figure out how to setup binary mix mode for RTC in CubeMx and check for accuracy against external time source
-=======
-	* Figure out how to setup binary mix mode for RTC in CubeMx and check for accuracy against external time source
->>>>>>> a8c1f49dedb1ca4bea19bfcba2483c31a725e917

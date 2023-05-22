@@ -55,7 +55,6 @@ ct_error_code_t ct_parse_sample(CT* self)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_SUCCESS;
-	uint32_t start_time = 0, elapsed_time = 0, max_sample_time = 0;
 	int fail_counter = 0;
 	double temperature, salinity;
 	char* index;

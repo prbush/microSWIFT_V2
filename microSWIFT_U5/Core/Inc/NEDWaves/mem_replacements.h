@@ -17,7 +17,9 @@
 #include "NEDwaves_memlight_emxAPI.h"
 #include "configuration.h"
 
-int memory_pool_init(TX_BYTE_POOL* pool, VOID* pool_start, size_t pool_size);
+void waves_memory_pool_init(TX_BYTE_POOL* pool);
+UINT waves_memory_pool_create(VOID* pool_start, size_t pool_size);
+UINT waves_memory_pool_delete();
 float* get_waves_float_array(microSWIFT_configuration* config);
 void* malloc_replacement(size_t size);
 void* calloc_replacement(size_t num, size_t size);

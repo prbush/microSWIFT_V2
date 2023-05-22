@@ -118,9 +118,6 @@
 
 #define TX_DISABLE_PREEMPTION_THRESHOLD
 
-#define TX_ENABLE_STACK_CHECKING
-#define TX_MAX_PRIORITIES 32
-
 /* Determine if global ThreadX variables should be cleared. If the compiler startup code clears
    the .bss section prior to ThreadX running, the define can be used to eliminate unnecessary
    clearing of ThreadX global variables.  */
@@ -131,7 +128,9 @@
    enabled. If the application does not use notify callbacks, they may be disabled to reduce
    code size and improve performance.  */
 
-#define TX_DISABLE_NOTIFY_CALLBACKS
+//#define TX_DISABLE_NOTIFY_CALLBACKS
+#define TX_ENABLE_STACK_CHECKING
+#define TX_MAX_PRIORITIES 32
 
 /* Determine if the tx_thread_resume and tx_thread_suspend services should have their internal
    code in-line. This results in a larger image, but improves the performance of the thread
@@ -221,11 +220,11 @@
 
 /* Determinate if the basic alignment type is defined. */
 
-/*#define ALIGN_TYPE_DEFINED*/
+#define ALIGN_TYPE_DEFINED
 
 /* Define basic alignment type used in block and byte pool operations. */
 
-/*#define ALIGN_TYPE  ULONG*/
+#define ALIGN_TYPE  ULONG
 
 /* Define the TX_MEMSET macro to the standard library function. */
 
