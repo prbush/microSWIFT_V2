@@ -170,15 +170,16 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	uint32_t elapsed_time, start_time;
 	double temperature, salinity;
 	char* index;
+	// Sensor sends a message every 2 seconds @ 9600 baud, takes 0.245 seconds to get it out
+	int required_ticks_to_get_message = TX_TIMER_TICKS_PER_SECOND * 3;
 
 	self->on_off(self, GPIO_PIN_SET);
 	self->reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 
 	start_time = HAL_GetTick();
-	// The first round is a guaranteed fail since the message hasn't
-	// been requested yet, so start at -1 to account for that
-	int fail_counter = -1;
-	while(fail_counter++ < 10) {
+
+	int fail_counter = 0;
+	while(fail_counter++ < 15) {
 
 		if (HAL_UART_Receive_DMA(self->ct_uart_handle,
 			(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE) != HAL_OK) {
@@ -187,9 +188,11 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 			continue;
 
 		}
+		// Disable half-transfer interrupt
+		__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
 
 		if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
-				&actual_flags, ((TX_TIMER_TICKS_PER_SECOND*2)+1)) != TX_SUCCESS) {
+				&actual_flags, required_ticks_to_get_message) != TX_SUCCESS) {
 			HAL_UART_DMAStop(self->ct_uart_handle);
 			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 			HAL_Delay(103);
@@ -199,17 +202,20 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 		index = strstr(self->data_buf, temp_units);
 		// Make the message was received in the right alignment
 		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
+			HAL_Delay(103);
 			continue;
 		}
 		index += TEMP_OFFSET_FROM_UNITS;
 		temperature = atof(index);
 		// error return of atof() is 0.0
 		if (temperature == 0.0){
+			HAL_Delay(103);
 			continue;
 		}
 
 		char* index = strstr(self->data_buf, salinity_units);
 		if (index == NULL){
+			HAL_Delay(103);
 			continue;
 		}
 
@@ -217,6 +223,7 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 		salinity = atof(index);
 
 		if (salinity == 0.0){
+			HAL_Delay(103);
 			continue;
 		}
 

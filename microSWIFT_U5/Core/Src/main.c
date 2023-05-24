@@ -597,7 +597,6 @@ static void MX_RTC_Init(void)
   /* USER CODE END RTC_Init 0 */
 
   RTC_PrivilegeStateTypeDef privilegeState = {0};
-  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
   RTC_DateTypeDef rtc_date;
