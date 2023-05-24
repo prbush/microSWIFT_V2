@@ -76,7 +76,8 @@ typedef enum control_flags{
 	// DMA reception flags
 	GNSS_CONFIG_RECVD = 1 << 11,
 	CT_MSG_RECVD = 1 << 12,
-	IRIDIUM_MSG_RECVD = 1 << 13
+	IRIDIUM_MSG_RECVD = 1 << 13,
+	GNSS_CONFIG_REQUIRED = 1 << 14
 }control_flags_t;
 
 typedef enum error_flags{
@@ -121,7 +122,7 @@ typedef enum self_test_status{
 #define THREAD_EXTRA_SMALL_STACK_SIZE 256
 
 // The max times we'll try to get a single peripheral up before sending reset vector
-#define MAX_SELF_TEST_RETRIES 3
+#define MAX_SELF_TEST_RETRIES 5
 // The maximum amount of time (in milliseconds) a sample window could take
 #define MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES 61
 /* USER CODE END EM */

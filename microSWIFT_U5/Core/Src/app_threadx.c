@@ -115,7 +115,7 @@ TX_BYTE_POOL waves_byte_pool;
 static self_test_status_t initial_power_on_self_test(void);
 static void SystemClock_Restore(void)__attribute__((unused));
 static void led_sequence(uint8_t sequence);
-static void jump_to_end_of_window(TX_THREAD* thread_to_terminate);
+static void jump_to_end_of_window();
 static void send_error_message(ULONG error_flags);
 void shut_it_all_down(void);
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
@@ -430,14 +430,14 @@ void watchdog_thread_entry(ULONG thread_input)
 		}
 
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
-		// We'll refresh the watchdog once every second
-		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
+		// We'll refresh the watchdog once every 10 seconds
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 10);
 	}
 
 	// In no case should an hour elapse between starting a window and the next window starting,
 	// so we will pause this thread to make sure the watchdog is not refreshed
 	shut_it_all_down();
-	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 1000);
+	tx_thread_terminate(&watchdog_thread);
 
 }
 
@@ -453,6 +453,7 @@ void startup_thread_entry(ULONG thread_input){
 	self_test_status_t self_test_status;
 	ULONG actual_flags = 0;
 	UINT tx_return;
+	int fail_counter = 0;
 	RTC_DateTypeDef rtc_date __attribute__((unused)); // unused
 
 
@@ -509,25 +510,51 @@ void startup_thread_entry(ULONG thread_input){
 	if (tx_return == TX_SUCCESS) {
 
 		// Reset all threads
-		if (tx_thread_reset(&gnss_thread) != TX_SUCCESS){
-			shut_it_all_down();
-			HAL_NVIC_SystemReset();
+		tx_return = tx_thread_reset(&gnss_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&gnss_thread);
+			tx_thread_reset(&gnss_thread);
 		}
 #if CT_ENABLED
-		if (tx_thread_reset(&ct_thread) != TX_SUCCESS){
-			shut_it_all_down();
-			HAL_NVIC_SystemReset();
+		tx_return = tx_thread_reset(&ct_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&ct_thread);
+			tx_thread_reset(&ct_thread);
 		}
 #endif
-		if (tx_thread_reset(&waves_thread) != TX_SUCCESS){
-			shut_it_all_down();
-			HAL_NVIC_SystemReset();
+		tx_return = tx_thread_reset(&waves_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&waves_thread);
+			tx_thread_reset(&waves_thread);
 		}
-		if (tx_thread_reset(&iridium_thread) != TX_SUCCESS){
-			shut_it_all_down();
-			HAL_NVIC_SystemReset();
+		tx_return = tx_thread_reset(&iridium_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&iridium_thread);
+			tx_thread_reset(&iridium_thread);
 		}
-		if (tx_thread_reset(&end_of_cycle_thread) != TX_SUCCESS){
+		tx_return = tx_thread_reset(&end_of_cycle_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&end_of_cycle_thread);
+			tx_thread_reset(&end_of_cycle_thread);
+		}
+
+		// Check if there was a GNSS error. If so, reconfigure device
+		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_CONFIG_REQUIRED,
+				TX_OR_CLEAR, &actual_flags, TX_NO_WAIT);
+		if (tx_return == TX_SUCCESS) {
+			fail_counter = 0;
+			while (fail_counter < MAX_SELF_TEST_RETRIES) {
+				if (gnss->config(gnss) != GNSS_SUCCESS) {
+					// Config didn't work, cycle power and try again
+					gnss->cycle_power(gnss);
+					fail_counter++;
+				} else {
+					break;
+				}
+			}
+		}
+		// If we couldn't configure the GNSS, send a reset vector
+		if (fail_counter == MAX_SELF_TEST_RETRIES) {
 			shut_it_all_down();
 			HAL_NVIC_SystemReset();
 		}
@@ -640,6 +667,7 @@ void gnss_thread_entry(ULONG thread_input){
 		gnss->on_off(gnss, GPIO_PIN_RESET);
 		tx_event_flags_set(&error_flags, GNSS_RESOLUTION_ERROR, TX_OR);
 		jump_to_end_of_window(&gnss_thread);
+		tx_thread_terminate(&gnss_thread);
 	}
 
 	// Maximum amount of time it should take to get all the samples (plus a one minute buffer)
@@ -654,6 +682,7 @@ void gnss_thread_entry(ULONG thread_input){
 			tx_event_flags_set(&error_flags, GNSS_ERROR, TX_OR);
 			gnss->on_off(gnss, GPIO_PIN_RESET);
 			jump_to_end_of_window(&gnss_thread);
+			tx_thread_terminate(&gnss_thread);
 		}
 	}
 
@@ -924,13 +953,6 @@ void iridium_thread_entry(ULONG thread_input){
   * @retval void
   */
 void end_of_cycle_thread_entry(ULONG thread_input){
-//	ULONG done_flags = GNSS_DONE | IRIDIUM_DONE | WAVES_DONE;
-//	#if CT_ENABLED
-//	  done_flags |= CT_DONE;
-//	#endif
-//	#if IMU_ENABLED
-//	  done_flags |= IMU_DONE;
-//	#endif
 	ULONG actual_error_flags = 0;
 	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR |
 			DMA_ERROR | UART_ERROR | RTC_ERROR | WATCHDOG_RESET | SOFTWARE_RESET |
@@ -949,7 +971,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	error_flags |= IMU_ERROR;
 #endif
 
-	// Must put this thread to sleep for a short while to allow Iridium thread to fully complete
+	// Must put this thread to sleep for a short while to allow other threads to terminate
 	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
 //	tx_event_flags_get(&thread_control_flags, done_flags, TX_AND_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
@@ -958,10 +980,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	// If there was a GNSS error or it could not resolve in time, make sure to terminate the thread
 	if ((actual_error_flags & GNSS_RESOLUTION_ERROR) || (actual_error_flags & GNSS_ERROR)){
-		if (tx_thread_terminate(&gnss_thread) != TX_SUCCESS){
-			shut_it_all_down();
-			HAL_NVIC_SystemReset();
-		}
+		// Set the event flag so we know to reconfigure in the next window
+		tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_REQUIRED, TX_OR);
 	}
 
 	// Just to be overly sure everything is off
@@ -1023,11 +1043,11 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			break;
 		}
 
-		// Set the alarm to occur in 4 seconds
+		// Set the alarm to wake up the processor in 30 seconds
 		alarm.Alarm = RTC_ALARM_A;
 		alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
 		alarm.AlarmTime = rtc_time;
-		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 56) ? ((rtc_time.Seconds + 4) - 60) : (rtc_time.Seconds + 4);
+		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 30) ? ((rtc_time.Seconds + 30) - 60) : (rtc_time.Seconds + 30);
 		alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
 		alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 
@@ -1044,7 +1064,9 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 		HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
 
+		// Immediately refresh the watchdog
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
+		// Restore clocks to the same config as before stop2 mode
 		SystemClock_Restore();
 		HAL_ResumeTick();
 		HAL_ICACHE_Enable();
@@ -1441,14 +1463,20 @@ static self_test_status_t initial_power_on_self_test(void)
 }
 
 /**
-  * @brief  Break out of the current thread and start the end of cycle thread
+  * @brief  Break out of the GNSS thread and jump to end_of_cycle_thread
   *
   * @param  thread_to_terminate - thread which called this
   *
   * @retval void
   */
-static void jump_to_end_of_window(TX_THREAD* thread_to_terminate)
+static void jump_to_end_of_window()
 {
+	// turn off the GNSS sensor
+	gnss->on_off(gnss, GPIO_PIN_RESET);
+	// Deinit UART and DMA to prevent spurious interrupts
+	HAL_UART_DeInit(gnss->gnss_uart_handle);
+	HAL_DMA_DeInit(gnss->gnss_dma_handle);
+
 	if (tx_thread_resume(&end_of_cycle_thread) != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
@@ -1487,6 +1515,8 @@ static void send_error_message(ULONG error_flags)
 	else if (error_flags & GNSS_ERROR)
 	{
 		iridium->transmit_error_message(iridium, "GNSS FAILURE");
+		// Set the event flag so we know to reconfigure in the next window
+		tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_REQUIRED, TX_OR);
 	}
 
 	else if (error_flags & DMA_ERROR)

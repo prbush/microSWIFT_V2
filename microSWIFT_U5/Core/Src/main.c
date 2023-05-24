@@ -428,8 +428,8 @@ static void MX_IWDG_Init(void)
   /* USER CODE END IWDG_Init 1 */
   hiwdg.Instance = IWDG;
   hiwdg.Init.Prescaler = IWDG_PRESCALER_512;
-  hiwdg.Init.Window = 313;
-  hiwdg.Init.Reload = 313;
+  hiwdg.Init.Window = 4094;
+  hiwdg.Init.Reload = 4094;
   hiwdg.Init.EWI = 0;
   if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
   {
@@ -640,6 +640,8 @@ static void MX_RTC_Init(void)
 
   /* USER CODE BEGIN RTC_Init 2 */
 
+  // Set date/time to something arbitrary in the event GNSS can't resolve time
+  // in the first window
   rtc_date.Date = 2;
   rtc_date.Month = 2;
   rtc_date.WeekDay = RTC_WEEKDAY_MONDAY;
@@ -653,6 +655,11 @@ static void MX_RTC_Init(void)
 	  Error_Handler();
   }
   if (HAL_RTC_SetDate(&hrtc, &rtc_date, RTC_FORMAT_BIN) != HAL_OK) {
+	  Error_Handler();
+  }
+  // Enable RTC low power calibration
+  if (HAL_RTCEx_SetLowPowerCalib(&hrtc, RTC_LPCAL_SET) != HAL_OK)
+  {
 	  Error_Handler();
   }
 

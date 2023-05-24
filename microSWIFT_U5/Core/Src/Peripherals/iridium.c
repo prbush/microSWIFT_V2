@@ -458,6 +458,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	int fail_counter;
 	bool message_tx_success = false;
 	bool all_messages_sent = false;
+	uint32_t timer_minutes = 0;
 
 	// Make sure we can get an acknowledgment from the modem
 	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
@@ -473,9 +474,19 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		return IRIDIUM_UART_ERROR;
 	}
 
+	// We'll add extra time to the transmit window if there are a bunch of messages in the queue
+	if (self->storage_queue->num_msgs_enqueued >= 5 && self->storage_queue->num_msgs_enqueued < 10) {
+		timer_minutes = self->global_config->iridium_max_transmit_time + 5;
+	}
+	else if (self->storage_queue->num_msgs_enqueued >= 10) {
+		timer_minutes = self->global_config->iridium_max_transmit_time + 10;
+	} else {
+		timer_minutes = self->global_config->iridium_max_transmit_time;
+	}
+
 	// reset the timer and clear the interrupt flag
 	self->timer_timeout = false;
-	self->reset_timer(self, self->global_config->iridium_max_transmit_time);
+	self->reset_timer(self, timer_minutes);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated
@@ -540,7 +551,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	int transmit_fail_counter = 0;
 	int adaptive_delay_index;
 	uint32_t adaptive_delay_time[5] = {ONE_SECOND * 3, ONE_SECOND * 5,
-			ONE_SECOND * 30, ONE_SECOND * 60, ONE_SECOND * 180};
+			ONE_SECOND * 28, ONE_SECOND * 58, ONE_SECOND * 178};
 	int delay_time;
 	bool sleep_break;
 	bool checksum_match;
@@ -583,7 +594,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 		}
 
 		// Send over the payload + checksum
-		for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
+		while (!self->timer_timeout) {
 			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(payload[0]),
 					payload_size + IRIDIUM_CHECKSUM_LENGTH, ONE_SECOND * 2);
 
@@ -620,7 +631,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 					strlen(send_sbd), ONE_SECOND);
 			// We will only grab the response up to and including MO status
 			HAL_UART_Receive(self->iridium_uart_handle,
-					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 30);
+					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 35);
 			// Grab the MO status
 			SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
 
@@ -674,7 +685,8 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 					if (sleep_break) {
 						// Wake the modem back up
 						self->sleep(self, GPIO_PIN_SET);
-						HAL_Delay(10);
+						// Have to give it time to reinitialize (manual states 2 seconds)
+						HAL_Delay(2100);
 						break;
 					} else {
 						continue;
