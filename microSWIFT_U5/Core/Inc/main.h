@@ -35,7 +35,7 @@ extern "C" {
 #undef DBUG
 // For testing purposed, use the Nucleo onboard LEDs
 #define NUCLEO_LIGHT_SHOW
-// #undef NUCLEO_LIGHT_SHOW TODO: uncomment this
+#undef NUCLEO_LIGHT_SHOW
 #include "configuration.h"
 /* USER CODE END Includes */
 

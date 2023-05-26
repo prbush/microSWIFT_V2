@@ -28,16 +28,15 @@ typedef struct RF_Switch{
 	GPIO_PinState en_pin_current_state;
 	GPIO_PinState vctl_pin_current_state;
 	rf_switch_selection_t current_port;
-	rf_switch_selection_t 	(*get_current_port)(struct RF_Switch* self);
+	void 					(*power_on)(struct RF_Switch* self);
+	void 					(*power_off)(struct RF_Switch* self);
 	void 					(*set_gnss_port)(struct RF_Switch* self);
 	void 					(*set_iridium_port)(struct RF_Switch* self);
-	void 					(*set_no_port)(struct RF_Switch* self);
 } RF_Switch;
 
 void rf_switch_init(RF_Switch* self);
-rf_switch_selection_t rf_switch_get_current_port(RF_Switch* self);
+void rf_switch_power_on(RF_Switch* self);
+void rf_switch_power_off(RF_Switch* self);
 void rf_switch_set_gnss_port(RF_Switch* self);
 void rf_switch_set_iridium_port(RF_Switch* self);
-void rf_switch_set_no_port(RF_Switch* self);
-
 #endif /* SRC_RF_SWITCH_H_ */

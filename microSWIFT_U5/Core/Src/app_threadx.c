@@ -64,7 +64,6 @@ TX_THREAD watchdog_thread;
 TX_THREAD startup_thread;
 TX_THREAD gnss_thread;
 TX_THREAD imu_thread;
-TX_THREAD ct_thread;
 TX_THREAD waves_thread;
 TX_THREAD iridium_thread;
 TX_THREAD end_of_cycle_thread;
@@ -99,6 +98,7 @@ int16_t* IMU_D_Array;
 #endif
 // Only included if there is a CT sensor
 #if CT_ENABLED
+TX_THREAD ct_thread;
 CT* ct;
 CHAR* ct_data;
 ct_samples* samples_buf;
@@ -509,6 +509,8 @@ void startup_thread_entry(ULONG thread_input){
 	// If this is a subsequent window, just setup the GNSS, skip the rest
 	if (tx_return == TX_SUCCESS) {
 
+		HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
+
 		// Reset all threads
 		tx_return = tx_thread_reset(&gnss_thread);
 		if (tx_return == TX_NOT_DONE){
@@ -537,6 +539,9 @@ void startup_thread_entry(ULONG thread_input){
 			tx_thread_terminate(&end_of_cycle_thread);
 			tx_thread_reset(&end_of_cycle_thread);
 		}
+
+		// Power up the RF switch
+		rf_switch->power_on(rf_switch);
 
 		// Check if there was a GNSS error. If so, reconfigure device
 		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_CONFIG_REQUIRED,
@@ -572,8 +577,7 @@ void startup_thread_entry(ULONG thread_input){
 		// Flash some lights to let the user know its on and working
 		led_sequence(INITIAL_LED_SEQUENCE);
 
-		// Set the RF switch to the GNSS port
-		rf_switch->set_gnss_port(rf_switch);
+		rf_switch->power_on(rf_switch);
 
 		self_test_status = initial_power_on_self_test();
 
@@ -706,10 +710,21 @@ void gnss_thread_entry(ULONG thread_input){
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
 
+#if CT_ENABLED
+
 	if (tx_thread_resume(&ct_thread) != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
 	}
+
+#else
+
+	if (tx_thread_resume(&waves_thread) != TX_SUCCESS){
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
+#endif
 
 	tx_thread_terminate(&gnss_thread);
 }
@@ -973,7 +988,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
 	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
-//	tx_event_flags_get(&thread_control_flags, done_flags, TX_AND_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
 	// See if we had any errors along the way
 	tx_event_flags_get(&error_flags, error_occured_flags, TX_OR_CLEAR, &actual_error_flags, TX_NO_WAIT);
@@ -1026,6 +1040,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 #else
 	wake_up_minute = 0;
 #endif
+
+	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
 	while (rtc_time.Minutes != wake_up_minute) {
 
@@ -1120,9 +1136,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 
 	// CT sensor
+#if CT_ENABLED
 	else if (huart->Instance == ct->ct_uart_handle->Instance) {
 		tx_event_flags_set(&thread_control_flags, CT_MSG_RECVD, TX_OR);
 	}
+#endif
 
 	// Iridium modem
 	else if (huart->Instance == iridium->iridium_uart_handle->Instance) {
@@ -1265,9 +1283,9 @@ static void led_sequence(led_sequence_t sequence)
 
 		case TEST_PASSED_LED_SEQUENCE:
 			for (int i = 0; i < 5; i++){
-				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
-				HAL_Delay(1000);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+				HAL_Delay(1000);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
 				HAL_Delay(1000);
 			}
 			break;
@@ -1369,11 +1387,12 @@ void shut_it_all_down(void)
 	HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, GPIO_PIN_RESET);
 	// Shut down GNSS
 	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, GPIO_PIN_RESET);
+	// Reset RF switch GPIOs. This will set it to be ported to the modem (safe case)
+	HAL_GPIO_WritePin(GPIOD, RF_SWITCH_VCTL_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOD, RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
 	// Shut down CT sensor
 	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, GPIO_PIN_RESET);
-	// Reset RF switch GPIOs. This will set it to be ported to the modem (safe case)
-	HAL_GPIO_WritePin(GPIOG, RF_SWITCH_VCTL_Pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(GPIOG, RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
+
 	HAL_Delay(10);
 }
 
