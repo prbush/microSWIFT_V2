@@ -103,7 +103,9 @@ __packed real16_T		mean_temp;
 __packed real16_T		mean_salinity;
 __packed real16_T		mean_voltage;
 __packed float			timestamp;
-}sbd_message_type_52;
+		 uint8_t		checksum_a;
+		 uint8_t		checksum_b;
+} sbd_message_type_52;
 
 typedef struct Iridium {
 	// Our global configuration struct

@@ -62,13 +62,14 @@ typedef enum gnss_error_code{
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 #define GNSS_DEFAULT_BAUD_RATE 9600
-#define MAX_THREADX_WAIT_TICKS_FOR_CONFIG 7
+#define MAX_THREADX_WAIT_TICKS_FOR_CONFIG (TX_TIMER_TICKS_PER_SECOND + (TX_TIMER_TICKS_PER_SECOND / 4))
 #define ONE_SECOND 1000
 #define MILLISECONDS_PER_MINUTE 60000
 #define MM_PER_METER 1000.0
 #define MIN_SATELLITES_TO_PASS_TEST 4
 #define LOWER_4_BITS_MASK 0xF
 #define LAT_LON_CONVERSION_FACTOR 10000000 // format as 1E-7
+#define GNSS_TIMER_INSTANCE TIM16
 // UBX message definitions
 #define FULLY_RESOLVED_AND_VALID_TIME 0x7
 #define UBX_NAV_PVT_YEAR_INDEX 4
@@ -105,6 +106,8 @@ typedef struct GNSS {
 	// Event flags
 	TX_EVENT_FLAGS_GROUP* control_flags;
 	TX_EVENT_FLAGS_GROUP* error_flags;
+	// Pointer to hardware timer handle
+	TIM_HandleTypeDef* minutes_timer;
 	// UBX message process buffer filled from DMA ISR
 	uint8_t* ubx_process_buf;
 	// Velocity sample array pointers
@@ -139,6 +142,7 @@ typedef struct GNSS {
 	bool is_clock_set;
 	bool rtc_error;
 	bool all_samples_processed;
+	bool timer_timeout;
 	// Function pointers
 	gnss_error_code_t (*config)(struct GNSS* self);
 	gnss_error_code_t (*sync_and_start_reception)(struct GNSS* self,
@@ -153,13 +157,14 @@ typedef struct GNSS {
 	void			  (*cycle_power)(struct GNSS* self);
 	gnss_error_code_t (*set_rtc)(struct GNSS* self, uint8_t* msg_payload);
 	gnss_error_code_t (*reset_uart)(struct GNSS* self, uint16_t baud_rate);
+	gnss_error_code_t (*reset_timer)(struct GNSS* self, uint8_t timeout_in_minutes);
 } GNSS;
 
 /* Function declarations */
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
 		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
-		uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
+		TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
 		float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
 gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
@@ -171,7 +176,8 @@ gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);
 void			  gnss_on_off(GNSS* self, GPIO_PinState pin_state);
 void			  gnss_cycle_power(GNSS* self);
 gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload);
-gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate);
+gnss_error_code_t gnss_reset_uart(GNSS* self, uint16_t baud_rate);
+gnss_error_code_t gnss_reset_timer(GNSS* self, uint8_t timeout_in_minutes);
 
 
 

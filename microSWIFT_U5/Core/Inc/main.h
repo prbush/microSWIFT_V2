@@ -51,6 +51,7 @@ typedef struct {
 	DMA_HandleTypeDef* Iridium_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
 	TIM_HandleTypeDef* iridium_timer;
+	TIM_HandleTypeDef* gnss_timer;
 	IWDG_HandleTypeDef* watchdog_handle;
 	uint32_t reset_reason;
 } device_handles_t;

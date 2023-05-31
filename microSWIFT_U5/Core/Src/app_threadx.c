@@ -112,14 +112,15 @@ TX_BYTE_POOL waves_byte_pool;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
+extern void SystemClock_Config(void);
+extern void SystemPower_Config(void);
+
 static self_test_status_t initial_power_on_self_test(void);
-static void SystemClock_Restore(void)__attribute__((unused));
 static void led_sequence(uint8_t sequence);
-static void jump_to_end_of_window();
+static void jump_to_end_of_window(ULONG error_bit_to_set);
 static void send_error_message(ULONG error_flags);
 void shut_it_all_down(void);
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
-void stack_error_handler(TX_THREAD* thread_ptr);
 
 
 #if IMU_ENABLED
@@ -144,23 +145,18 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
    /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
 	CHAR *pointer = TX_NULL;
-
-	ret = tx_thread_stack_error_notify(stack_error_handler);
-	if (ret != TX_SUCCESS){
-		return ret;
-	}
-	//
-	// Allocate stack for the watchdog thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-	// Create the startup thread. HIGHEST priority level and no preemption possible
-	ret = tx_thread_create(&watchdog_thread, "watchdog thread", watchdog_thread_entry, 0, pointer,
-			THREAD_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
+//	//
+//	// Allocate stack for the watchdog thread
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
+//	// Create the startup thread. HIGHEST priority level and no preemption possible
+//	ret = tx_thread_create(&watchdog_thread, "watchdog thread", watchdog_thread_entry, 0, pointer,
+//			THREAD_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
 	//
 	// Allocate stack for the startup thread
 	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
@@ -290,6 +286,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
+	//
+	// The current window SBD message
+	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message, sizeof(sbd_message_type_52) + 100,
+			TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
 // Only if the IMU will be utilized
 #if IMU_ENABLED
 	//
@@ -350,14 +353,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	// The current window SBD message
-	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message, sizeof(sbd_message_type_52) + 100,
-			TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
-
 #endif
+
   /* USER CODE END App_ThreadX_MEM_POOL */
 
   /* USER CODE BEGIN App_ThreadX_Init */
@@ -459,10 +456,6 @@ void startup_thread_entry(ULONG thread_input){
 
 	// Zero out the sbd message struct
 	memset(&sbd_message, 0, sizeof(sbd_message));
-
-#ifdef NUCLEO_LIGHT_SHOW
-	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-#endif
 	// Put this semaphore to set the window start time with the watchdog thread
 	tx_semaphore_put(&window_started_semaphone);
 
@@ -490,7 +483,7 @@ void startup_thread_entry(ULONG thread_input){
 
 	// Initialize the structs
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_dma_handle,
-			&thread_control_flags, &error_flags, &(ubx_message_process_buf[0]), device_handles->hrtc,
+			&thread_control_flags, &error_flags, device_handles->gnss_timer, &(ubx_message_process_buf[0]), device_handles->hrtc,
 			north->data, east->data, down->data);
 	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
 					device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
@@ -605,9 +598,6 @@ void startup_thread_entry(ULONG thread_input){
 					led_sequence(SELF_TEST_CRITICAL_FAULT);
 				}
 		}
-#ifdef NUCLEO_LIGHT_SHOW
-		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-#endif
 		// Kick off the GNSS thread
 		if (tx_thread_resume(&gnss_thread) != TX_SUCCESS){
 			shut_it_all_down();
@@ -628,12 +618,15 @@ void startup_thread_entry(ULONG thread_input){
   * @retval void
   */
 void gnss_thread_entry(ULONG thread_input){
-//	ULONG actual_flags = 0;
-	uint32_t timeout_start = 0, elapsed_time = 0, max_sampling_time = 0;
-	uint32_t timeout = configuration.gnss_max_acquisition_wait_time * MILLISECONDS_PER_MINUTE;
+
 	float last_lat = 0;
 	float last_lon = 0;
 	uint8_t sbd_port;
+	UINT tx_return;
+	ULONG actual_flags;
+	int timer_ticks_to_get_message = (TX_TIMER_TICKS_PER_SECOND / configuration.gnss_sampling_rate) + 2;
+	uint8_t sample_window_timeout = ((configuration.samples_per_window / configuration.gnss_sampling_rate)
+			/ 60) + 1;
 
 	// Wait until we get the ready flag
 //	tx_event_flags_get(&thread_control_flags, GNSS_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
@@ -641,8 +634,9 @@ void gnss_thread_entry(ULONG thread_input){
 	// Grab the RF switch
 	rf_switch->set_gnss_port(rf_switch);
 
-	// Start the clock for time to get good reception and resolve time
-	timeout_start = HAL_GetTick();
+	// Start the timer for resolution stages
+	gnss->reset_timer(gnss, configuration.gnss_max_acquisition_wait_time);
+	HAL_TIM_Base_Start_IT(gnss->minutes_timer);
 
 	// Wait until we get a series of good UBX_NAV_PVT messages and are
 	// tracking a good number of satellites before moving on
@@ -651,45 +645,57 @@ void gnss_thread_entry(ULONG thread_input){
 	{
 		// If we were unable to get good GNSS reception and start the DMA transfer loop, then
 		// go to sleep until the top of the next hour. Sleep will be handled in end_of_cycle_thread
-		gnss->on_off(gnss, GPIO_PIN_RESET);
-		tx_event_flags_set(&error_flags, GNSS_RESOLUTION_ERROR, TX_OR);
-		jump_to_end_of_window(&gnss_thread);
-	} else {
+		jump_to_end_of_window(GNSS_ERROR);
+	}
+	else
+	{
 		gnss->is_configured = true;
 	}
 
-	// Wait the prescribed time to resolve GNSS accuracy
-	while (elapsed_time < timeout) {
-		elapsed_time = HAL_GetTick() - timeout_start;
-		HAL_Delay(1);
+	while (!(gnss->all_resolution_stages_complete || gnss->timer_timeout)) {
+		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MESSAGE_RECEIVED, TX_OR_CLEAR,
+				&actual_flags, timer_ticks_to_get_message);
+
+		if (tx_return != TX_SUCCESS){
+			jump_to_end_of_window(GNSS_ERROR);
+		}
+
+		gnss->process_message(gnss);
 	}
 
 	// If this evaluates to true, we were unable to get adequate GNSS reception to
 	// resolve time and get at least 1 good sample. Go to sleep until the top of the next hour.
 	// Sleep will be handled in end_of_cycle_thread
-	if (!gnss->all_resolution_stages_complete) {
-		gnss->on_off(gnss, GPIO_PIN_RESET);
-		tx_event_flags_set(&error_flags, GNSS_RESOLUTION_ERROR, TX_OR);
-		jump_to_end_of_window(&gnss_thread);
-		tx_thread_terminate(&gnss_thread);
+	if (gnss->timer_timeout) {
+		jump_to_end_of_window(GNSS_RESOLUTION_ERROR);
 	}
 
-	// Maximum amount of time it should take to get all the samples (plus a one minute buffer)
-	max_sampling_time = ((configuration.samples_per_window + 300) / configuration.gnss_sampling_rate)
-			* ONE_SECOND;
+	// We were able to resolve time within the given window of time. Now start the timer to ensure
+	// the sample window doesn't take too long
+	HAL_TIM_Base_Stop_IT(gnss->minutes_timer);
+	gnss->reset_timer(gnss, sample_window_timeout);
+	HAL_TIM_Base_Start_IT(gnss->minutes_timer);
+
 	// Wait until all the samples have been processed
 	while (!gnss->all_samples_processed){
-		elapsed_time = HAL_GetTick() - gnss->sample_window_start_time;
+
+		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MESSAGE_RECEIVED, TX_OR_CLEAR,
+				&actual_flags, timer_ticks_to_get_message);
+
+		if (tx_return != TX_SUCCESS){
+			jump_to_end_of_window(GNSS_ERROR);
+		}
+
+		gnss->process_message(gnss);
 
 		// If this evaluates to true, something hung up with GNSS sampling. End the sample window
-		if (elapsed_time > max_sampling_time) {
-			tx_event_flags_set(&error_flags, GNSS_ERROR, TX_OR);
-			gnss->on_off(gnss, GPIO_PIN_RESET);
-			jump_to_end_of_window(&gnss_thread);
-			tx_thread_terminate(&gnss_thread);
+		if (gnss->timer_timeout) {
+			jump_to_end_of_window(GNSS_ERROR);
 		}
 	}
 
+	// Stop the timer
+	HAL_TIM_Base_Stop_IT(gnss->minutes_timer);
 	// turn off the GNSS sensor
 	gnss->on_off(gnss, GPIO_PIN_RESET);
 	// Deinit UART and DMA to prevent spurious interrupts
@@ -932,15 +938,8 @@ void iridium_thread_entry(ULONG thread_input){
 	memcpy(&iridium->current_lat, &sbd_message.Lat, sizeof(float));
 	memcpy(&iridium->current_lon, &sbd_message.Lon, sizeof(float));
 
-#ifdef NUCLEO_LIGHT_SHOW
-	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
-#endif
-
 	iridium->transmit_message(iridium);
 
-#ifdef NUCLEO_LIGHT_SHOW
-	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
-#endif
 	// Turn off the modem
 	iridium->sleep(iridium, GPIO_PIN_RESET);
 	iridium->on_off(iridium, GPIO_PIN_RESET);
@@ -977,6 +976,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_TimeTypeDef rtc_time;
 	RTC_DateTypeDef rtc_date;
 	uint32_t wake_up_minute;
+	UINT tx_return;
 
 #if CT_ENABLED
 	error_occured_flags |= CT_ERROR;
@@ -987,7 +987,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 #endif
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
-	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
+	tx_thread_sleep(1);
 
 	// See if we had any errors along the way
 	tx_event_flags_get(&error_flags, error_occured_flags, TX_OR_CLEAR, &actual_error_flags, TX_NO_WAIT);
@@ -1018,12 +1018,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_NVIC_SystemReset();
 	}
 
-
-
-#ifdef NUCLEO_LIGHT_SHOW
-	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
-#endif
-
 	// See Errata section 2.2.4
 	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(RTC_IRQn);
@@ -1034,20 +1028,12 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	// Must call GetDate to keep the RTC happy, even if you don't use it
 	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
-#ifdef DEBUGGING_FAST_CYCLE
 	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
 			(initial_rtc_time.Minutes + 1);
-#else
-	wake_up_minute = 0;
-#endif
 
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
 	while (rtc_time.Minutes != wake_up_minute) {
-
-#ifdef NUCLEO_LIGHT_SHOW
-		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
-#endif
 		// Get the date and time
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
@@ -1081,31 +1067,31 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
 
 		// Immediately refresh the watchdog
-		HAL_IWDG_Refresh(device_handles->watchdog_handle);
+//		HAL_IWDG_Refresh(device_handles->watchdog_handle);
 		// Restore clocks to the same config as before stop2 mode
-		SystemClock_Restore();
+		SystemClock_Config();
+		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+		HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
+		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
+		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 		HAL_ResumeTick();
 		HAL_ICACHE_Enable();
-#ifdef NUCLEO_LIGHT_SHOW
-		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
-		HAL_Delay(500);
-#endif
 	}
 
 	// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
 	HAL_NVIC_DisableIRQ(RTC_IRQn);
 	HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
-#ifdef NUCLEO_LIGHT_SHOW
-	HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
-#endif
 
 	// Reset and resume the startup thread
-	if (tx_thread_reset(&startup_thread) != TX_SUCCESS){
+	tx_return = tx_thread_reset(&startup_thread);
+	if (tx_return != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
 	}
-	if (tx_thread_resume(&startup_thread) != TX_SUCCESS){
+
+	tx_return = tx_thread_resume(&startup_thread);
+	if (tx_return != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
 	}
@@ -1131,7 +1117,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 		} else {
 			memcpy(&(gnss->ubx_process_buf[0]), &(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
-			gnss->process_message(gnss);
+			tx_event_flags_set(&thread_control_flags, GNSS_MESSAGE_RECEIVED, TX_OR);
 		}
 	}
 
@@ -1160,11 +1146,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	// High frequency, low overhead ISR, no need to save/restore context
-	if (htim->Instance == TIM16) {
+	if (htim->Instance == TIM4) {
 		HAL_IncTick();
 	}
 	else if (htim->Instance == TIM17) {
 		iridium->timer_timeout = true;
+	}
+	else if (htim->Instance == TIM16) {
+		gnss->timer_timeout = true;
 	}
 }
 
@@ -1182,24 +1171,8 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
 
-#ifdef NUCLEO_LIGHT_SHOW
-	static uint32_t trigger = 0;
-	HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, ((trigger % 2 == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET));
-	trigger++;
-#endif
 }
 
-void stack_error_handler(TX_THREAD* thread_ptr)
-{
-	char message[75] = "Stack overflow detected from ";
-	strcat(message, thread_ptr->tx_thread_name);
-
-	iridium->transmit_error_message(iridium, message);
-
-	shut_it_all_down();
-	HAL_NVIC_SystemReset();
-
-}
 
 /**
   * @brief  Static function to flash a sequence of onboard LEDs to indicate
@@ -1212,59 +1185,6 @@ void stack_error_handler(TX_THREAD* thread_ptr)
   *
   * @retval Void
   */
-#ifdef NUCLEO_LIGHT_SHOW
-static void led_sequence(led_sequence_t sequence)
-{
-	switch (sequence) {
-		case INITIAL_LED_SEQUENCE:
-			for (int i = 0; i < 5; i++){
-				HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
-				HAL_Delay(250);
-				HAL_GPIO_WritePin(GPIOB, LED_BLUE_Pin, GPIO_PIN_SET);
-				HAL_Delay(250);
-				HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-				HAL_Delay(250);
-				HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_RESET);
-				HAL_Delay(250);
-				HAL_GPIO_WritePin(GPIOB, LED_BLUE_Pin, GPIO_PIN_RESET);
-				HAL_Delay(250);
-				HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
-				HAL_Delay(250);
-			}
-			break;
-
-		case TEST_PASSED_LED_SEQUENCE:
-			for (int i = 0; i < 10; i++){
-				HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-				HAL_Delay(500);
-				HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
-				HAL_Delay(500);
-			}
-			break;
-
-		case TEST_NON_CRITICAL_FAULT_LED_SEQUENCE:
-			for (int i = 0; i < 10; i++){
-				HAL_GPIO_WritePin(GPIOB, LED_BLUE_Pin, GPIO_PIN_SET);
-				HAL_Delay(500);
-				HAL_GPIO_WritePin(GPIOB, LED_BLUE_Pin, GPIO_PIN_RESET);
-				HAL_Delay(500);
-			}
-			break;
-
-		case TEST_CRITICAL_FAULT_LED_SEQUENCE:
-			for (int i = 0; i < 10; i++){
-				HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
-				HAL_Delay(500);
-				HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_RESET);
-				HAL_Delay(500);
-			}
-			break;
-
-		default:
-			break;
-	}
-}
-#else
 static void led_sequence(led_sequence_t sequence)
 {
 	switch (sequence) {
@@ -1312,7 +1232,6 @@ static void led_sequence(led_sequence_t sequence)
 			break;
 	}
 }
-#endif
 
 /**
   * @brief  callback function to start GNSS UART DMA reception. Passed to GNSS->self_test
@@ -1389,6 +1308,7 @@ void shut_it_all_down(void)
 	HAL_GPIO_WritePin(GPIOG, GNSS_FET_Pin, GPIO_PIN_RESET);
 	// Reset RF switch GPIOs. This will set it to be ported to the modem (safe case)
 	HAL_GPIO_WritePin(GPIOD, RF_SWITCH_VCTL_Pin, GPIO_PIN_RESET);
+	// Turn off power to the RF switch
 	HAL_GPIO_WritePin(GPIOD, RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
 	// Shut down CT sensor
 	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, GPIO_PIN_RESET);
@@ -1488,18 +1408,25 @@ static self_test_status_t initial_power_on_self_test(void)
   *
   * @retval void
   */
-static void jump_to_end_of_window()
+static void jump_to_end_of_window(ULONG error_bit_to_set)
 {
-	// turn off the GNSS sensor
 	gnss->on_off(gnss, GPIO_PIN_RESET);
+	tx_event_flags_set(&error_flags, error_bit_to_set, TX_OR);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(gnss->gnss_uart_handle);
 	HAL_DMA_DeInit(gnss->gnss_dma_handle);
+	HAL_TIM_Base_Stop_IT(gnss->minutes_timer);
+
+	if (waves_memory_pool_delete() != TX_SUCCESS) {
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
 
 	if (tx_thread_resume(&end_of_cycle_thread) != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
 	}
+	tx_thread_terminate(&gnss_thread);
 }
 
 /**
@@ -1554,75 +1481,5 @@ static void send_error_message(ULONG error_flags)
 	}
 }
 
-/**
-  * @brief  Restore the system clocks after coming out of a low power mode that disabled them.
-  *
-  * @param  void
-  *
-  * @retval void
-  */
-static void SystemClock_Restore(void)
-{
-	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
-	/* Deinitialize the RCC */
-	HAL_RCC_DeInit();
-
-	/* Enable Power Clock */
-	__HAL_RCC_PWR_CLK_ENABLE();
-
-
-	/** Configure the main internal regulator output voltage
-	*/
-	if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE4) != HAL_OK)
-	{
-		shut_it_all_down();
-		HAL_NVIC_SystemReset();
-	}
-
-	/** Configure LSE Drive Capability
-	*/
-	HAL_PWR_EnableBkUpAccess();
-	__HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
-
-	/** Initializes the CPU, AHB and APB buses clocks
-	*/
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
-							  |RCC_OSCILLATORTYPE_MSI;
-	RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-	RCC_OscInitStruct.LSIState = RCC_LSI_ON;
-	RCC_OscInitStruct.MSIState = RCC_MSI_ON;
-	RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
-	RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_3;
-	RCC_OscInitStruct.LSIDiv = RCC_LSI_DIV1;
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-	{
-		shut_it_all_down();
-		HAL_NVIC_SystemReset();
-	}
-
-	/** Initializes the CPU, AHB and APB buses clocks
-	*/
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-							  |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
-							  |RCC_CLOCKTYPE_PCLK3;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-	RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
-
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-	{
-		shut_it_all_down();
-		HAL_NVIC_SystemReset();
-	}
-
-	/** Enable MSI Auto calibration
-	*/
-	HAL_RCCEx_EnableMSIPLLMode();
-}
 
 /* USER CODE END 1 */

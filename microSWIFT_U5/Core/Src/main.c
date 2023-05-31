@@ -54,6 +54,7 @@ DMA_HandleTypeDef handle_GPDMA1_Channel2;
 
 RTC_HandleTypeDef hrtc;
 
+TIM_HandleTypeDef htim16;
 TIM_HandleTypeDef htim17;
 
 /* USER CODE BEGIN PV */
@@ -73,6 +74,7 @@ static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_IWDG_Init(void);
+static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
 /* USER CODE END PFP */
@@ -146,12 +148,15 @@ int main(void)
   MX_GPDMA1_Init();
   MX_RTC_Init();
   MX_ICACHE_Init();
+#if CT_ENABLED
   MX_UART4_Init();
+#endif
   MX_UART5_Init();
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
-  MX_IWDG_Init();
+//  MX_IWDG_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -167,11 +172,13 @@ int main(void)
   handles.Iridium_tx_dma_handle = &handle_GPDMA1_Channel2;
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
+  handles.gnss_timer = &htim16;
   handles.watchdog_handle = &hiwdg;
   handles.reset_reason = reset_reason;
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
+
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -261,11 +268,11 @@ static void SystemPower_Config(void)
   /*
    * SRAM Power Down In Stop Mode Config
    */
-  HAL_PWREx_EnableRAMsContentRunRetention(PWR_SRAM1_FULL_RUN_RETENTION);
-  HAL_PWREx_EnableRAMsContentRunRetention(PWR_SRAM2_FULL_RUN_RETENTION);
-  HAL_PWREx_EnableRAMsContentRunRetention(PWR_SRAM3_FULL_RUN_RETENTION);
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
+  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
   /*
    * Switch to SMPS regulator instead of LDO
@@ -326,7 +333,7 @@ static void MX_ADC4_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_5;
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
   sConfig.Rank = ADC4_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC4_SAMPLINGTIME_COMMON_1;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
@@ -667,6 +674,38 @@ static void MX_RTC_Init(void)
 }
 
 /**
+  * @brief TIM16 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM16_Init(void)
+{
+
+  /* USER CODE BEGIN TIM16_Init 0 */
+
+  /* USER CODE END TIM16_Init 0 */
+
+  /* USER CODE BEGIN TIM16_Init 1 */
+
+  /* USER CODE END TIM16_Init 1 */
+  htim16.Instance = TIM16;
+  htim16.Init.Prescaler = 12000;
+  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim16.Init.Period = 59999;
+  htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim16.Init.RepetitionCounter = 0;
+  htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM16_Init 2 */
+
+  /* USER CODE END TIM16_Init 2 */
+
+}
+
+/**
   * @brief TIM17 Initialization Function
   * @param None
   * @retval None
@@ -761,10 +800,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PF3 PF4 PF5 PF6
                            PF7 PF8 PF9 PF10
-                           PF11 PF12 PF13 */
+                           PF11 PF12 PF13 PF14
+                           PF15 */
   GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
                           |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13;
+                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
+                          |GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
@@ -884,7 +925,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -77,8 +77,13 @@ typedef enum control_flags{
 	GNSS_CONFIG_RECVD = 1 << 11,
 	CT_MSG_RECVD = 1 << 12,
 	IRIDIUM_MSG_RECVD = 1 << 13,
-	GNSS_CONFIG_REQUIRED = 1 << 14
-}control_flags_t;
+	GNSS_CONFIG_REQUIRED = 1 << 14,
+	GNSS_MESSAGE_RECEIVED = 1 << 15,
+	// GNSS timer flags
+	GNSS_INITIAL_RESOLUTION_STAGE = 1 << 16,
+	GNSS_WINDOW_PROCESSING_STAGE = 1 << 17
+} control_flags_t;
+
 
 typedef enum error_flags{
  	GNSS_ERROR = 1 << 1,

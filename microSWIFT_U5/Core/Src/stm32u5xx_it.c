@@ -64,7 +64,7 @@ extern DMA_HandleTypeDef handle_GPDMA1_Channel2;
 extern UART_HandleTypeDef hlpuart1;
 extern RTC_HandleTypeDef hrtc;
 extern TIM_HandleTypeDef htim17;
-extern TIM_HandleTypeDef htim16;
+extern TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN EV */
 extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
@@ -100,13 +100,8 @@ void HardFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-#ifdef DBUG
-	  shut_it_all_down();
-	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
-#else
 	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
-#endif
     /* USER CODE END W1_HardFault_IRQn 0 */
   }
 }
@@ -122,13 +117,8 @@ void MemManage_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
-#ifdef DBUG
-	  shut_it_all_down();
-	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
-#else
 	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
-#endif
     /* USER CODE END W1_MemoryManagement_IRQn 0 */
   }
 }
@@ -144,13 +134,8 @@ void BusFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_BusFault_IRQn 0 */
-#ifdef DBUG
-	  shut_it_all_down();
-	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
-#else
 	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
-#endif
     /* USER CODE END W1_BusFault_IRQn 0 */
   }
 }
@@ -166,13 +151,8 @@ void UsageFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
-#ifdef DBUG
-	  shut_it_all_down();
-	  HAL_GPIO_WritePin(GPIOG, LED_RED_Pin, GPIO_PIN_SET);
-#else
 	  shut_it_all_down();
 	  HAL_NVIC_SystemReset();
-#endif
     /* USER CODE END W1_UsageFault_IRQn 0 */
   }
 }
@@ -282,6 +262,20 @@ void GPDMA1_Channel3_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles TIM4 global interrupt.
+  */
+void TIM4_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM4_IRQn 0 */
+
+  /* USER CODE END TIM4_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim4);
+  /* USER CODE BEGIN TIM4_IRQn 1 */
+
+  /* USER CODE END TIM4_IRQn 1 */
+}
+
+/**
   * @brief This function handles LPUART1 global interrupt.
   */
 void LPUART1_IRQHandler(void)
@@ -293,20 +287,6 @@ void LPUART1_IRQHandler(void)
   /* USER CODE BEGIN LPUART1_IRQn 1 */
 
   /* USER CODE END LPUART1_IRQn 1 */
-}
-
-/**
-  * @brief This function handles TIM16 global interrupt.
-  */
-void TIM16_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM16_IRQn 0 */
-
-  /* USER CODE END TIM16_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim16);
-  /* USER CODE BEGIN TIM16_IRQn 1 */
-
-  /* USER CODE END TIM16_IRQn 1 */
 }
 
 /**

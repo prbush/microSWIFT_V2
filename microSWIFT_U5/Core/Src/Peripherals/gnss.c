@@ -14,7 +14,7 @@
 static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		size_t message_size);
 static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop);
-static void process_self_test_messages(GNSS* self, uint8_t* process_buf);
+static void process__frame_sync_messages(GNSS* self, uint8_t* process_buf);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes)__attribute__((unused));
 static uint32_t get_timestamp(GNSS* self)__attribute__((unused));
@@ -28,7 +28,7 @@ static void reset_struct_fields(GNSS* self)__attribute__((unused));
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
 		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
-		uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
+		TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
 		float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array)
 {
 	// initialize everything
@@ -42,6 +42,7 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 	reset_struct_fields(self);
 	self->control_flags = control_flags;
 	self->error_flags = error_flags;
+	self->minutes_timer = timer;
 	self->ubx_process_buf = ubx_process_buf;
 	self->config = gnss_config;
 	self->sync_and_start_reception = gnss_sync_and_start_reception;
@@ -52,7 +53,8 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 	self->on_off = gnss_on_off;
 	self->cycle_power = gnss_cycle_power;
 	self->set_rtc = gnss_set_rtc;
-	self->reset_uart = reset_gnss_uart;
+	self->reset_uart = gnss_reset_uart;
+	self->reset_timer = gnss_reset_timer;
 }
 
 /**
@@ -93,12 +95,12 @@ gnss_error_code_t gnss_config(GNSS* self){
 		// Send over the BBR config settings
 		if (send_config(self, &(config[0]), sizeof(config)) == GNSS_SUCCESS) {
 			return_code = GNSS_SUCCESS;
-			reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+			self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 			break;
 		}
 
 		HAL_Delay(100);
-		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 	}
 
 	return return_code;
@@ -119,13 +121,11 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 	uint8_t msg_buf[INITIAL_STAGES_BUFFER_SIZE];
 	memset(&(msg_buf[0]), 0, INITIAL_STAGES_BUFFER_SIZE);
 
-	self->on_off(self, GPIO_PIN_SET);
-
     // Grabbing and processing 5 samples takes ~ 1 second, so we'll keep trying until we hit
 	// the gnss_max_acquisition_wait_time
-	while (++fail_counter <= max_fails) {
+	while (!self->timer_timeout) {
 		// Grab 5 UBX_NAV_PVT messages
-		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		// Put a short delay between resetting UART and starting a DMA transfer
 		HAL_Delay(1);
 		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
@@ -142,8 +142,7 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 			continue;
 		}
 
-		process_self_test_messages(self, msg_buf);
-
+		process__frame_sync_messages(self, msg_buf);
 		// this both ensures we have good satellite reception and that our
 		// DMA reception is sync'd up with the GNSS chip
 		if (self->messages_processed == 5 &&
@@ -155,19 +154,19 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 		}
 	}
 
-	if (fail_counter == max_fails){
-		return return_code;
-	}
-
 	// Just to be overly sure we're starting the sampling window from a fresh slate
 	reset_struct_fields(self);
-	reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+	self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+
+	if (self->timer_timeout) {
+		return GNSS_TIME_RESOLUTION_ERROR;
+	}
 
 	return_code = start_dma(self, &(buffer[0]), msg_size);
 	// Make sure we start right next time around in case there was an issue starting DMA
 	if (return_code == GNSS_UART_ERROR) {
 		HAL_UART_DMAStop(self->gnss_uart_handle);
-		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		memset(&(buffer[0]), 0, msg_size);
 
 		tx_event_flags_set(self->error_flags, GNSS_ERROR, TX_OR);
@@ -252,17 +251,16 @@ void gnss_process_message(GNSS* self)
 		// Did we have at least 1 good sample?
 		if ((self->total_samples == 0) && (!velocities_exceed_max) && (!sAcc_exceeded_max)) {
 			self->all_resolution_stages_complete = true;
-			self->sample_window_start_time = HAL_GetTick();
+			self->sample_window_start_time = get_timestamp(self);
 		}
 
 		// Make sure we don't overflow our arrays
 		if (self->total_samples >= self->global_config->samples_per_window) {
 			HAL_UART_DMAStop(self->gnss_uart_handle);
-			self->sample_window_stop_time = HAL_GetTick();
+			self->sample_window_stop_time = get_timestamp(self);
 			self->all_samples_processed = true;
 			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
-					(((double)(self->sample_window_stop_time - self->sample_window_start_time) /
-					1000.0)));
+					(((double)(self->sample_window_stop_time - self->sample_window_start_time))));
 
 			return;
 		}
@@ -408,7 +406,7 @@ void gnss_cycle_power(GNSS* self)
  * @param self - GNSS struct
  * @param baud_rate - baud rate to set port to
  */
-gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate)
+gnss_error_code_t gnss_reset_uart(GNSS* self, uint16_t baud_rate)
 {
 
 	if (HAL_UART_DeInit(self->gnss_uart_handle) != HAL_OK) {
@@ -443,6 +441,41 @@ gnss_error_code_t reset_gnss_uart(GNSS* self, uint16_t baud_rate)
 	}
 
 	LL_DMA_ResetChannel(GPDMA1, LL_DMA_CHANNEL_0);
+
+	return GNSS_SUCCESS;
+}
+
+/**
+ * Reset and initialize timer.
+ *
+ * @param self - GNSS struct
+ * @param timeout_in_minutes - timeout in minutes
+ */
+gnss_error_code_t gnss_reset_timer(GNSS* self, uint8_t timeout_in_minutes)
+{
+	if (HAL_TIM_Base_DeInit(self->minutes_timer) != HAL_OK) {
+		return GNSS_TIMER_ERROR;
+	}
+	// For debugging, not practical to set the timeout to 0
+	if (timeout_in_minutes <= 0) {
+		self->minutes_timer->Init.Period = 1;
+		self->minutes_timer->Init.RepetitionCounter = 0;
+	}
+	else {
+		self->minutes_timer->Init.Period = 59999;
+		self->minutes_timer->Init.RepetitionCounter = timeout_in_minutes - 1;
+	}
+
+	self->minutes_timer->Instance = GNSS_TIMER_INSTANCE;
+	self->minutes_timer->Init.Prescaler = 12000;
+	self->minutes_timer->Init.CounterMode = TIM_COUNTERMODE_UP;
+	self->minutes_timer->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+	self->minutes_timer->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(self->minutes_timer) != HAL_OK) {
+		return GNSS_TIMER_ERROR;
+	}
+
+	__HAL_TIM_CLEAR_FLAG(self->minutes_timer, TIM_FLAG_UPDATE);
 
 	return GNSS_SUCCESS;
 }
@@ -581,7 +614,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 					if (response_msg_class == UBX_CFG_VALSET_CLASS &&
 							response_msg_id == UBX_CFG_VALSET_ID) {
 						// This is an acknowledgement of our configuration message
-						reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+						self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 						return GNSS_SUCCESS;
 					}
 				}
@@ -592,14 +625,14 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		}
 
 		// Reinitialize the UART port and restart DMA receive
-		reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		// Zero out the buffer to prevent reading old values
 		memset(&(msg_buf[0]),0,sizeof(msg_buf));
 		buf_start = (const char*)&(msg_buf[0]);
 		buf_end = buf_start;
 	}
 	// If we made it here, config failed 10 attempts
-	reset_gnss_uart(self, GNSS_DEFAULT_BAUD_RATE);
+    self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 	return GNSS_CONFIG_ERROR;
 }
 
@@ -639,7 +672,7 @@ static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
  * @param self- GNSS struct
  * @param
  */
-static void process_self_test_messages(GNSS* self, uint8_t* process_buf)
+static void process__frame_sync_messages(GNSS* self, uint8_t* process_buf)
 {
 	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
 	const char* buf_start = (const char*)&(process_buf[0]);
@@ -673,19 +706,8 @@ static void process_self_test_messages(GNSS* self, uint8_t* process_buf)
 			continue;
 		}
 
-		// need to keep track of how many messges were processsed in the buffer
+		// need to keep track of how many messages were processed in the buffer
 		self->messages_processed++;
-
-		// Only thing we're checking is that we have enough satellites in view
-		uint8_t num_satellites_tracked = payload[UBX_NAV_PVT_NUMSV_INDEX];
-
-		if (num_satellites_tracked < MIN_SATELLITES_TO_PASS_TEST) {
-			self->number_cycles_without_data++;
-			buf_length -= buf_end - buf_start;
-			buf_start = buf_end;
-			continue;
-		}
-
 		self->number_cycles_without_data = 0;
 		self->total_samples++;
 
@@ -830,4 +852,5 @@ static void reset_struct_fields(GNSS* self)
 	self->is_clock_set = false;
 	self->rtc_error = false;
 	self->all_samples_processed = false;
+	self->timer_timeout = false;
 }

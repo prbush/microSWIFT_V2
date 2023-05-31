@@ -46,7 +46,7 @@
 /**************************************************************************/
 
 SYSTEM_CLOCK      =   12000000
-SYSTICK_CYCLES    =   ((SYSTEM_CLOCK / 5) -1)
+SYSTICK_CYCLES    =   ((SYSTEM_CLOCK / 10) -1)
 
 /**************************************************************************/
 /*                                                                        */
@@ -261,7 +261,7 @@ __tx_DBGHandler:
 ;
 ;
 SYSTEM_CLOCK      EQU   12000000
-SYSTICK_CYCLES    EQU   ((SYSTEM_CLOCK / 5) -1)
+SYSTICK_CYCLES    EQU   ((SYSTEM_CLOCK / 10) -1)
 ;
 ;
 
@@ -456,7 +456,7 @@ __tx_DBGHandler:
 /**************************************************************************/
 
 SYSTEM_CLOCK      =   12000000
-SYSTICK_CYCLES    =   ((SYSTEM_CLOCK / 5) -1)
+SYSTICK_CYCLES    =   ((SYSTEM_CLOCK / 10) -1)
 
 /**************************************************************************/
 /*                                                                        */

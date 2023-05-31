@@ -17,22 +17,22 @@
 #define DUTY_CYCLE 60
 
 #define DEBUGGING_FAST_CYCLE
-#undef DEBUGGING_FAST_CYCLE
+//#undef DEBUGGING_FAST_CYCLE
 
 #ifdef DEBUGGING_FAST_CYCLE
 
 #define TOTAL_SAMPLES_PER_WINDOW 256
-#define IRIDIUM_MAX_TRANSMIT_TIME 1
-#define GNSS_MAX_ACQUISITION_WAIT_TIME 1
+#define IRIDIUM_MAX_TRANSMIT_TIME 10
+#define GNSS_MAX_ACQUISITION_WAIT_TIME 15
 
 #else
 // Number of samples in each sampling window
 #define TOTAL_SAMPLES_PER_WINDOW 8192
 // The max time in MINUTES to try to get an Iridium message off
-#define IRIDIUM_MAX_TRANSMIT_TIME 10
+#define IRIDIUM_MAX_TRANSMIT_TIME 30
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
-#define GNSS_MAX_ACQUISITION_WAIT_TIME 10
+#define GNSS_MAX_ACQUISITION_WAIT_TIME 15
 #endif
 
 // Sampling rate in Hz for the GNSS sensor
