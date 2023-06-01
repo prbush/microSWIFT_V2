@@ -918,13 +918,26 @@ void iridium_thread_entry(ULONG thread_input){
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
 
-	uint8_t ascii_7 = '7';
+	char packet_type = '0';
+	char id[2];
+	id[0] = '5';
+	id[1] = '5';
+	char total_bytes[3];
+	total_bytes[0] = '3';
+	total_bytes[1] = '2';
+	total_bytes[2] = '7';
+	char start_byte = '0';
+	char ascii_7 = '7';
 	uint8_t sbd_type = 52;
 	uint16_t sbd_size = 327;
 	real16_T sbd_voltage = floatToHalf(6.2);
 	float sbd_timestamp = iridium->get_timestamp(iridium);
 	// finish filling out the sbd message
-	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(uint8_t));
+	memcpy(&(sbd_message.packet_type), &packet_type, sizeof(char));
+	memcpy(&(sbd_message.ID[0]), &(id[0]), sizeof(char) * 2);
+	memcpy(&(sbd_message.total_bytes[0]), &(total_bytes[0]), sizeof(char) * 3);
+	memcpy(&(sbd_message.start_byte), &start_byte, sizeof(char));
+	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(char));
 	memcpy(&sbd_message.type, &sbd_type, sizeof(uint8_t));
 	memcpy(&sbd_message.size, &sbd_size, sizeof(uint16_t));
 	memcpy(&sbd_message.mean_voltage, &sbd_voltage, sizeof(real16_T));
@@ -933,6 +946,8 @@ void iridium_thread_entry(ULONG thread_input){
 	// This will turn on the modem and make sure the caps are charged
 	iridium->self_test(iridium);
 
+	// Copy the last location from GNSS (previously placed in SBD message) to
+	// the Lat/Lon fields in Iridium struct
 	memcpy(&iridium->current_lat, &sbd_message.Lat, sizeof(float));
 	memcpy(&iridium->current_lon, &sbd_message.Lon, sizeof(float));
 

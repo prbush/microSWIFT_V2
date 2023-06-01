@@ -330,16 +330,12 @@ gnss_error_code_t gnss_get_running_average_velocities(GNSS* self)
 	float substitute_north, substitute_east, substitute_down;
 	// avoid a divide by zero error
 	if (self->total_samples > 0) {
-		substitute_north = ((float)self->v_north_sum) /
+		substitute_north = (((float)self->v_north_sum) / MM_PER_METER) /
 				((float)self->total_samples);
-		substitute_east = ((float)self->v_east_sum) /
+		substitute_east = (((float)self->v_east_sum) / MM_PER_METER) /
 				((float)self->total_samples);
-		substitute_down = ((float)self->v_down_sum) /
+		substitute_down = (((float)self->v_down_sum) / MM_PER_METER) /
 				((float)self->total_samples);
-
-		self->v_north_sum += (int32_t)substitute_north;
-		self->v_east_sum += (int32_t)substitute_east;
-		self->v_down_sum += (int32_t)substitute_down;
 
 		self->GNSS_N_Array[self->total_samples] = substitute_north;
 		self->GNSS_E_Array[self->total_samples] = substitute_east;

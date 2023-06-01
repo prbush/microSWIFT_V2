@@ -82,7 +82,11 @@ typedef enum iridium_error_code{
 #define CURRENT_CENTURY 2000
 
 typedef struct sbd_message_type_52 {
-		 uint8_t		legacy_number_7;
+		 char			packet_type;
+		 char		    ID[2];
+		 char			total_bytes[3];
+		 char			start_byte;
+		 char			legacy_number_7;
 		 uint8_t 		type;
 		 uint8_t 		port;
 __packed uint16_t 		size;
