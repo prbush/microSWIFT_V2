@@ -908,14 +908,12 @@ void iridium_thread_entry(ULONG thread_input){
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
 
-	char header[11] = "0,5,327,0:";
 	char ascii_7 = '7';
 	uint8_t sbd_type = 52;
 	uint16_t sbd_size = 327;
 	real16_T sbd_voltage = floatToHalf(6.2);
 	float sbd_timestamp = iridium->get_timestamp(iridium);
 	// finish filling out the sbd message
-	memcpy(&(sbd_message.header[0]), &(header[0]), sizeof(char) * 10);
 	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(char));
 	memcpy(&sbd_message.type, &sbd_type, sizeof(uint8_t));
 	memcpy(&sbd_message.size, &sbd_size, sizeof(uint16_t));
