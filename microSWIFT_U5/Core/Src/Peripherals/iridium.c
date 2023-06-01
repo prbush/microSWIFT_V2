@@ -492,7 +492,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	// Send the message that was just generated
 	while (!self->timer_timeout && !message_tx_success) {
 		return_code = internal_transmit_message(self, (uint8_t*)self->current_message,
-				sizeof(sbd_message_type_52));
+				sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
 
 		if (return_code == IRIDIUM_UART_ERROR) {
 			cycle_power(self);
@@ -639,20 +639,19 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 			// Grab the MO status
 			SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
 
+			HAL_Delay(ONE_SECOND * 15);
+
 			if (SBDI_response_code == 1) {
 				if (send_basic_command_message(self, clear_MO, SBDD_RESPONSE_SIZE, ONE_SECOND * 10) ==
 											IRIDIUM_COMMAND_RESPONSE_ERROR) {
 					cycle_power(self);
 				}
 				return IRIDIUM_SUCCESS;
-			} else if (SBDI_response_code == 0) {
-				memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-				break;
 			}
 
 			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+			break;
 		}
 	}
 

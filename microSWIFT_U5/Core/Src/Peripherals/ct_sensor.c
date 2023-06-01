@@ -193,6 +193,7 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 
 		if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
 				&actual_flags, required_ticks_to_get_message) != TX_SUCCESS) {
+
 			HAL_UART_DMAStop(self->ct_uart_handle);
 			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 			HAL_Delay(103);
