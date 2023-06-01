@@ -1381,17 +1381,17 @@ static self_test_status_t initial_power_on_self_test(void)
 	// Only do this on initial power up, else leave it alone!
 	iridium->queue_flush(iridium);
 	// See if we can get an ack message from the modem
-//	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
-//		return_code = SELF_TEST_CRITICAL_FAULT;
-//		tx_event_flags_set(&error_flags, MODEM_ERROR, TX_OR);
-//		return return_code;
-//	}
-//	// Send the configuration settings to the modem
-//	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
-//		return_code = SELF_TEST_CRITICAL_FAULT;
-//		tx_event_flags_set(&error_flags, MODEM_ERROR, TX_OR);
-//		return return_code;
-//	}
+	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
+		return_code = SELF_TEST_CRITICAL_FAULT;
+		tx_event_flags_set(&error_flags, MODEM_ERROR, TX_OR);
+		return return_code;
+	}
+	// Send the configuration settings to the modem
+	if (iridium->config(iridium) != IRIDIUM_SUCCESS) {
+		return_code = SELF_TEST_CRITICAL_FAULT;
+		tx_event_flags_set(&error_flags, MODEM_ERROR, TX_OR);
+		return return_code;
+	}
 	// We'll keep power to the modem but put it to sleep
 	iridium->sleep(iridium, GPIO_PIN_RESET);
 
