@@ -14,11 +14,11 @@
 
 // For testing and debugging with a very short sample window
 #define DEBUGGING_FAST_CYCLE
-//#undef DEBUGGING_FAST_CYCLE
+#undef DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
 #define SHORT_SLEEP
-//#undef SHORT_SLEEP
+#undef SHORT_SLEEP
 
 #ifdef DEBUGGING_FAST_CYCLE
 

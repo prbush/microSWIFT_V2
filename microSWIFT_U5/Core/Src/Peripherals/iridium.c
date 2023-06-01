@@ -130,7 +130,7 @@ iridium_error_code_t iridium_config(Iridium* self)
  *
  * @return iridium_error_code_t
  */
-iridium_error_code_t iridium_self_test(Iridium* self)
+iridium_error_code_t iridium_self_test(Iridium* self, uint32_t warmup_time)
 {
 	int fail_counter;
 	uint32_t start_time = 0, elapsed_time = 0;
@@ -141,7 +141,7 @@ iridium_error_code_t iridium_self_test(Iridium* self)
 
 	start_time = HAL_GetTick();
 	// Wait an appropriate amount of time for the caps to charge
-	while (elapsed_time < IRIDIUM_CAP_CHARGE_TIME) {
+	while (elapsed_time < warmup_time) {
 		HAL_Delay(1000);
 		elapsed_time = HAL_GetTick() - start_time;
 	}

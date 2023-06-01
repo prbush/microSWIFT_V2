@@ -37,7 +37,8 @@ typedef enum iridium_error_code{
 } iridium_error_code_t;
 
 // Macros
-#define IRIDIUM_CAP_CHARGE_TIME 20000
+#define IRIDIUM_INITIAL_CAP_CHARGE_TIME 30000
+#define IRIDIUM_TOP_UP_CAP_CHARGE_TIME 10000
 #define MAX_RETRIES 10
 #define ACK_MESSAGE_SIZE 9
 #define DISABLE_FLOW_CTRL_SIZE 12
@@ -82,10 +83,7 @@ typedef enum iridium_error_code{
 #define CURRENT_CENTURY 2000
 
 typedef struct sbd_message_type_52 {
-		 char			packet_type;
-		 char		    ID[2];
-		 char			total_bytes[3];
-		 char			start_byte;
+		 char			header[10];
 		 char			legacy_number_7;
 		 uint8_t 		type;
 		 uint8_t 		port;
@@ -138,7 +136,7 @@ typedef struct Iridium {
 	float current_lon;
 
 	iridium_error_code_t (*config)(struct Iridium* self);
-	iridium_error_code_t (*self_test)(struct Iridium* self);
+	iridium_error_code_t (*self_test)(struct Iridium* self, uint32_t warmup_time);
 	iridium_error_code_t (*transmit_message)(struct Iridium* self);
 	iridium_error_code_t (*transmit_error_message)(struct Iridium* self, char* error_message);
 	float				 (*get_timestamp)(struct Iridium* self);
@@ -176,7 +174,7 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 		uint8_t* error_message_buffer, uint8_t* response_buffer,
 		Iridium_message_storage* storage_queue);
 iridium_error_code_t iridium_config(Iridium* self);
-iridium_error_code_t iridium_self_test(Iridium* self);
+iridium_error_code_t iridium_self_test(Iridium* self, uint32_t warmup_time);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
 iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_message);
 void				 iridium_sleep(Iridium* self, GPIO_PinState pin_state);

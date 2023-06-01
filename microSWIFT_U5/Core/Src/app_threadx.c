@@ -117,6 +117,7 @@ extern void SystemClock_Config(void);
 static self_test_status_t initial_power_on_self_test(void);
 static void led_sequence(uint8_t sequence);
 static void jump_to_end_of_window(ULONG error_bit_to_set);
+static void jump_to_waves(void);
 static void send_error_message(ULONG error_flags);
 void shut_it_all_down(void);
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
@@ -778,11 +779,7 @@ void ct_thread_entry(ULONG thread_input){
 
 	// If the CT sensor doesn't respond, set the error flag and quit
 	if (ct->self_test(ct, true) != CT_SUCCESS) {
-		tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
-		tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
-		tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
-
-		tx_thread_terminate(&ct_thread);
+		jump_to_waves();
 	}
 
 	// Take our samples
@@ -796,11 +793,7 @@ void ct_thread_entry(ULONG thread_input){
 		if ((ct_parsing_error_counter >= 10) || (return_code == CT_UART_ERROR)) {
 			// If there are too many parsing errors or a UART error occurs, then
 			// stop trying and
-			tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
-			tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
-			tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
-
-			tx_thread_terminate(&ct_thread);
+			jump_to_waves();
 		}
 
 		if (return_code == CT_DONE_SAMPLING) {
@@ -818,10 +811,7 @@ void ct_thread_entry(ULONG thread_input){
 	return_code = ct->get_averages(ct);
 	// Make sure something didn't go terribly wrong
 	if (return_code == CT_NOT_ENOUGH_SAMPLES) {
-		tx_event_flags_set(&error_flags, CT_ERROR, TX_OR);
-		tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
-		tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
-		tx_thread_terminate(&ct_thread);
+		jump_to_waves();
 	}
 
 	// Now set the mean salinity and temp values to the real ones
@@ -918,25 +908,14 @@ void iridium_thread_entry(ULONG thread_input){
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
 
-	char packet_type = '0';
-	char id[2];
-	id[0] = '5';
-	id[1] = '5';
-	char total_bytes[3];
-	total_bytes[0] = '3';
-	total_bytes[1] = '2';
-	total_bytes[2] = '7';
-	char start_byte = '0';
+	char header[11] = "0,5,327,0:";
 	char ascii_7 = '7';
 	uint8_t sbd_type = 52;
 	uint16_t sbd_size = 327;
 	real16_T sbd_voltage = floatToHalf(6.2);
 	float sbd_timestamp = iridium->get_timestamp(iridium);
 	// finish filling out the sbd message
-	memcpy(&(sbd_message.packet_type), &packet_type, sizeof(char));
-	memcpy(&(sbd_message.ID[0]), &(id[0]), sizeof(char) * 2);
-	memcpy(&(sbd_message.total_bytes[0]), &(total_bytes[0]), sizeof(char) * 3);
-	memcpy(&(sbd_message.start_byte), &start_byte, sizeof(char));
+	memcpy(&(sbd_message.header[0]), &(header[0]), sizeof(char) * 10);
 	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(char));
 	memcpy(&sbd_message.type, &sbd_type, sizeof(uint8_t));
 	memcpy(&sbd_message.size, &sbd_size, sizeof(uint16_t));
@@ -944,7 +923,7 @@ void iridium_thread_entry(ULONG thread_input){
 	memcpy(&sbd_message.timestamp, &sbd_timestamp, sizeof(float));
 
 	// This will turn on the modem and make sure the caps are charged
-	iridium->self_test(iridium);
+	iridium->self_test(iridium, IRIDIUM_TOP_UP_CAP_CHARGE_TIME);
 
 	// Copy the last location from GNSS (previously placed in SBD message) to
 	// the Lat/Lon fields in Iridium struct
@@ -1250,9 +1229,9 @@ static void led_sequence(led_sequence_t sequence)
 
 		case TEST_NON_CRITICAL_FAULT_LED_SEQUENCE:
 			for (int i = 0; i < 20; i++){
-				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
-				HAL_Delay(250);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+				HAL_Delay(250);
+				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
 				HAL_Delay(250);
 			}
 			break;
@@ -1396,7 +1375,7 @@ static self_test_status_t initial_power_on_self_test(void)
 	// Only do this on initial power up, else leave it alone!
 	iridium->queue_flush(iridium);
 	// See if we can get an ack message from the modem
-	if (iridium->self_test(iridium) != IRIDIUM_SUCCESS) {
+	if (iridium->self_test(iridium, IRIDIUM_INITIAL_CAP_CHARGE_TIME) != IRIDIUM_SUCCESS) {
 		return_code = SELF_TEST_CRITICAL_FAULT;
 		tx_event_flags_set(&error_flags, MODEM_ERROR, TX_OR);
 		return return_code;
@@ -1463,6 +1442,27 @@ static void jump_to_end_of_window(ULONG error_bit_to_set)
 		HAL_NVIC_SystemReset();
 	}
 	tx_thread_terminate(&gnss_thread);
+}
+
+/**
+  * @brief  Break out of the GNSS thread and jump to end_of_cycle_thread
+  *
+  * @param  thread_to_terminate - thread which called this
+  *
+  * @retval void
+  */
+static void jump_to_waves(void)
+{
+	ct->on_off(ct, GPIO_PIN_RESET);
+	// Deinit UART and DMA to prevent spurious interrupts
+	HAL_UART_DeInit(ct->ct_uart_handle);
+	HAL_DMA_DeInit(ct->ct_dma_handle);
+
+	if (tx_thread_resume(&waves_thread) != TX_SUCCESS){
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+	tx_thread_terminate(&ct_thread);
 }
 
 /**
