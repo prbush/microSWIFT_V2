@@ -12,12 +12,13 @@
 #include "stdbool.h"
 #include "stdint.h"
 
-// Time in minutes representing a sample period. Any time left after sampling
-// and transmission will be spent in sleep mode
-#define DUTY_CYCLE 60
-
+// For testing and debugging with a very short sample window
 #define DEBUGGING_FAST_CYCLE
 #undef DEBUGGING_FAST_CYCLE
+
+// If a 1 min sleep window is desired
+#define SHORT_SLEEP
+//#undef SHORT_SLEEP
 
 #ifdef DEBUGGING_FAST_CYCLE
 
@@ -42,10 +43,9 @@
 // If the IMU will be utilized or not
 #define IMU_ENABLED false
 // If there is a CT sensor present
-#define CT_ENABLED false
+#define CT_ENABLED true
 
 typedef struct microSWIFT_configuration{
-	uint32_t duty_cycle;
 	uint32_t samples_per_window;
 	uint32_t iridium_max_transmit_time;
 	uint32_t gnss_max_acquisition_wait_time;

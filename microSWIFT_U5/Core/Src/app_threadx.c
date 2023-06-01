@@ -371,7 +371,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 void MX_ThreadX_Init(device_handles_t *handles)
 {
   device_handles = handles;
-  configuration.duty_cycle = DUTY_CYCLE;
   configuration.samples_per_window = TOTAL_SAMPLES_PER_WINDOW;
   configuration.iridium_max_transmit_time = IRIDIUM_MAX_TRANSMIT_TIME;
   configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
@@ -1027,8 +1026,12 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	// Must call GetDate to keep the RTC happy, even if you don't use it
 	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
+#ifdef SHORT_SLEEP
 	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
 			(initial_rtc_time.Minutes + 1);
+#else
+	wake_up_minute = 0;
+#endif
 
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
