@@ -50,7 +50,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-TX_SEMAPHORE window_started_semaphone;
 // Our DMA linked list queue needed to use circular mode with GNSS UART DMA
 extern DMA_QListTypeDef GNSS_LL_Queue;
 // The configuration struct
@@ -60,7 +59,6 @@ sbd_message_type_52 sbd_message;
 // The primary byte pool from which all memory is allocated from
 TX_BYTE_POOL *byte_pool;
 // Our threads
-TX_THREAD watchdog_thread;
 TX_THREAD startup_thread;
 TX_THREAD gnss_thread;
 TX_THREAD imu_thread;
@@ -145,18 +143,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
    /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
 	CHAR *pointer = TX_NULL;
-//	//
-//	// Allocate stack for the watchdog thread
-//	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_SMALL_STACK_SIZE, TX_NO_WAIT);
-//	if (ret != TX_SUCCESS){
-//	  return ret;
-//	}
-//	// Create the startup thread. HIGHEST priority level and no preemption possible
-//	ret = tx_thread_create(&watchdog_thread, "watchdog thread", watchdog_thread_entry, 0, pointer,
-//			THREAD_SMALL_STACK_SIZE, HIGHEST, HIGHEST, TX_NO_TIME_SLICE, TX_AUTO_START);
-//	if (ret != TX_SUCCESS){
-//	  return ret;
-//	}
 	//
 	// Allocate stack for the startup thread
 	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
@@ -230,12 +216,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	  return ret;
 	}
 	//
-	// Create the watchdog window started semaphone
-	ret = tx_semaphore_create(&window_started_semaphone, "window started semaphore", 0);
-	if (ret != TX_SUCCESS) {
-	  return ret;
-	}
-	//
 	// The rf switch struct
 	ret = tx_byte_allocate(byte_pool, (VOID**) &rf_switch, sizeof(RF_Switch) + 100, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
@@ -243,19 +223,19 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	//
 	// The UBX message array
-	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, (UBX_MESSAGE_SIZE * 2)+ 100, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_DMA_message_buf, (UBX_MESSAGE_SIZE * 2) + 100, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	//
 	// The UBX process buffer
-	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_message_process_buf, (UBX_MESSAGE_SIZE * 2)+ 100, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_message_process_buf, (UBX_MESSAGE_SIZE * 2) + 100, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	//
 	// The gnss struct
-	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss, sizeof(GNSS)+ 100, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss, sizeof(GNSS) + 100, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
@@ -326,13 +306,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 #if CT_ENABLED
 	//
 	// Allocate stack for the CT thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Create the CT thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&ct_thread, "ct thread", ct_thread_entry, 0, pointer,
-		  THREAD_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_DONT_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_DONT_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -388,55 +368,6 @@ void MX_ThreadX_Init(device_handles_t *handles)
 }
 
 /* USER CODE BEGIN 1 */
-/**
-  * @brief  Watchdog thread entry
-  *         This thread will initialize and refresh the watchdog (IWDG) timer up until
-  *         a maximum time. If maximum time is exceeded, the watchdog will not be refreshed
-  *         and a system reset will be executed. If the semaphone window_started_semaphone
-  *         is not put within the first minute of program execution, this thread will
-  *         terminate and a reset will be forced.
-  * @param  ULONG thread_input - unused
-  * @retval void
-  */
-void watchdog_thread_entry(ULONG thread_input)
-{
-	UINT tx_return;
-	uint32_t window_start_time = 0;
-	uint32_t elapsed_time = 0;
-	// 60 minutes in milliseconds
-	uint32_t max_sample_window_duration = MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES * MILLISECONDS_PER_MINUTE;
-	// 1 minute in milliseconds
-	uint32_t max_initial_wait_time = 1 * MILLISECONDS_PER_MINUTE;
-
-	while(elapsed_time < max_sample_window_duration) {
-
-		tx_return = tx_semaphore_get(&window_started_semaphone, TX_NO_WAIT);
-
-		if (tx_return == TX_SUCCESS) {
-			window_start_time = HAL_GetTick();
-		}
-
-		elapsed_time = HAL_GetTick() - window_start_time;
-
-		if (window_start_time == 0) {
-			if (elapsed_time > max_initial_wait_time) {
-				shut_it_all_down();
-				tx_thread_terminate(&watchdog_thread);
-			}
-		}
-
-		HAL_IWDG_Refresh(device_handles->watchdog_handle);
-		// We'll refresh the watchdog once every 10 seconds
-		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 10);
-	}
-
-	// In no case should an hour elapse between starting a window and the next window starting,
-	// so we will pause this thread to make sure the watchdog is not refreshed
-	shut_it_all_down();
-	tx_thread_terminate(&watchdog_thread);
-
-}
-
 
 /**
   * @brief  Startup thread entry
@@ -450,13 +381,9 @@ void startup_thread_entry(ULONG thread_input){
 	ULONG actual_flags = 0;
 	UINT tx_return;
 	int fail_counter = 0;
-	RTC_DateTypeDef rtc_date __attribute__((unused)); // unused
-
 
 	// Zero out the sbd message struct
 	memset(&sbd_message, 0, sizeof(sbd_message));
-	// Put this semaphore to set the window start time with the watchdog thread
-	tx_semaphore_put(&window_started_semaphone);
 
 	// Set the watchdog reset or software reset flags
 	if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG){
@@ -627,9 +554,6 @@ void gnss_thread_entry(ULONG thread_input){
 	uint8_t sample_window_timeout = ((configuration.samples_per_window / configuration.gnss_sampling_rate)
 			/ 60) + 1;
 
-	// Wait until we get the ready flag
-//	tx_event_flags_get(&thread_control_flags, GNSS_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
-
 	// Grab the RF switch
 	rf_switch->set_gnss_port(rf_switch);
 
@@ -710,8 +634,6 @@ void gnss_thread_entry(ULONG thread_input){
 	sbd_port = (gnss->total_samples_averaged > 255) ? 255 : gnss->total_samples_averaged;
 	memcpy(&sbd_message.port, &sbd_port, sizeof(uint8_t));
 
-//	tx_event_flags_set(&thread_control_flags, GNSS_DONE, TX_OR);
-
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
 
@@ -768,8 +690,6 @@ void ct_thread_entry(ULONG thread_input){
 	real16_T half_salinity;
 	real16_T half_temp;
 
-//	tx_event_flags_get(&thread_control_flags, GNSS_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
-
 	// Set the mean salinity and temp values to error values in the event the sensor fails
 	half_salinity.bitPattern = CT_AVERAGED_VALUE_ERROR_CODE;
 	half_temp.bitPattern = CT_AVERAGED_VALUE_ERROR_CODE;
@@ -815,14 +735,12 @@ void ct_thread_entry(ULONG thread_input){
 	}
 
 	// Now set the mean salinity and temp values to the real ones
-	half_salinity = floatToHalf(ct->averages.salinity);
-	half_temp = floatToHalf(ct->averages.temp);
+	half_salinity = floatToHalf((float)ct->averages.salinity);
+	half_temp = floatToHalf((float)ct->averages.temp);
 
 	memcpy(&sbd_message.mean_salinity, &half_salinity, sizeof(real16_T));
 	memcpy(&sbd_message.mean_temp, &half_temp, sizeof(real16_T));
 
-//	tx_event_flags_set(&thread_control_flags, CT_DONE, TX_OR);
-//	tx_event_flags_set(&thread_control_flags, WAVES_READY, TX_OR);
 	if (tx_thread_resume(&waves_thread) != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
@@ -840,9 +758,6 @@ void ct_thread_entry(ULONG thread_input){
   * @retval void
   */
 void waves_thread_entry(ULONG thread_input){
-
-//	ULONG actual_flags;
-//	tx_event_flags_get(&thread_control_flags, WAVES_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 
 	// Function return parameters
 	real16_T E[42];
@@ -865,6 +780,7 @@ void waves_thread_entry(ULONG thread_input){
 	emxDestroyArray_real32_T(east);
 	emxDestroyArray_real32_T(north);
 
+	// Delete the memory pool to fix the memory leak in NEDwaves_memlight
 	if (waves_memory_pool_delete() != TX_SUCCESS) {
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
@@ -882,8 +798,6 @@ void waves_thread_entry(ULONG thread_input){
 	memcpy(&(sbd_message.b2_array[0]), &(b2[0]), 42 * sizeof(signed char));
 	memcpy(&(sbd_message.cf_array[0]), &(check[0]), 42 * sizeof(unsigned char));
 
-//	tx_event_flags_set(&thread_control_flags, WAVES_DONE, TX_OR);
-
 	if (tx_thread_resume(&iridium_thread) != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
@@ -900,10 +814,7 @@ void waves_thread_entry(ULONG thread_input){
   * @retval void
   */
 void iridium_thread_entry(ULONG thread_input){
-//	ULONG actual_flags;
 	iridium_error_code_t return_code __attribute__((unused));
-
-//	tx_event_flags_get(&thread_control_flags, WAVES_DONE, TX_OR, &actual_flags, TX_WAIT_FOREVER);
 
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
@@ -913,7 +824,7 @@ void iridium_thread_entry(ULONG thread_input){
 	uint16_t sbd_size = 327;
 	real16_T sbd_voltage = floatToHalf(6.2);
 	float sbd_timestamp = iridium->get_timestamp(iridium);
-	// finish filling out the sbd message
+	// finish filling out the SBD message
 	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(char));
 	memcpy(&sbd_message.type, &sbd_type, sizeof(uint8_t));
 	memcpy(&sbd_message.size, &sbd_size, sizeof(uint16_t));
@@ -937,8 +848,6 @@ void iridium_thread_entry(ULONG thread_input){
 	HAL_UART_DeInit(iridium->iridium_uart_handle);
 	HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
 	HAL_DMA_DeInit(iridium->iridium_tx_dma_handle);
-
-//	tx_event_flags_set(&thread_control_flags, IRIDIUM_DONE, TX_OR);
 
 	if (tx_thread_resume(&end_of_cycle_thread) != TX_SUCCESS){
 		shut_it_all_down();
@@ -993,6 +902,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	// If we have an error flag, send an error message
 	if (actual_error_flags) {
+		rf_switch->power_on();
 		rf_switch->set_iridium_port(rf_switch);
 		iridium->sleep(iridium, GPIO_PIN_SET);
 		iridium->on_off(iridium, GPIO_PIN_SET);
@@ -1000,6 +910,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 		iridium->sleep(iridium, GPIO_PIN_RESET);
 		iridium->on_off(iridium, GPIO_PIN_RESET);
+		rf_switch->power_off();
 	}
 
 	// If something went wrong with the RTC, we'll reset
@@ -1059,9 +970,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_SuspendTick();
 
 		HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
-
-		// Immediately refresh the watchdog
-//		HAL_IWDG_Refresh(device_handles->watchdog_handle);
 		// Restore clocks to the same config as before stop2 mode
 		SystemClock_Config();
 		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
@@ -1439,6 +1347,7 @@ static void jump_to_end_of_window(ULONG error_bit_to_set)
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
 	}
+
 	tx_thread_terminate(&gnss_thread);
 }
 
@@ -1460,6 +1369,7 @@ static void jump_to_waves(void)
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
 	}
+
 	tx_thread_terminate(&ct_thread);
 }
 

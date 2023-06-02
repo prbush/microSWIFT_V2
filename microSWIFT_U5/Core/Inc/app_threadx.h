@@ -137,7 +137,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr);
 
 /* USER CODE BEGIN EFP */
 void MX_ThreadX_Init(device_handles_t *handles);
-void watchdog_thread_entry(ULONG thread_input);
 void startup_thread_entry(ULONG thread_input);
 void gnss_thread_entry(ULONG thread_input);
 void waves_thread_entry(ULONG thread_input);

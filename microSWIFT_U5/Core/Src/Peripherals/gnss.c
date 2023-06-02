@@ -143,8 +143,8 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 		}
 
 		process__frame_sync_messages(self, msg_buf);
-		// this both ensures we have good satellite reception and that our
-		// DMA reception is sync'd up with the GNSS chip
+		// this both ensures we have frame sync'd with the GNSS sensor and are safe
+		// to kick off circular DMA receive
 		if (self->messages_processed == 5 &&
 				self->number_cycles_without_data == 0 &&
 				self->total_samples == 5)

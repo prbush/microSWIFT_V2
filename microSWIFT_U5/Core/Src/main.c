@@ -42,8 +42,6 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
 
-IWDG_HandleTypeDef hiwdg;
-
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
@@ -62,7 +60,7 @@ TIM_HandleTypeDef htim17;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
+extern void SystemClock_Config(void);
 static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_GPDMA1_Init(void);
@@ -73,7 +71,6 @@ static void MX_UART5_Init(void);
 static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
-static void MX_IWDG_Init(void);
 static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
@@ -155,7 +152,6 @@ int main(void)
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
-//  MX_IWDG_Init();
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
@@ -173,7 +169,7 @@ int main(void)
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
   handles.gnss_timer = &htim16;
-  handles.watchdog_handle = &hiwdg;
+  handles.watchdog_handle = 0; // watchdog unused
   handles.reset_reason = reset_reason;
 
   MX_ThreadX_Init(&handles);
@@ -418,35 +414,6 @@ static void MX_ICACHE_Init(void)
 
 }
 
-/**
-  * @brief IWDG Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_IWDG_Init(void)
-{
-
-  /* USER CODE BEGIN IWDG_Init 0 */
-
-  /* USER CODE END IWDG_Init 0 */
-
-  /* USER CODE BEGIN IWDG_Init 1 */
-
-  /* USER CODE END IWDG_Init 1 */
-  hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_512;
-  hiwdg.Init.Window = 4094;
-  hiwdg.Init.Reload = 4094;
-  hiwdg.Init.EWI = 0;
-  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN IWDG_Init 2 */
-
-  /* USER CODE END IWDG_Init 2 */
-
-}
 
 /**
   * @brief LPUART1 Initialization Function

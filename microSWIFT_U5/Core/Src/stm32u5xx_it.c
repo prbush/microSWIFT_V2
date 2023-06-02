@@ -192,20 +192,6 @@ void RTC_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles IWDG global interrupt.
-  */
-void IWDG_IRQHandler(void)
-{
-  /* USER CODE BEGIN IWDG_IRQn 0 */
-
-  /* USER CODE END IWDG_IRQn 0 */
-  HAL_IWDG_IRQHandler(&hiwdg);
-  /* USER CODE BEGIN IWDG_IRQn 1 */
-
-  /* USER CODE END IWDG_IRQn 1 */
-}
-
-/**
   * @brief This function handles GPDMA1 Channel 0 global interrupt.
   */
 void GPDMA1_Channel0_IRQHandler(void)
