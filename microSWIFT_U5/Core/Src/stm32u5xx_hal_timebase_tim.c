@@ -25,12 +25,12 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-TIM_HandleTypeDef        htim16;
+TIM_HandleTypeDef        htim4;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
 /**
-  * @brief  This function configures the TIM16 as a time base source.
+  * @brief  This function configures the TIM4 as a time base source.
   *         The time source is configured  to have 1ms time base with a dedicated
   *         Tick interrupt priority.
   * @note   This function is called  automatically at the beginning of program after
@@ -46,42 +46,42 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
   uint32_t              pFLatency;
   HAL_StatusTypeDef     status;
 
-  /* Enable TIM16 clock */
-  __HAL_RCC_TIM16_CLK_ENABLE();
+  /* Enable TIM4 clock */
+  __HAL_RCC_TIM4_CLK_ENABLE();
 
   /* Get clock configuration */
   HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
 
-  /* Compute TIM16 clock */
-  uwTimclock = HAL_RCC_GetPCLK2Freq();
-  /* Compute the prescaler value to have TIM16 counter clock equal to 1MHz */
+  /* Compute TIM4 clock */
+  uwTimclock = HAL_RCC_GetPCLK1Freq();
+  /* Compute the prescaler value to have TIM4 counter clock equal to 1MHz */
   uwPrescalerValue = (uint32_t) ((uwTimclock / 1000000U) - 1U);
 
-  /* Initialize TIM16 */
-  htim16.Instance = TIM16;
+  /* Initialize TIM4 */
+  htim4.Instance = TIM4;
 
   /* Initialize TIMx peripheral as follow:
-  + Period = [(TIM16CLK/1000) - 1]. to have a (1/1000) s time base.
+  + Period = [(TIM4CLK/1000) - 1]. to have a (1/1000) s time base.
   + Prescaler = (uwTimclock/1000000 - 1) to have a 1MHz counter clock.
   + ClockDivision = 0
   + Counter direction = Up
   */
-  htim16.Init.Period = (1000000U / 1000U) - 1U;
-  htim16.Init.Prescaler = uwPrescalerValue;
-  htim16.Init.ClockDivision = 0;
-  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = (1000000U / 1000U) - 1U;
+  htim4.Init.Prescaler = uwPrescalerValue;
+  htim4.Init.ClockDivision = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
 
-  status = HAL_TIM_Base_Init(&htim16);
+  status = HAL_TIM_Base_Init(&htim4);
   if (status == HAL_OK)
   {
     /* Start the TIM time Base generation in interrupt mode */
-    status = HAL_TIM_Base_Start_IT(&htim16);
+    status = HAL_TIM_Base_Start_IT(&htim4);
     if (status == HAL_OK)
     {
       if (TickPriority < (1UL << __NVIC_PRIO_BITS))
       {
-        /* Enable the TIM16 global Interrupt */
-        HAL_NVIC_SetPriority(TIM16_IRQn, TickPriority, 0U);
+        /* Enable the TIM4 global Interrupt */
+        HAL_NVIC_SetPriority(TIM4_IRQn, TickPriority, 0U);
         uwTickPrio = TickPriority;
       }
       else
@@ -90,8 +90,8 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
       }
     }
   }
-  /* Enable the TIM16 global Interrupt */
-  HAL_NVIC_EnableIRQ(TIM16_IRQn);
+  /* Enable the TIM4 global Interrupt */
+  HAL_NVIC_EnableIRQ(TIM4_IRQn);
 
  /* Return function status */
   return status;
@@ -99,25 +99,25 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 
 /**
   * @brief  Suspend Tick increment.
-  * @note   Disable the tick increment by disabling TIM16 update interrupt.
+  * @note   Disable the tick increment by disabling TIM4 update interrupt.
   * @param  None
   * @retval None
   */
 void HAL_SuspendTick(void)
 {
-  /* Disable TIM16 update Interrupt */
-  __HAL_TIM_DISABLE_IT(&htim16, TIM_IT_UPDATE);
+  /* Disable TIM4 update Interrupt */
+  __HAL_TIM_DISABLE_IT(&htim4, TIM_IT_UPDATE);
 }
 
 /**
   * @brief  Resume Tick increment.
-  * @note   Enable the tick increment by Enabling TIM16 update interrupt.
+  * @note   Enable the tick increment by Enabling TIM4 update interrupt.
   * @param  None
   * @retval None
   */
 void HAL_ResumeTick(void)
 {
-  /* Enable TIM16 Update interrupt */
-  __HAL_TIM_ENABLE_IT(&htim16, TIM_IT_UPDATE);
+  /* Enable TIM4 Update interrupt */
+  __HAL_TIM_ENABLE_IT(&htim4, TIM_IT_UPDATE);
 }
 

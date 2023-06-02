@@ -14,7 +14,7 @@
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
-  * TODO: add reset condition to tx_byte_pool_create failure
+  *
   *
   ******************************************************************************
   */
@@ -44,7 +44,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+#define WAVES_MEM_POOL_SIZE 600000
 /* USER CODE END PV */
 
 #if (USE_STATIC_ALLOCATION == 1)
@@ -54,14 +54,14 @@
 #if defined ( __ICCARM__ )
 #pragma data_alignment=4
 #endif
-__ALIGN_BEGIN static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE] __ALIGN_END;
+__ALIGN_BEGIN static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE - WAVES_MEM_POOL_SIZE] __ALIGN_END;
 static TX_BYTE_POOL tx_app_byte_pool;
 
 #endif
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-
+extern void shut_it_all_down(void);
 /* USER CODE END PFP */
 
   /**
@@ -81,7 +81,8 @@ VOID tx_application_define(VOID *first_unused_memory)
   if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN TX_Byte_Pool_Error */
-	  //TODO: reset the device here
+	  shut_it_all_down();
+	  HAL_NVIC_SystemReset();
     /* USER CODE END TX_Byte_Pool_Error */
   }
   else
@@ -96,7 +97,8 @@ VOID tx_application_define(VOID *first_unused_memory)
     {
       /* USER CODE BEGIN  App_ThreadX_Init_Error */
       // Something went wrong along the way, reset and try again
-    	HAL_NVIC_SystemReset();
+    	shut_it_all_down();
+	  	HAL_NVIC_SystemReset();
       /* USER CODE END  App_ThreadX_Init_Error */
     }
     /* USER CODE BEGIN  App_ThreadX_Init_Success */

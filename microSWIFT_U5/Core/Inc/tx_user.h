@@ -89,7 +89,7 @@
 /*#define TX_TIMER_THREAD_STACK_SIZE                1024*/
 /*#define TX_TIMER_THREAD_PRIORITY                0*/
 
-/*#define TX_MINIMUM_STACK                200*/
+#define TX_MINIMUM_STACK                800
 
 /* Determine if timer expirations (application timers, timeouts, and tx_thread_sleep calls
    should be processed within the a system timer thread or directly in the timer ISR.
@@ -202,7 +202,7 @@
 
 /* Define the common timer tick reference for use by other middleware components. */
 
-#define TX_TIMER_TICKS_PER_SECOND                5
+#define TX_TIMER_TICKS_PER_SECOND                10
 
 /* Defined, the basic parameter error checking is disabled. */
 
@@ -218,11 +218,11 @@
 
 /* Determinate if the basic alignment type is defined. */
 
-/*#define ALIGN_TYPE_DEFINED*/
+#define ALIGN_TYPE_DEFINED
 
 /* Define basic alignment type used in block and byte pool operations. */
 
-/*#define ALIGN_TYPE  ULONG*/
+#define ALIGN_TYPE  ULONG
 
 /* Define the TX_MEMSET macro to the standard library function. */
 
@@ -231,26 +231,5 @@
 /* Define if the safety critical configuration is enabled. */
 
 /*#define TX_SAFETY_CRITICAL*/
-
-/* Define the LowPower macros and flags */
-
-/* Define a macro that sets up a low power clock and keep track of time */
-void App_ThreadX_LowPower_Timer_Setup(unsigned long count);
-#define TX_LOW_POWER_TIMER_SETUP(_count) App_ThreadX_LowPower_Timer_Setup(_count)
-
-/* Define the TX_LOW_POWER_TICKLESS to disable the internal ticks */
-#define TX_LOW_POWER_TICKLESS
-
-/* A user defined macro to make the system enter low power mode */
-void App_ThreadX_LowPower_Enter(void);
-#define TX_LOW_POWER_USER_ENTER App_ThreadX_LowPower_Enter()
-
-/* A user defined macro to make the system exit low power mode */
-void App_ThreadX_LowPower_Exit(void);
-#define TX_LOW_POWER_USER_EXIT App_ThreadX_LowPower_Exit()
-
-/* User's low-power macro to obtain the amount of time (in ticks) the system has been in low power mode */
-unsigned long App_ThreadX_LowPower_Timer_Adjust(void);
-#define TX_LOW_POWER_USER_TIMER_ADJUST App_ThreadX_LowPower_Timer_Adjust()
 
 #endif

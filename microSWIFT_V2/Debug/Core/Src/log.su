@@ -1,3 +1,0 @@
-../Core/Src/Log.cpp:10:1:Log::Log()	16	static
-../Core/Src/Log.cpp:15:1:Log::~Log()	16	static
-../Core/Src/Log.cpp:15:1:virtual Log::~Log()	16	static

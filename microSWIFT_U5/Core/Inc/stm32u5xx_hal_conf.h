@@ -36,7 +36,7 @@
 
 #define HAL_MODULE_ENABLED
 
-/*#define HAL_ADC_MODULE_ENABLED */
+#define HAL_ADC_MODULE_ENABLED
 /*#define HAL_MDF_MODULE_ENABLED */
 /*#define HAL_COMP_MODULE_ENABLED */
 /*#define HAL_CORDIC_MODULE_ENABLED */
@@ -53,7 +53,7 @@
 /*#define HAL_HASH_MODULE_ENABLED */
 /*#define HAL_HRTIM_MODULE_ENABLED */
 /*#define HAL_IRDA_MODULE_ENABLED */
-/*#define HAL_IWDG_MODULE_ENABLED */
+#define HAL_IWDG_MODULE_ENABLED
 /*#define HAL_I2C_MODULE_ENABLED */
 /*#define HAL_I2S_MODULE_ENABLED */
 /*#define HAL_LPTIM_MODULE_ENABLED */
@@ -63,7 +63,7 @@
 /*#define HAL_OPAMP_MODULE_ENABLED */
 /*#define HAL_OSPI_MODULE_ENABLED */
 /*#define HAL_OTFDEC_MODULE_ENABLED */
-#define HAL_PCD_MODULE_ENABLED
+/*#define HAL_PCD_MODULE_ENABLED */
 /*#define HAL_PKA_MODULE_ENABLED */
 /*#define HAL_QSPI_MODULE_ENABLED */
 /*#define HAL_RNG_MODULE_ENABLED */
@@ -86,7 +86,7 @@
 /*#define HAL_PSSI_MODULE_ENABLED */
 #define HAL_ICACHE_MODULE_ENABLED
 /*#define HAL_DCACHE_MODULE_ENABLED */
-#define HAL_PCD_MODULE_ENABLED
+/*#define HAL_PCD_MODULE_ENABLED */
 /*#define HAL_HCD_MODULE_ENABLED */
 /*#define HAL_XSPI_MODULE_ENABLED */
 #define HAL_GPIO_MODULE_ENABLED
@@ -238,9 +238,9 @@
 #define  USE_HAL_SMBUS_REGISTER_CALLBACKS      0U /* SMBUS register callback disabled     */
 #define  USE_HAL_SPI_REGISTER_CALLBACKS        0U /* SPI register callback disabled       */
 #define  USE_HAL_SRAM_REGISTER_CALLBACKS       0U /* SRAM register callback disabled      */
-#define  USE_HAL_TIM_REGISTER_CALLBACKS        0U /* TIM register callback disabled       */
+#define  USE_HAL_TIM_REGISTER_CALLBACKS        1U /* TIM register callback enabled       */
 #define  USE_HAL_TSC_REGISTER_CALLBACKS        0U /* TSC register callback disabled       */
-#define  USE_HAL_UART_REGISTER_CALLBACKS       0U /* UART register callback disabled      */
+#define  USE_HAL_UART_REGISTER_CALLBACKS       1U /* UART register callback enabled      */
 #define  USE_HAL_USART_REGISTER_CALLBACKS      0U /* USART register callback disabled     */
 #define  USE_HAL_WWDG_REGISTER_CALLBACKS       0U /* WWDG register callback disabled      */
 

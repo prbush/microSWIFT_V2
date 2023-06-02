@@ -32,21 +32,85 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "main.h"
+#include <math.h>
 #include "stm32u5xx_hal.h"
 #include "stm32u5xx_ll_dma.h"
 #include "stdint.h"
 #include "stdbool.h"
-#include "gps.h"
-#include "battery.h"
-#include "ct_sensor.h"
-#include "imu.h"
-#include "iridium.h"
-#include "log.h"
+#include "string.h"
+#include "Peripherals/gnss.h"
+#include "Peripherals/battery.h"
+#include "Peripherals/ct_sensor.h"
+#include "Peripherals/rf_switch.h"
+#include "Peripherals/imu.h"
+#include "Peripherals/iridium.h"
+#include "NEDWaves/mem_replacements.h"
+#include "configuration.h"
+#include "linked_list.h"
+
+// Waves files
+#include "NEDWaves/NEDwaves_memlight.h"
+#include "NEDWaves/NEDwaves_memlight_emxAPI.h"
+#include "NEDWaves/NEDwaves_memlight_terminate.h"
+#include "NEDWaves/NEDwaves_memlight_types.h"
+#include "NEDWaves/rt_nonfinite.h"
+#include "NEDWaves/rtwhalf.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+typedef enum control_flags{
+ 	// Ready states
+ 	GNSS_READY = 1 << 0,
+ 	IMU_READY = 1 << 1,
+ 	CT_READY = 1 << 2,
+ 	IRIDIUM_READY = 1 << 3,
+ 	WAVES_READY = 1 << 4,
+ 	// Done states
+ 	GNSS_DONE = 1 << 5,
+ 	IMU_DONE = 1 << 6,
+ 	CT_DONE = 1 << 7,
+ 	IRIDIUM_DONE = 1 << 8,
+	WAVES_DONE = 1 << 9,
+	FULL_CYCLE_COMPLETE = 1 << 10,
+	// DMA reception flags
+	GNSS_CONFIG_RECVD = 1 << 11,
+	CT_MSG_RECVD = 1 << 12,
+	IRIDIUM_MSG_RECVD = 1 << 13,
+	GNSS_CONFIG_REQUIRED = 1 << 14,
+	GNSS_MESSAGE_RECEIVED = 1 << 15,
+	// GNSS timer flags
+	GNSS_INITIAL_RESOLUTION_STAGE = 1 << 16,
+	GNSS_WINDOW_PROCESSING_STAGE = 1 << 17
+} control_flags_t;
 
+
+typedef enum error_flags{
+ 	GNSS_ERROR = 1 << 1,
+ 	IMU_ERROR = 1 << 2,
+ 	CT_ERROR = 1 << 3,
+ 	MODEM_ERROR = 1 << 4,
+ 	MEMORY_ALLOC_ERROR = 1 << 5,
+ 	DMA_ERROR = 1 << 6,
+ 	UART_ERROR = 1 << 7,
+	RTC_ERROR = 1 << 8,
+	WATCHDOG_RESET = 1 << 9,
+	SOFTWARE_RESET = 1 << 10,
+	GNSS_RESOLUTION_ERROR = 1 << 11
+}error_flags_t;
+
+typedef enum led_sequence{
+	INITIAL_LED_SEQUENCE = 1,
+	TEST_PASSED_LED_SEQUENCE = 2,
+	TEST_NON_CRITICAL_FAULT_LED_SEQUENCE = 3,
+	TEST_CRITICAL_FAULT_LED_SEQUENCE = 4
+}led_sequence_t;
+
+typedef enum self_test_status{
+	SELF_TEST_PASSED = 0,
+	SELF_TEST_NON_CRITICAL_FAULT = 1,
+	SELF_TEST_CRITICAL_FAULT = 2
+}self_test_status_t;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -56,15 +120,28 @@
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
+#define THREAD_EXTRA_LARGE_STACK_SIZE 4096
+#define THREAD_LARGE_STACK_SIZE 2048
+#define THREAD_MEDIUM_STACK_SIZE 1024
+#define THREAD_SMALL_STACK_SIZE 512
+#define THREAD_EXTRA_SMALL_STACK_SIZE 256
 
+// The max times we'll try to get a single peripheral up before sending reset vector
+#define MAX_SELF_TEST_RETRIES 5
+// The maximum amount of time (in milliseconds) a sample window could take
+#define MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES 61
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
 UINT App_ThreadX_Init(VOID *memory_ptr);
-void MX_ThreadX_Init(UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* handle_GPDMA1_Channel0);
 
 /* USER CODE BEGIN EFP */
-
+void MX_ThreadX_Init(device_handles_t *handles);
+void startup_thread_entry(ULONG thread_input);
+void gnss_thread_entry(ULONG thread_input);
+void waves_thread_entry(ULONG thread_input);
+void iridium_thread_entry(ULONG thread_input);
+void end_of_cycle_thread_entry(ULONG thread_input);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
