@@ -902,7 +902,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	// If we have an error flag, send an error message
 	if (actual_error_flags) {
-		rf_switch->power_on();
+		rf_switch->power_on(rf_switch);
 		rf_switch->set_iridium_port(rf_switch);
 		iridium->sleep(iridium, GPIO_PIN_SET);
 		iridium->on_off(iridium, GPIO_PIN_SET);
@@ -910,7 +910,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 		iridium->sleep(iridium, GPIO_PIN_RESET);
 		iridium->on_off(iridium, GPIO_PIN_RESET);
-		rf_switch->power_off();
+		rf_switch->power_off(rf_switch);
 	}
 
 	// If something went wrong with the RTC, we'll reset
