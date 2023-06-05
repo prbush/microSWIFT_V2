@@ -395,7 +395,7 @@ static iridium_error_code_t send_msg_from_queue(Iridium* self)
 	// try transmitting the message
 	return_code = internal_transmit_message(self,
 			(uint8_t*)&(self->storage_queue->msg_queue[payload_index].payload),
-			sizeof(sbd_message_type_52));
+			sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
 	// If the message successfully transmitted, mark it as invalid
 	if (return_code == IRIDIUM_SUCCESS) {
 		self->storage_queue->msg_queue[payload_index].valid = false;
