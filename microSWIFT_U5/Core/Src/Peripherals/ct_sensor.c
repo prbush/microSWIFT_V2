@@ -166,7 +166,7 @@ void ct_on_off(CT* self, GPIO_PinState pin_state)
 ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 {
 	ULONG actual_flags;
-	ct_error_code_t return_code = CT_SELF_TEST_FAIL;
+	ct_error_code_t return_code;
 	uint32_t elapsed_time, start_time;
 	double temperature, salinity;
 	char* index;
@@ -178,70 +178,77 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 
 	start_time = HAL_GetTick();
 
-	int fail_counter = 0;
-	while(fail_counter++ < 15) {
+	if (HAL_UART_Receive_DMA(self->ct_uart_handle,
+		(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE) != HAL_OK) {
 
-		if (HAL_UART_Receive_DMA(self->ct_uart_handle,
-			(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE) != HAL_OK) {
-			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
-			HAL_Delay(100);
-			continue;
+		reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 
-		}
-		// Disable half-transfer interrupt
-		__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
+		return_code = CT_UART_ERROR;
+		return return_code;
 
-		if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
-				&actual_flags, required_ticks_to_get_message) != TX_SUCCESS) {
+	}
+	// Disable half-transfer interrupt
+	__HAL_DMA_DISABLE_IT(self->ct_dma_handle, DMA_IT_HT);
 
-			HAL_UART_DMAStop(self->ct_uart_handle);
-			reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
-			HAL_Delay(103);
-			continue;
-		}
+	if (tx_event_flags_get(self->control_flags, CT_MSG_RECVD, TX_OR_CLEAR,
+			&actual_flags, required_ticks_to_get_message) != TX_SUCCESS) {
 
-		index = strstr(self->data_buf, temp_units);
-		// Make the message was received in the right alignment
-		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
-			HAL_Delay(103);
-			continue;
-		}
-		index += TEMP_OFFSET_FROM_UNITS;
-		temperature = atof(index);
-		// error return of atof() is 0.0
-		if (temperature == 0.0){
-			HAL_Delay(103);
-			continue;
-		}
+		HAL_UART_DMAStop(self->ct_uart_handle);
+		reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
 
-		char* index = strstr(self->data_buf, salinity_units);
-		if (index == NULL){
-			HAL_Delay(103);
-			continue;
-		}
-
-		index += SALINITY_OFFSET_FROM_UNITS;
-		salinity = atof(index);
-
-		if (salinity == 0.0){
-			HAL_Delay(103);
-			continue;
-		}
-
-		if (add_warmup_time) {
-			// Handle the warmup delay
-			elapsed_time = HAL_GetTick() - start_time;
-			int32_t required_delay = WARMUP_TIME - elapsed_time;
-			if (required_delay > 0) {
-				HAL_Delay(required_delay);
-			}
-		}
-
-		return_code = CT_SUCCESS;
-		break;
+		return_code = CT_UART_ERROR;
+		return return_code;
 	}
 
+	index = strstr(self->data_buf, temp_units);
+	// Make the message was received in the right alignment
+	if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
+		HAL_Delay(103);
+
+		return_code = CT_PARSING_ERROR;
+		return return_code;
+	}
+	index += TEMP_OFFSET_FROM_UNITS;
+	temperature = atof(index);
+	// error return of atof() is 0.0
+	if (temperature == 0.0){
+		HAL_Delay(103);
+
+		return_code = CT_PARSING_ERROR;
+		return return_code;
+	}
+
+	index = strstr(self->data_buf, salinity_units);
+	if (index == NULL){
+		HAL_Delay(103);
+
+		return_code = CT_PARSING_ERROR;
+		return return_code;
+	}
+
+	index += SALINITY_OFFSET_FROM_UNITS;
+	salinity = atof(index);
+
+	if (salinity == 0.0){
+		HAL_Delay(103);
+
+		return_code = CT_PARSING_ERROR;
+		return return_code;
+	}
+
+	if (add_warmup_time) {
+		// Handle the warmup delay
+		elapsed_time = HAL_GetTick() - start_time;
+		int32_t required_delay = WARMUP_TIME - elapsed_time;
+		if (required_delay > 0) {
+			HAL_Delay(required_delay);
+		}
+	}
+
+	return_code = CT_SUCCESS;
 	return return_code;
+
+
 }
 
 /**
@@ -298,4 +305,3 @@ static void reset_ct_struct_fields(CT* self)
 	self->averages.temp = CT_AVERAGED_VALUE_ERROR_CODE;
 	self->total_samples = 0;
 }
-

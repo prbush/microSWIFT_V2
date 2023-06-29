@@ -47,7 +47,8 @@ typedef struct {
 	UART_HandleTypeDef* Iridium_uart;
 	UART_HandleTypeDef* GNSS_uart;
 	DMA_HandleTypeDef* CT_dma_handle;
-	DMA_HandleTypeDef* GNSS_dma_handle;
+	DMA_HandleTypeDef* GNSS_rx_dma_handle;
+	DMA_HandleTypeDef* GNSS_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
 	TIM_HandleTypeDef* iridium_timer;

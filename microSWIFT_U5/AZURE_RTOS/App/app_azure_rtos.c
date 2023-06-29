@@ -54,7 +54,7 @@
 #if defined ( __ICCARM__ )
 #pragma data_alignment=4
 #endif
-__ALIGN_BEGIN static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE - WAVES_MEM_POOL_SIZE] __ALIGN_END;
+__ALIGN_BEGIN static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE] __ALIGN_END;
 static TX_BYTE_POOL tx_app_byte_pool;
 
 #endif

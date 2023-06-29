@@ -55,12 +55,14 @@ typedef enum gnss_error_code{
 #define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
 #define UBX_BUFFER_SIZE (10 * UBX_MESSAGE_SIZE)
 #define INITIAL_STAGES_BUFFER_SIZE 500
+#define FRAME_SYNC_RX_SIZE 113
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_SACC 250 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 1000 // (units = 0.01) greater than 10 means fair fix accuracy
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
+#define MAX_FRAME_SYNC_ATTEMPTS 3
 #define GNSS_DEFAULT_BAUD_RATE 9600
 #define MAX_THREADX_WAIT_TICKS_FOR_CONFIG (TX_TIMER_TICKS_PER_SECOND + (TX_TIMER_TICKS_PER_SECOND / 4))
 #define ONE_SECOND 1000
@@ -100,7 +102,8 @@ typedef struct GNSS {
 	microSWIFT_configuration* global_config;
 	// The UART and DMA handle for the GNSS interface
 	UART_HandleTypeDef* gnss_uart_handle;
-	DMA_HandleTypeDef* gnss_dma_handle;
+	DMA_HandleTypeDef* gnss_rx_dma_handle;
+	DMA_HandleTypeDef* gnss_tx_dma_handle;
 	// Handle to the RTC
 	RTC_HandleTypeDef* rtc_handle;
 	// Event flags
@@ -163,10 +166,10 @@ typedef struct GNSS {
 
 /* Function declarations */
 void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
-		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
-		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
-		TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
-		float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array);
+		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_rx_dma_handle,
+		DMA_HandleTypeDef* gnss_tx_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
+		TX_EVENT_FLAGS_GROUP* error_flags, TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf,
+		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
 gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
 		uint8_t* buffer, size_t msg_size);
@@ -179,6 +182,8 @@ void			  gnss_cycle_power(GNSS* self);
 gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload);
 gnss_error_code_t gnss_reset_uart(GNSS* self, uint16_t baud_rate);
 gnss_error_code_t gnss_reset_timer(GNSS* self, uint8_t timeout_in_minutes);
+// watchdog refresh function
+extern void 	  register_watchdog_refresh();
 
 
 

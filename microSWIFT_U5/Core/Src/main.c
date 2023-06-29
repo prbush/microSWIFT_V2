@@ -42,9 +42,12 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
 
+IWDG_HandleTypeDef hiwdg;
+
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
+DMA_HandleTypeDef handle_GPDMA1_Channel4;
 DMA_HandleTypeDef handle_GPDMA1_Channel0;
 DMA_HandleTypeDef handle_GPDMA1_Channel1;
 DMA_HandleTypeDef handle_GPDMA1_Channel3;
@@ -60,7 +63,7 @@ TIM_HandleTypeDef htim17;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
-extern void SystemClock_Config(void);
+void SystemClock_Config(void);
 static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_GPDMA1_Init(void);
@@ -71,6 +74,7 @@ static void MX_UART5_Init(void);
 static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
+static void MX_IWDG_Init(void);
 static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
@@ -100,7 +104,6 @@ int main(void)
   // Force the reset of the RTC and clear anything in the backup domain
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_BACKUPRESET_FORCE();
-  HAL_Delay(1);
   __HAL_RCC_BACKUPRESET_RELEASE();
   /* USER CODE END Init */
 
@@ -145,13 +148,12 @@ int main(void)
   MX_GPDMA1_Init();
   MX_RTC_Init();
   MX_ICACHE_Init();
-#if CT_ENABLED
   MX_UART4_Init();
-#endif
   MX_UART5_Init();
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
+  MX_IWDG_Init();
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
@@ -164,17 +166,17 @@ int main(void)
   handles.Iridium_uart = &huart5;
   handles.GNSS_uart = &hlpuart1;
   handles.CT_dma_handle = &handle_GPDMA1_Channel1;
-  handles.GNSS_dma_handle = &handle_GPDMA1_Channel0;
+  handles.GNSS_rx_dma_handle = &handle_GPDMA1_Channel0;
+  handles.GNSS_tx_dma_handle = &handle_GPDMA1_Channel4;
   handles.Iridium_tx_dma_handle = &handle_GPDMA1_Channel2;
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
   handles.gnss_timer = &htim16;
-  handles.watchdog_handle = 0; // watchdog unused
+  handles.watchdog_handle = &hiwdg;
   handles.reset_reason = reset_reason;
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
-
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -266,9 +268,6 @@ static void SystemPower_Config(void)
    */
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
   /*
    * Switch to SMPS regulator instead of LDO
@@ -368,6 +367,8 @@ static void MX_GPDMA1_Init(void)
     HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
     HAL_NVIC_SetPriority(GPDMA1_Channel3_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
+    HAL_NVIC_SetPriority(GPDMA1_Channel4_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
 
   /* USER CODE BEGIN GPDMA1_Init 1 */
 
@@ -414,6 +415,35 @@ static void MX_ICACHE_Init(void)
 
 }
 
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_512;
+  hiwdg.Init.Window = 4094;
+  hiwdg.Init.Reload = 4094;
+  hiwdg.Init.EWI = 0;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
+
+}
 
 /**
   * @brief LPUART1 Initialization Function
@@ -571,22 +601,25 @@ static void MX_RTC_Init(void)
   /* USER CODE END RTC_Init 0 */
 
   RTC_PrivilegeStateTypeDef privilegeState = {0};
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
-  RTC_DateTypeDef rtc_date;
-  RTC_TimeTypeDef rtc_time;
   /* USER CODE END RTC_Init 1 */
 
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
   hrtc.Init.BinMode = RTC_BINARY_MIX;
+  hrtc.Init.BinMixBcdU = RTC_BINARY_MIX_BCDU_0;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
@@ -606,36 +639,31 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  if (HAL_RTCEx_SetSSRU_IT(&hrtc) != HAL_OK)
+  sTime.Hours = 2;
+  sTime.Minutes = 2;
+  sTime.Seconds = 2;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 2;
+  sDate.Year = 0;
 
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN RTC_Init 2 */
 
-  // Set date/time to something arbitrary in the event GNSS can't resolve time
-  // in the first window
-  rtc_date.Date = 2;
-  rtc_date.Month = 2;
-  rtc_date.WeekDay = RTC_WEEKDAY_MONDAY;
-  rtc_date.Year = 23;
-  rtc_time.Hours = 2;
-  rtc_time.Minutes = 2;
-  rtc_time.Seconds = 2;
-  rtc_time.SecondFraction = 0;
-
-  if (HAL_RTC_SetTime(&hrtc, &rtc_time, RTC_FORMAT_BIN) != HAL_OK) {
-	  Error_Handler();
-  }
-  if (HAL_RTC_SetDate(&hrtc, &rtc_date, RTC_FORMAT_BIN) != HAL_OK) {
-	  Error_Handler();
-  }
   // Enable RTC low power calibration
   if (HAL_RTCEx_SetLowPowerCalib(&hrtc, RTC_LPCAL_SET) != HAL_OK)
   {
 	  Error_Handler();
   }
-
   /* USER CODE END RTC_Init 2 */
 
 }

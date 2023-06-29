@@ -33,7 +33,8 @@ typedef enum iridium_error_code{
 	IRIDIUM_STORAGE_QUEUE_FULL = -8,
 	IRIDIUM_STORAGE_QUEUE_EMPTY = -9,
 	IRIDIUM_TIMER_ERROR = -10,
-	IRIDIUM_TRANSMIT_TIMEOUT = -11
+	IRIDIUM_TRANSMIT_TIMEOUT = -11,
+	IRIDIUM_TRANSMIT_UNSUCCESSFUL = -12
 } iridium_error_code_t;
 
 // Macros
@@ -135,12 +136,14 @@ typedef struct Iridium {
 	float current_lon;
 
 	iridium_error_code_t (*config)(struct Iridium* self);
-	iridium_error_code_t (*self_test)(struct Iridium* self, uint32_t warmup_time);
+	void				 (*charge_caps)(struct Iridium* self, uint32_t caps_charge_time);
+	iridium_error_code_t (*self_test)(struct Iridium* self);
 	iridium_error_code_t (*transmit_message)(struct Iridium* self);
 	iridium_error_code_t (*transmit_error_message)(struct Iridium* self, char* error_message);
 	float				 (*get_timestamp)(struct Iridium* self);
 	void 				 (*sleep)(struct Iridium* self, GPIO_PinState pin_state);
 	void				 (*on_off)(struct Iridium* self, GPIO_PinState pin_state);
+	void				 (*cycle_power)(struct Iridium* self);
 	iridium_error_code_t (*store_in_flash)(struct Iridium* self);
 	iridium_error_code_t (*reset_uart)(struct Iridium* self, uint16_t baud_rate);
 	iridium_error_code_t (*reset_timer)(struct Iridium* self, uint8_t timeout_in_minutes);
@@ -173,11 +176,13 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 		uint8_t* error_message_buffer, uint8_t* response_buffer,
 		Iridium_message_storage* storage_queue);
 iridium_error_code_t iridium_config(Iridium* self);
-iridium_error_code_t iridium_self_test(Iridium* self, uint32_t warmup_time);
+void				 iridium_charge_caps(Iridium* self, uint32_t caps_charge_time);
+iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
 iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_message);
 void				 iridium_sleep(Iridium* self, GPIO_PinState pin_state);
 void				 iridium_on_off(Iridium* self, GPIO_PinState pin_state);
+void				 iridium_cycle_power(Iridium* self);
 iridium_error_code_t iridium_store_in_flash(Iridium* self);
 iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rate);
 iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minutes);
@@ -185,6 +190,7 @@ iridium_error_code_t iridium_storage_queue_add(Iridium* self,sbd_message_type_52
 iridium_error_code_t iridium_storage_queue_get(Iridium* self,uint8_t* msg_index);
 void                 iridium_storage_queue_flush(Iridium* self);
 float 				 iridium_get_timestamp(Iridium* self);
-
+// watchdog refresh function
+extern void 		 register_watchdog_refresh();
 
 #endif /* SRC_IRIDIUM_H_ */

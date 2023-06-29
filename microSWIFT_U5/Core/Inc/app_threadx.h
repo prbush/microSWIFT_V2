@@ -61,27 +61,28 @@
 /* USER CODE BEGIN ET */
 typedef enum control_flags{
  	// Ready states
- 	GNSS_READY = 1 << 0,
- 	IMU_READY = 1 << 1,
- 	CT_READY = 1 << 2,
- 	IRIDIUM_READY = 1 << 3,
- 	WAVES_READY = 1 << 4,
+ 	GNSS_READY 				= 1 << 0,
+ 	IMU_READY 				= 1 << 1,
+ 	CT_READY 				= 1 << 2,
+ 	IRIDIUM_READY 			= 1 << 3,
+ 	WAVES_READY 			= 1 << 4,
  	// Done states
- 	GNSS_DONE = 1 << 5,
- 	IMU_DONE = 1 << 6,
- 	CT_DONE = 1 << 7,
- 	IRIDIUM_DONE = 1 << 8,
-	WAVES_DONE = 1 << 9,
-	FULL_CYCLE_COMPLETE = 1 << 10,
+ 	GNSS_DONE 				= 1 << 5,
+ 	IMU_DONE 				= 1 << 6,
+ 	CT_DONE 				= 1 << 7,
+ 	IRIDIUM_DONE 			= 1 << 8,
+	WAVES_DONE	 			= 1 << 9,
+	FULL_CYCLE_COMPLETE 	= 1 << 10,
 	// DMA reception flags
-	GNSS_CONFIG_RECVD = 1 << 11,
-	CT_MSG_RECVD = 1 << 12,
-	IRIDIUM_MSG_RECVD = 1 << 13,
-	GNSS_CONFIG_REQUIRED = 1 << 14,
-	GNSS_MESSAGE_RECEIVED = 1 << 15,
+	GNSS_CONFIG_RECVD 		= 1 << 11,
+	CT_MSG_RECVD 			= 1 << 12,
+	IRIDIUM_MSG_RECVD 		= 1 << 13,
+	GNSS_CONFIG_REQUIRED 	= 1 << 14,
+	GNSS_TX_COMPLETE 		= 1 << 15,
+	GNSS_MSG_RECEIVED 		= 1 << 16,
 	// GNSS timer flags
-	GNSS_INITIAL_RESOLUTION_STAGE = 1 << 16,
-	GNSS_WINDOW_PROCESSING_STAGE = 1 << 17
+	GNSS_INITIAL_RESOLUTION_STAGE 	= 1 << 17,
+	GNSS_WINDOW_PROCESSING_STAGE 	= 1 << 18
 } control_flags_t;
 
 
@@ -107,9 +108,9 @@ typedef enum led_sequence{
 }led_sequence_t;
 
 typedef enum self_test_status{
-	SELF_TEST_PASSED = 0,
-	SELF_TEST_NON_CRITICAL_FAULT = 1,
-	SELF_TEST_CRITICAL_FAULT = 2
+	SELF_TEST_PASSED = 2,
+	SELF_TEST_NON_CRITICAL_FAULT = 3,
+	SELF_TEST_CRITICAL_FAULT = 4
 }self_test_status_t;
 /* USER CODE END ET */
 
@@ -127,7 +128,7 @@ typedef enum self_test_status{
 #define THREAD_EXTRA_SMALL_STACK_SIZE 256
 
 // The max times we'll try to get a single peripheral up before sending reset vector
-#define MAX_SELF_TEST_RETRIES 5
+#define MAX_SELF_TEST_RETRIES 10
 // The maximum amount of time (in milliseconds) a sample window could take
 #define MAX_ALLOWABLE_WINDOW_TIME_IN_MINUTES 61
 /* USER CODE END EM */
@@ -137,6 +138,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr);
 
 /* USER CODE BEGIN EFP */
 void MX_ThreadX_Init(device_handles_t *handles);
+void watchdog_thread_entry(ULONG thread_input);
 void startup_thread_entry(ULONG thread_input);
 void gnss_thread_entry(ULONG thread_input);
 void waves_thread_entry(ULONG thread_input);
