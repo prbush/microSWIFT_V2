@@ -575,10 +575,14 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
     uint8_t response_msg_id;
 
 	// Start by waiting until the UART is idle
-	while ((rx_length >= FRAME_SYNC_RX_SIZE) && (frame_sync_attempts < MAX_FRAME_SYNC_ATTEMPTS)) {
+	while (frame_sync_attempts < MAX_FRAME_SYNC_ATTEMPTS) {
 		register_watchdog_refresh();
 		HAL_UARTEx_ReceiveToIdle(self->gnss_uart_handle, &(msg_buf[0]), 113, &rx_length, ONE_SECOND);
-		frame_sync_attempts++;
+		if (rx_length < FRAME_SYNC_RX_SIZE) {
+			break;
+		} else {
+			frame_sync_attempts++;
+		}
 	}
 
 	if (frame_sync_attempts == MAX_FRAME_SYNC_ATTEMPTS) {
