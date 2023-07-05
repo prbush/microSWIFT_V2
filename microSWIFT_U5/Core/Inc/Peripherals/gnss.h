@@ -41,11 +41,14 @@ typedef enum gnss_error_code{
 	GNSS_RTC_ERROR = -12,
 	GNSS_TIMER_ERROR = -13,
 	GNSS_TIME_RESOLUTION_ERROR = -14,
-	GNSS_FIRST_SAMPLE_RESOLUTION_ERROR = -15
+	GNSS_FIRST_SAMPLE_RESOLUTION_ERROR = -15,
+	GNSS_NAK_MESSAGE_RECEIVED = -16,
+	GNSS_HIGH_PERFORMANCE_ENABLE_ERROR = -17
 } gnss_error_code_t;
 
 // Macros
 #define CONFIG_BUFFER_SIZE 600
+#define CONFIGURATION_ARRAY_SIZE 164
 #define MAX_POSSIBLE_VELOCITY 10000	// 10000 mm/s = 10 m/s
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
@@ -63,6 +66,7 @@ typedef enum gnss_error_code{
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
 #define MAX_FRAME_SYNC_ATTEMPTS 3
+#define MAX_CONFIG_STEP_ATTEMPTS 3
 #define GNSS_DEFAULT_BAUD_RATE 9600
 #define MAX_THREADX_WAIT_TICKS_FOR_CONFIG (TX_TIMER_TICKS_PER_SECOND + (TX_TIMER_TICKS_PER_SECOND / 4))
 #define ONE_SECOND 1000
@@ -95,6 +99,10 @@ typedef enum gnss_error_code{
 #define UBX_NAV_PVT_PDOP_INDEX 76
 #define UBX_ACK_ACK_CLSID_INDEX 0
 #define UBX_ACK_ACK_MSGID_INDEX 1
+#define HIGH_PERFORMANCE_QUERY_SIZE 28
+#define HIGH_PERFORMANCE_RESPONSE_SIZE 44
+#define ENABLE_HIGH_PERFORMANCE_SIZE 60
+#define HIGH_PERFORMANCE_ACK_SIZE 10
 
 // GNSS struct definition -- packed for good organization, not memory efficiency
 typedef struct GNSS {
@@ -113,6 +121,8 @@ typedef struct GNSS {
 	TIM_HandleTypeDef* minutes_timer;
 	// UBX message process buffer filled from DMA ISR
 	uint8_t* ubx_process_buf;
+	// Configuration response buffer
+	uint8_t* config_response_buf;
 	// Velocity sample array pointers
 	float* GNSS_N_Array;
 	float* GNSS_E_Array;
@@ -169,7 +179,8 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_rx_dma_handle,
 		DMA_HandleTypeDef* gnss_tx_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
 		TX_EVENT_FLAGS_GROUP* error_flags, TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf,
-		RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array);
+		uint8_t* config_response_buffer, RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array,
+		float* GNSS_E_Array, float* GNSS_D_Array);
 gnss_error_code_t gnss_config(GNSS* self);
 gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
 		uint8_t* buffer, size_t msg_size);

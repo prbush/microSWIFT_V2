@@ -80,6 +80,8 @@ emxArray_real32_T *down;
 uint8_t* ubx_DMA_message_buf;
 // Buffer for messages ready to process
 uint8_t* ubx_message_process_buf;
+// The configuration response buffer for GNSS
+uint8_t* gnss_config_response_buf;
 // Iridium buffers
 uint8_t* iridium_response_message;
 uint8_t* iridium_error_message;
@@ -253,6 +255,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	//
 	// The UBX process buffer
 	ret = tx_byte_allocate(byte_pool, (VOID**) &ubx_message_process_buf, (UBX_MESSAGE_SIZE * 2) + 100, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+	  return ret;
+	}
+	//
+	// The GNSS config response buffer
+	ret = tx_byte_allocate(byte_pool, (VOID**) &gnss_config_response_buf, CONFIG_BUFFER_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -450,8 +458,8 @@ void startup_thread_entry(ULONG thread_input){
 	// Initialize the structs
 	gnss_init(gnss, &configuration, device_handles->GNSS_uart, device_handles->GNSS_rx_dma_handle,
 			device_handles->GNSS_tx_dma_handle, &thread_control_flags, &error_flags,
-			device_handles->gnss_timer, &(ubx_message_process_buf[0]), device_handles->hrtc,
-			north->data, east->data, down->data);
+			device_handles->gnss_timer, &(ubx_message_process_buf[0]), &(gnss_config_response_buf[0]),
+			device_handles->hrtc, north->data, east->data, down->data);
 
 	iridium_init(iridium, &configuration, device_handles->Iridium_uart,
 					device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
