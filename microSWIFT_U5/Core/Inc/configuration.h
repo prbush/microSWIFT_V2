@@ -35,7 +35,11 @@
 #endif
 
 // Sampling rate in Hz for the GNSS sensor
+// !! Must be either 4 or 5
 #define GNSS_SAMPLING_RATE 5
+
+// Determine whether or not the GNSS sensor should be set to high performance mode
+#define GNSS_HIGH_PERFORMANCE_MODE_ENABLED true
 // The number of samples for the CT sensor to take. Result will be averaged
 #define TOTAL_CT_SAMPLES 10
 // If the IMU will be utilized or not
@@ -49,6 +53,7 @@ typedef struct microSWIFT_configuration{
 	uint32_t gnss_max_acquisition_wait_time;
 	uint32_t gnss_sampling_rate;
 	uint32_t total_ct_samples;
+	bool 	 gnss_high_performance_mode;
 } microSWIFT_configuration;
 
 

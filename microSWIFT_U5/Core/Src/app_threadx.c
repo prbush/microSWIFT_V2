@@ -379,6 +379,7 @@ void MX_ThreadX_Init(device_handles_t *handles)
   configuration.iridium_max_transmit_time = IRIDIUM_MAX_TRANSMIT_TIME;
   configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
   configuration.gnss_sampling_rate = GNSS_SAMPLING_RATE;
+  configuration.gnss_high_performance_mode = GNSS_HIGH_PERFORMANCE_MODE_ENABLED;
   configuration.total_ct_samples = TOTAL_CT_SAMPLES;
 
   /* USER CODE END  Before_Kernel_Start */
