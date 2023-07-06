@@ -8,8 +8,6 @@
 #ifndef INC_WAVES_MEM_REPLACEMENTS_H_
 #define INC_WAVES_MEM_REPLACEMENTS_H_
 
-#define NUM_SAMPLES 8192
-
 #include "stddef.h"
 #include "math.h"
 #include "tx_api.h"
