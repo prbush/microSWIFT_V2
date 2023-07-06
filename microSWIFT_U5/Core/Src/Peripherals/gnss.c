@@ -822,7 +822,62 @@ static gnss_error_code_t enable_high_performance_mode(GNSS* self)
 
 		switch (return_code) {
 			case GNSS_NAK_MESSAGE_RECEIVED:
-				break;
+				// Zero out the config response buffer
+				memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
+				config_step_attempts = 0;
+
+				// Now send over the command to enable high performance mode
+				while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
+					register_watchdog_refresh();
+					return_code = send_config(self, &(enable_high_performance_mode[0]),
+							ENABLE_HIGH_PERFORMANCE_SIZE, 0x06, 0x41);
+
+					if (return_code != GNSS_SUCCESS) {
+						config_step_attempts++;
+					} else {
+						break;
+					}
+				}
+
+				if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
+					HAL_UART_DMAStop(self->gnss_uart_handle);
+					self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+					HAL_Delay(10);
+					return_code = GNSS_HIGH_PERFORMANCE_ENABLE_ERROR;
+					return return_code;
+				}
+
+				// Must cycle power before the high performance mode will kick in
+				self->cycle_power(self);
+
+				HAL_Delay(10);
+
+				// Zero out the config response buffer
+				memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
+				config_step_attempts = 0;
+
+				// Now check to see if the changes stuck
+				while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
+					register_watchdog_refresh();
+					return_code = query_high_performance_mode(self);
+
+					if (return_code != GNSS_SUCCESS) {
+						config_step_attempts++;
+					} else {
+						break;
+					}
+				}
+
+				if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
+					HAL_UART_DMAStop(self->gnss_uart_handle);
+					self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+					HAL_Delay(10);
+					return_code = GNSS_CONFIG_ERROR;
+					return return_code;
+				}
+
+				return_code = GNSS_SUCCESS;
+				return return_code;
 
 			case GNSS_SUCCESS:
 				return return_code;
@@ -848,62 +903,7 @@ static gnss_error_code_t enable_high_performance_mode(GNSS* self)
 		return return_code;
 	}
 
-//	// Zero out the config response buffer
-//	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
-//	config_step_attempts = 0;
-//
-//	// Now send over the command to enable high performance mode
-//	while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
-//		register_watchdog_refresh();
-//		return_code = send_config(self, &(enable_high_performance_mode[0]),
-//				ENABLE_HIGH_PERFORMANCE_SIZE, 0x06, 0x41);
-//
-//		if (return_code != GNSS_SUCCESS) {
-//			config_step_attempts++;
-//		} else {
-//			break;
-//		}
-//	}
-//
-//	if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
-//		HAL_UART_DMAStop(self->gnss_uart_handle);
-//		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-//		HAL_Delay(10);
-//		return_code = GNSS_HIGH_PERFORMANCE_ENABLE_ERROR;
-//		return return_code;
-//	}
-//
-//	// Must cycle power before the high performance mode will kick in
-//	self->cycle_power(self);
-//
-//	HAL_Delay(10);
-//
-//	// Zero out the config response buffer
-//	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
-//	config_step_attempts = 0;
-//
-//	// Now check to see if the changes stuck
-//	while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
-//		register_watchdog_refresh();
-//		return_code = query_high_performance_mode(self);
-//
-//		if (return_code != GNSS_SUCCESS) {
-//			config_step_attempts++;
-//		} else {
-//			break;
-//		}
-//	}
-//
-//	if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
-//		HAL_UART_DMAStop(self->gnss_uart_handle);
-//		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-//		HAL_Delay(10);
-//		return_code = GNSS_CONFIG_ERROR;
-//		return return_code;
-//	}
-
-	return_code = GNSS_SUCCESS;
-	return return_code;
+	return GNSS_UNKNOWN_ERROR;
 }
 
 /**
@@ -929,11 +929,10 @@ static gnss_error_code_t query_high_performance_mode(GNSS* self)
 	 0x01,0x00,0xA4,0x40,0x03,0x00,0xA4,0x40,0x05,0x00,
 	 0xA4,0x40,0x0A,0x00,0xA4,0x40,0x4C,0x15};
 	uint8_t high_performance_mode_response[HIGH_PERFORMANCE_RESPONSE_SIZE] =
-	{0xB5,0x62,0x06,0x8B,0x24,0x00,0x01,0x04,0x00,0x00,
-	 0x01,0x00,0xA4,0x40,0x00,0xB0,0x71,0x0B,0x03,0x00,
-	 0xA4,0x40,0x00,0xB0,0x71,0x0B,0x05,0x00,0xA4,0x40,
-	 0x00,0xB0,0x71,0x0B,0x0A,0x00,0xA4,0x40,0x00,0xD8,
-	 0xB8,0x05,0x76,0x81};
+	{0x01,0x04,0x00,0x00,0x01,0x00,0xA4,0x40,0x00,0xB0,
+	 0x71,0x0B,0x03,0x00,0xA4,0x40,0x00,0xB0,0x71,0x0B,
+	 0x05,0x00,0xA4,0x40,0x00,0xB0,0x71,0x0B,0x0A,0x00,
+	 0xA4,0x40,0x00,0xD8,0xB8,0x05};
 
 	// First, check to see if high performance mode has already been set
 	HAL_UART_Transmit_DMA(self->gnss_uart_handle, &(high_performance_mode_query[0]),
@@ -950,6 +949,7 @@ static gnss_error_code_t query_high_performance_mode(GNSS* self)
 
 	// Zero out the config response buffer
 	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
+	memset(&(payload[0]), 0, UBX_NAV_PVT_PAYLOAD_LENGTH);
 
 	// Grab the response (or lack thereof)
 	HAL_UART_Receive_DMA(self->gnss_uart_handle, &(self->config_response_buf[0]),
@@ -976,10 +976,9 @@ static gnss_error_code_t query_high_performance_mode(GNSS* self)
 		}
 		else if (message_class == 0x06 && message_id == 0x8B) {
 			// Need to ensure the response is identical to the expected response
-			uint8_t* current_byte_ptr = (uint8_t*)buf_start;
-			for (int i = 0; i < HIGH_PERFORMANCE_RESPONSE_SIZE; i++, current_byte_ptr++) {
+			for (int i = 0; i < HIGH_PERFORMANCE_RESPONSE_SIZE; i++) {
 
-				if (*current_byte_ptr != high_performance_mode_response[i]) {
+				if (payload[i] != high_performance_mode_response[i]) {
 					return_code = GNSS_CONFIG_ERROR;
 					return return_code;
 				}

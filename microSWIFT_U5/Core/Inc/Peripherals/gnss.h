@@ -100,7 +100,7 @@ typedef enum gnss_error_code{
 #define UBX_ACK_ACK_CLSID_INDEX 0
 #define UBX_ACK_ACK_MSGID_INDEX 1
 #define HIGH_PERFORMANCE_QUERY_SIZE 28
-#define HIGH_PERFORMANCE_RESPONSE_SIZE 44
+#define HIGH_PERFORMANCE_RESPONSE_SIZE 36
 #define ENABLE_HIGH_PERFORMANCE_SIZE 60
 
 // GNSS struct definition -- packed for good organization, not memory efficiency
