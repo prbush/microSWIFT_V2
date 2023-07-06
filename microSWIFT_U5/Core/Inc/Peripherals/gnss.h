@@ -58,7 +58,7 @@ typedef enum gnss_error_code{
 #define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
 #define UBX_BUFFER_SIZE (10 * UBX_MESSAGE_SIZE)
 #define INITIAL_STAGES_BUFFER_SIZE 500
-#define FRAME_SYNC_RX_SIZE 113
+#define FRAME_SYNC_RX_SIZE 100
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_SACC 250 // need to confirm with Jim what this should be

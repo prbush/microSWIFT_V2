@@ -115,13 +115,13 @@ gnss_error_code_t gnss_config(GNSS* self){
 	if (self->global_config->gnss_sampling_rate == 5) {
 		config[162] = 0x4B;
 		config[163] = 0x5D;
-	} else {
+	} else { // 4Hz
 		config[162] = 0x19;
 		config[163] = 0xF7;
 	}
 
 
-	// Send over the BBR config settings
+	// Send over the Battery Backed Ram (BBR) config settings
 	return_code = send_config(self, &(config[0]), CONFIGURATION_ARRAY_SIZE, UBX_CFG_VALSET_CLASS,
 			UBX_CFG_VALSET_ID);
 
@@ -614,11 +614,12 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 
 
 		tx_return = tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD,
-				TX_OR_CLEAR, &actual_flags, 1);
+				TX_OR_CLEAR, &actual_flags, 2);
 		// If the flag is not present, then we are idle
 		if (tx_return == TX_NO_EVENTS) {
 			HAL_UART_DMAStop(self->gnss_uart_handle);
 			self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+			HAL_Delay(1);
 			break;
 		} else {
 			frame_sync_attempts++;
@@ -632,13 +633,15 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 
 		return GNSS_BUSY_ERROR;
 	}
+
 	// Start with a blank msg buf -- this will short cycle the for loop
 	// below if a message was not received
 	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
+
 	// Send over the configuration settings
 	HAL_UART_Transmit_DMA(self->gnss_uart_handle, &(config_array[0]),
 			message_size);
-
+	// Make sure the transmission went through completely
 	if (tx_event_flags_get(self->control_flags, GNSS_TX_COMPLETE, TX_OR_CLEAR,
 					&actual_flags, TX_TIMER_TICKS_PER_SECOND) != TX_SUCCESS) {
 		HAL_UART_DMAStop(self->gnss_uart_handle);
@@ -648,10 +651,10 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 
 	}
 
-	// Grab the acknowledgment message
 	HAL_UART_Receive_DMA(self->gnss_uart_handle, self->config_response_buf,
 			CONFIG_BUFFER_SIZE);
 
+	// Make sure we receive the response within the right amount of time
 	if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
 			&actual_flags, TX_TIMER_TICKS_PER_SECOND * 2) != TX_SUCCESS) {
 		HAL_UART_DMAStop(self->gnss_uart_handle);
@@ -696,7 +699,9 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 	}
 
 	// If we made it here, the ack message was not in the buffer
-    self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+	HAL_UART_DMAStop(self->gnss_uart_handle);
+	self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+	HAL_Delay(10);
 	return GNSS_CONFIG_ERROR;
 }
 
@@ -710,6 +715,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
  */
 static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
 {
+	ULONG actual_flags;
 	// 3rd byte -- 0x08 = Controlled GNSS stop, 0x09 = Controlled GNSS start
 	uint8_t message_payload[4] = {0x00, 0x00, (send_stop) ? 0x08 : 0x09, 0x00};
 	char cfg_rst_message[sizeof(message_payload) +
@@ -727,6 +733,16 @@ static gnss_error_code_t stop_start_gnss(GNSS* self, bool send_stop)
 	{
 		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		return GNSS_CONFIG_ERROR;
+	}
+
+	// Make sure the transmission went through completely
+	if (tx_event_flags_get(self->control_flags, GNSS_TX_COMPLETE, TX_OR_CLEAR,
+					&actual_flags, TX_TIMER_TICKS_PER_SECOND) != TX_SUCCESS) {
+		HAL_UART_DMAStop(self->gnss_uart_handle);
+		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+		HAL_Delay(10);
+		return GNSS_UART_ERROR;
+
 	}
 
 	return GNSS_SUCCESS;
@@ -804,10 +820,23 @@ static gnss_error_code_t enable_high_performance_mode(GNSS* self)
 		register_watchdog_refresh();
 		return_code = query_high_performance_mode(self);
 
-		if (return_code != GNSS_SUCCESS) {
-			config_step_attempts++;
-		} else {
-			break;
+		switch (return_code) {
+			case GNSS_NAK_MESSAGE_RECEIVED:
+				break;
+
+			case GNSS_SUCCESS:
+				return return_code;
+
+			case GNSS_UART_ERROR:
+				config_step_attempts++;
+				break;
+
+			case GNSS_CONFIG_ERROR:
+				config_step_attempts++;
+				break;
+
+			default:
+				return GNSS_UNKNOWN_ERROR;
 		}
 	}
 
@@ -819,58 +848,59 @@ static gnss_error_code_t enable_high_performance_mode(GNSS* self)
 		return return_code;
 	}
 
-	// Zero out the config response buffer
-	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
-	config_step_attempts = 0;
-
-	while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
-		register_watchdog_refresh();
-		return_code = send_config(self, &(enable_high_performance_mode[0]),
-				ENABLE_HIGH_PERFORMANCE_SIZE, 0x06, 0x41);
-
-		if (return_code != GNSS_SUCCESS) {
-			config_step_attempts++;
-		} else {
-			break;
-		}
-	}
-
-	if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
-		HAL_UART_DMAStop(self->gnss_uart_handle);
-		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-		HAL_Delay(10);
-		return_code = GNSS_HIGH_PERFORMANCE_ENABLE_ERROR;
-		return return_code;
-	}
-
-	// Must cycle power before the high performance mode will kick in
-	self->cycle_power(self);
-
-	HAL_Delay(10);
-
-	// Zero out the config response buffer
-	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
-	config_step_attempts = 0;
-
-	// Now check to see if the changes stuck
-	while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
-		register_watchdog_refresh();
-		return_code = query_high_performance_mode(self);
-
-		if (return_code != GNSS_SUCCESS) {
-			config_step_attempts++;
-		} else {
-			break;
-		}
-	}
-
-	if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
-		HAL_UART_DMAStop(self->gnss_uart_handle);
-		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-		HAL_Delay(10);
-		return_code = GNSS_CONFIG_ERROR;
-		return return_code;
-	}
+//	// Zero out the config response buffer
+//	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
+//	config_step_attempts = 0;
+//
+//	// Now send over the command to enable high performance mode
+//	while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
+//		register_watchdog_refresh();
+//		return_code = send_config(self, &(enable_high_performance_mode[0]),
+//				ENABLE_HIGH_PERFORMANCE_SIZE, 0x06, 0x41);
+//
+//		if (return_code != GNSS_SUCCESS) {
+//			config_step_attempts++;
+//		} else {
+//			break;
+//		}
+//	}
+//
+//	if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
+//		HAL_UART_DMAStop(self->gnss_uart_handle);
+//		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+//		HAL_Delay(10);
+//		return_code = GNSS_HIGH_PERFORMANCE_ENABLE_ERROR;
+//		return return_code;
+//	}
+//
+//	// Must cycle power before the high performance mode will kick in
+//	self->cycle_power(self);
+//
+//	HAL_Delay(10);
+//
+//	// Zero out the config response buffer
+//	memset(self->config_response_buf, 0, CONFIG_BUFFER_SIZE);
+//	config_step_attempts = 0;
+//
+//	// Now check to see if the changes stuck
+//	while (config_step_attempts < MAX_CONFIG_STEP_ATTEMPTS) {
+//		register_watchdog_refresh();
+//		return_code = query_high_performance_mode(self);
+//
+//		if (return_code != GNSS_SUCCESS) {
+//			config_step_attempts++;
+//		} else {
+//			break;
+//		}
+//	}
+//
+//	if (config_step_attempts == MAX_CONFIG_STEP_ATTEMPTS) {
+//		HAL_UART_DMAStop(self->gnss_uart_handle);
+//		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
+//		HAL_Delay(10);
+//		return_code = GNSS_CONFIG_ERROR;
+//		return return_code;
+//	}
 
 	return_code = GNSS_SUCCESS;
 	return return_code;

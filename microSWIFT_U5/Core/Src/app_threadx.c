@@ -1450,9 +1450,7 @@ static self_test_status_t initial_power_on_self_test(void)
 
 		gnss_return_code = gnss->config(gnss);
 		if (gnss_return_code != GNSS_SUCCESS) {
-			// Config didn't work, cycle power and try again
-			gnss->cycle_power(gnss);
-			HAL_Delay(13);
+			// Config didn't go through, try again
 			fail_counter++;
 
 		} else {

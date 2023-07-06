@@ -36,7 +36,7 @@
 
 // Sampling rate in Hz for the GNSS sensor
 // !! Must be either 4 or 5
-#define GNSS_SAMPLING_RATE 5
+#define GNSS_SAMPLING_RATE 4
 
 // Determine whether or not the GNSS sensor should be set to high performance mode
 #define GNSS_HIGH_PERFORMANCE_MODE_ENABLED true
