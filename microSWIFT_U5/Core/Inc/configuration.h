@@ -45,7 +45,9 @@
 // If the IMU will be utilized or not
 #define IMU_ENABLED false
 // If there is a CT sensor present
-#define CT_ENABLED false
+#define CT_ENABLED true
+// Whether or not to use the Independent watchdog
+#define WATCHDOG_ENABLED false
 
 typedef struct microSWIFT_configuration{
 	uint32_t samples_per_window;

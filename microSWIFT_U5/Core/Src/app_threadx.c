@@ -108,7 +108,7 @@ ct_samples* samples_buf;
 #endif
 
 
-#define WAVES_MEM_POOL_SIZE 600000
+#define WAVES_MEM_POOL_SIZE 650000
 __ALIGN_BEGIN UCHAR waves_byte_pool_buffer[WAVES_MEM_POOL_SIZE] __ALIGN_END;
 TX_BYTE_POOL waves_byte_pool;
 /* USER CODE END PV */
@@ -155,6 +155,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	(void)byte_pool;
 	CHAR *pointer = TX_NULL;
 	byte_pool = memory_ptr;
+#if WATCHDOG_ENABLED
 	//
 	// Create the watchdog refresh semaphore
 	ret = tx_semaphore_create(&watchdog_semaphore, "watchdog semaphore", 0);
@@ -170,6 +171,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
+#endif
 	//
 	// Allocate stack for the startup thread
 	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
@@ -1461,6 +1463,7 @@ void shut_it_all_down(void)
 
 }
 
+#if WATCHDOG_ENABLED
 /**
   * @brief  Put to the watchdog semaphore so the watchdog thread can refresh IWDG
   *
@@ -1472,6 +1475,14 @@ void register_watchdog_refresh(void)
 {
 	tx_semaphore_put(&watchdog_semaphore);
 }
+#else
+
+void register_watchdog_refresh(void)
+{
+
+}
+
+#endif
 
 /**
   * @brief  Test communication with each peripheral.

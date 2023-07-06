@@ -153,7 +153,9 @@ int main(void)
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
+#if WATCHDOG_ENABLED
   MX_IWDG_Init();
+#endif
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
@@ -612,14 +614,14 @@ static void MX_RTC_Init(void)
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
+//  hrtc.Init.SynchPrediv = 0;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
   hrtc.Init.BinMode = RTC_BINARY_MIX;
-  hrtc.Init.BinMixBcdU = RTC_BINARY_MIX_BCDU_0;
+//  hrtc.Init.BinMixBcdU = RTC_BINARY_MIX_BCDU_0;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();

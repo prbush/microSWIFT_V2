@@ -230,7 +230,7 @@ void gnss_process_message(GNSS* self)
 	int32_t num_payload_bytes = 0;
 	int32_t lat, lon, sAcc, vnorth, veast, vdown;
 	int16_t pDOP;
-	bool is_ubx_nav_pvt_msg, velocities_exceed_max, sAcc_exceeded_max;
+	bool is_ubx_nav_pvt_msg, velocities_exceed_max, sAcc_exceeded_max, message_checksum_valid = false;
 
 	// Really gross for loop that processes msgs in each iteration
 	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
@@ -239,6 +239,8 @@ void gnss_process_message(GNSS* self)
 			num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
 				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end))
 	{
+
+		message_checksum_valid = true;
 
 		// UBX_NAV_PVT payload is 92 bytes, message class is 0x01, message ID is 0x07
 		is_ubx_nav_pvt_msg = (num_payload_bytes == UBX_NAV_PVT_PAYLOAD_LENGTH) ||
@@ -326,6 +328,11 @@ void gnss_process_message(GNSS* self)
 
 		buf_length -= buf_end - buf_start;
 		buf_start = buf_end;
+	}
+
+	// If the checksum was invalid, replace with running average
+	if (!message_checksum_valid) {
+		self->get_running_average_velocities(self);
 	}
 }
 
