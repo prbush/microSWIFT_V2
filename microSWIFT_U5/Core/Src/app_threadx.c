@@ -652,10 +652,10 @@ void gnss_thread_entry(ULONG thread_input){
 	while (!(gnss->all_resolution_stages_complete || gnss->timer_timeout)) {
 
 		register_watchdog_refresh();
-		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED, TX_OR_CLEAR,
-				&actual_flags, timer_ticks_to_get_message);
+		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE,
+				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
 
-		if (tx_return == TX_SUCCESS){
+		if ((tx_return == TX_SUCCESS) && !(actual_flags & GNSS_MSG_INCOMPLETE)) {
 
 			gnss->process_message(gnss);
 
@@ -1212,6 +1212,19 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	tx_event_flags_set(&thread_control_flags, FULL_CYCLE_COMPLETE, TX_OR);
 	tx_thread_terminate(&end_of_cycle_thread);
+}
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
+		if (Size < UBX_NAV_PVT_MESSAGE_LENGTH) {
+			gnss->get_running_average_velocities(gnss);
+			tx_event_flags_set(&thread_control_flags, GNSS_MSG_INCOMPLETE, TX_OR);
+		} else {
+			memcpy(&(gnss->ubx_process_buf[0]), &(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
+			tx_event_flags_set(&thread_control_flags, GNSS_MSG_RECEIVED, TX_OR);
+		}
+	}
 }
 
 /**

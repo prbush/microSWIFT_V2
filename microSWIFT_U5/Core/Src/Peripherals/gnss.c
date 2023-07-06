@@ -373,10 +373,23 @@ gnss_error_code_t gnss_get_running_average_velocities(GNSS* self)
 {
 	gnss_error_code_t return_code = GNSS_SUCCESS;
 	float substitute_north, substitute_east, substitute_down;
+
+	if (self->total_samples >= self->global_config->samples_per_window) {
+
+		return_code = GNSS_DONE_SAMPLING;
+
+	}
 	// avoid a divide by zero error
-	if (self->total_samples > 0) {
+	else if (self->total_samples == 0) {
+
+		return_code = GNSS_NO_SAMPLES_ERROR;
+
+	}
+	// Good to replace value with running average
+	else {
+
 		substitute_north = (((float)self->v_north_sum) / MM_PER_METER) /
-				((float)self->total_samples);
+						((float)self->total_samples);
 		substitute_east = (((float)self->v_east_sum) / MM_PER_METER) /
 				((float)self->total_samples);
 		substitute_down = (((float)self->v_down_sum) / MM_PER_METER) /
@@ -388,10 +401,6 @@ gnss_error_code_t gnss_get_running_average_velocities(GNSS* self)
 
 		self->total_samples++;
 		self->total_samples_averaged++;
-	}
-	else {
-		// No valid samples yet, avoid divide by zero error
-		return_code = GNSS_NO_SAMPLES_ERROR;
 	}
 
 	return return_code;

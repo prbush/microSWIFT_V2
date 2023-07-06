@@ -80,9 +80,10 @@ typedef enum control_flags{
 	GNSS_CONFIG_REQUIRED 	= 1 << 14,
 	GNSS_TX_COMPLETE 		= 1 << 15,
 	GNSS_MSG_RECEIVED 		= 1 << 16,
+	GNSS_MSG_INCOMPLETE     = 1 << 17,
 	// GNSS timer flags
-	GNSS_INITIAL_RESOLUTION_STAGE 	= 1 << 17,
-	GNSS_WINDOW_PROCESSING_STAGE 	= 1 << 18
+	GNSS_INITIAL_RESOLUTION_STAGE 	= 1 << 18,
+	GNSS_WINDOW_PROCESSING_STAGE 	= 1 << 19
 } control_flags_t;
 
 
