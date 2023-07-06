@@ -102,7 +102,6 @@ typedef enum gnss_error_code{
 #define HIGH_PERFORMANCE_QUERY_SIZE 28
 #define HIGH_PERFORMANCE_RESPONSE_SIZE 44
 #define ENABLE_HIGH_PERFORMANCE_SIZE 60
-#define HIGH_PERFORMANCE_ACK_SIZE 10
 
 // GNSS struct definition -- packed for good organization, not memory efficiency
 typedef struct GNSS {
