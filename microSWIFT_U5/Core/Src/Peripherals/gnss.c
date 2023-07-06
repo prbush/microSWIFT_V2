@@ -232,6 +232,17 @@ void gnss_process_message(GNSS* self)
 	int16_t pDOP;
 	bool is_ubx_nav_pvt_msg, velocities_exceed_max, sAcc_exceeded_max, message_checksum_valid = false;
 
+	// Make sure we don't overflow our arrays
+	if (self->total_samples >= self->global_config->samples_per_window) {
+		HAL_UART_DMAStop(self->gnss_uart_handle);
+		self->sample_window_stop_time = get_timestamp(self);
+		self->all_samples_processed = true;
+		self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
+				(((double)(self->sample_window_stop_time - self->sample_window_start_time))));
+
+		return;
+	}
+
 	// Really gross for loop that processes msgs in each iteration
 	for (num_payload_bytes = uUbxProtocolDecode(buf_start, buf_length,
 				 &message_class, &message_id, (char*)payload, sizeof(payload), &buf_end);
@@ -292,17 +303,6 @@ void gnss_process_message(GNSS* self)
 		if ((self->total_samples == 0) && (!velocities_exceed_max) && (!sAcc_exceeded_max)) {
 			self->all_resolution_stages_complete = true;
 			self->sample_window_start_time = get_timestamp(self);
-		}
-
-		// Make sure we don't overflow our arrays
-		if (self->total_samples >= self->global_config->samples_per_window) {
-			HAL_UART_DMAStop(self->gnss_uart_handle);
-			self->sample_window_stop_time = get_timestamp(self);
-			self->all_samples_processed = true;
-			self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
-					(((double)(self->sample_window_stop_time - self->sample_window_start_time))));
-
-			return;
 		}
 
 		// Check if the velocity values are any good

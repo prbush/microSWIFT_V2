@@ -655,11 +655,10 @@ void gnss_thread_entry(ULONG thread_input){
 		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE,
 				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
 
-		if ((tx_return == TX_SUCCESS) && !(actual_flags & GNSS_MSG_INCOMPLETE)) {
-
-			gnss->process_message(gnss);
-
-
+		if (tx_return == TX_SUCCESS) {
+			if (!(actual_flags & GNSS_MSG_INCOMPLETE)) {
+				gnss->process_message(gnss);
+			}
 		}
 		// Message was dropped
 		else if (tx_return == TX_NO_EVENTS) {
@@ -696,14 +695,16 @@ void gnss_thread_entry(ULONG thread_input){
 
 		register_watchdog_refresh();
 
-		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED, TX_OR_CLEAR,
-				&actual_flags, timer_ticks_to_get_message);
+		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE,
+				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
 
-		if (tx_return == TX_SUCCESS){
+		if (tx_return == TX_SUCCESS) {
 
-			gnss->process_message(gnss);
+			if (!(actual_flags & GNSS_MSG_INCOMPLETE)) {
 
+				gnss->process_message(gnss);
 
+			}
 		}
 		// Message was dropped
 		else if (tx_return == TX_NO_EVENTS) {
@@ -1440,7 +1441,7 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 		return_code = GNSS_UART_ERROR;
 	}
 
-	hal_return_code = HAL_UART_Receive_DMA(gnss_struct_ptr->gnss_uart_handle,
+	hal_return_code = HAL_UARTEx_ReceiveToIdle_DMA(gnss_struct_ptr->gnss_uart_handle,
 			(uint8_t*)&(buffer[0]), msg_size);
 		//  No need for the half-transfer complete interrupt, so disable it
 	__HAL_DMA_DISABLE_IT(gnss->gnss_rx_dma_handle, DMA_IT_HT);
