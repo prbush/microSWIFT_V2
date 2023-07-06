@@ -97,7 +97,10 @@ typedef enum error_flags{
 	RTC_ERROR = 1 << 8,
 	WATCHDOG_RESET = 1 << 9,
 	SOFTWARE_RESET = 1 << 10,
-	GNSS_RESOLUTION_ERROR = 1 << 11
+	GNSS_RESOLUTION_ERROR = 1 << 11,
+	SAMPLE_WINDOW_ERROR = 1 << 12,
+	MEMORY_CORRUPTION_ERROR = 1 << 13,
+	GNSS_EXITED_EARLY = 1 << 14
 }error_flags_t;
 
 typedef enum led_sequence{

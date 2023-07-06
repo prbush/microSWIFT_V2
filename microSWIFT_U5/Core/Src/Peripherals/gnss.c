@@ -19,8 +19,8 @@ static gnss_error_code_t enable_high_performance_mode(GNSS* self);
 static gnss_error_code_t query_high_performance_mode(GNSS* self);
 static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
 		uint32_t num_bytes)__attribute__((unused));
-static uint32_t get_timestamp(GNSS* self)__attribute__((unused));
-static void reset_struct_fields(GNSS* self)__attribute__((unused));
+static uint32_t get_timestamp(GNSS* self);
+static void reset_struct_fields(GNSS* self);
 
 /**
  * Initialize the GNSS struct

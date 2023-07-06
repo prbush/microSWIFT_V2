@@ -152,6 +152,7 @@ typedef struct Iridium {
 	void                 (*queue_flush)(struct Iridium* self);
 
 	bool timer_timeout;
+	bool skip_current_message;
 } Iridium;
 
 typedef struct Iridium_message {

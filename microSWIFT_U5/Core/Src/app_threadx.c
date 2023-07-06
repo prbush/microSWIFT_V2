@@ -119,9 +119,11 @@ extern void SystemClock_Config(void);
 // Static functions
 static self_test_status_t initial_power_on_self_test(void);
 static void led_sequence(uint8_t sequence);
-static void jump_to_end_of_window(ULONG error_bit_to_set);
-static void jump_to_waves(void);
+static void jump_to_end_of_window(ULONG error_bits_to_set);
 static void send_error_message(ULONG error_flags);
+#if CT_ENABLED
+static void jump_to_waves(void);
+#endif
 // GNSS DMA circular mode callback
 gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, size_t buffer_size);
 // Externally visible functions
@@ -610,13 +612,16 @@ void startup_thread_entry(ULONG thread_input){
   */
 void gnss_thread_entry(ULONG thread_input){
 
+	gnss_error_code_t gnss_return_code;
+	int number_of_no_sample_errors = 0;
 	float last_lat = 0;
 	float last_lon = 0;
 	uint8_t sbd_port;
 	UINT tx_return;
 	ULONG actual_flags;
-	int timer_ticks_to_get_message = TX_TIMER_TICKS_PER_SECOND + 1;
-	uint8_t sample_window_timeout = 40;
+	int timer_ticks_to_get_message = (TX_TIMER_TICKS_PER_SECOND / configuration.gnss_sampling_rate) + 1;
+	uint8_t sample_window_timeout = ((configuration.samples_per_window / configuration.gnss_sampling_rate)
+			/ 60) + 2;
 
 	register_watchdog_refresh();
 
@@ -635,7 +640,7 @@ void gnss_thread_entry(ULONG thread_input){
 		// If we were unable to get good GNSS reception and start the DMA transfer loop, then
 		// go to sleep until the top of the next hour. Sleep will be handled in end_of_cycle_thread
 		register_watchdog_refresh();
-		jump_to_end_of_window(GNSS_ERROR);
+		jump_to_end_of_window(GNSS_RESOLUTION_ERROR);
 	}
 	else
 	{
@@ -648,12 +653,26 @@ void gnss_thread_entry(ULONG thread_input){
 		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED, TX_OR_CLEAR,
 				&actual_flags, timer_ticks_to_get_message);
 
-		if (tx_return != TX_SUCCESS){
+		if (tx_return == TX_SUCCESS){
+
+			gnss->process_message(gnss);
+
+
+		}
+		// Message was dropped
+		else if (tx_return == TX_NO_EVENTS) {
+
+			continue;
+
+		}
+		// Any other error code is indication of memory corruption
+		else {
+
 			register_watchdog_refresh();
-			jump_to_end_of_window(GNSS_ERROR);
+			jump_to_end_of_window(MEMORY_CORRUPTION_ERROR);
 		}
 
-		gnss->process_message(gnss);
+
 	}
 
 	// If this evaluates to true, we were unable to get adequate GNSS reception to
@@ -678,17 +697,37 @@ void gnss_thread_entry(ULONG thread_input){
 		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED, TX_OR_CLEAR,
 				&actual_flags, timer_ticks_to_get_message);
 
-		if (tx_return != TX_SUCCESS){
-			register_watchdog_refresh();
-			jump_to_end_of_window(GNSS_ERROR);
-		}
+		if (tx_return == TX_SUCCESS){
 
-		gnss->process_message(gnss);
+			gnss->process_message(gnss);
+
+
+		}
+		// Message was dropped
+		else if (tx_return == TX_NO_EVENTS) {
+
+			gnss_return_code = gnss->get_running_average_velocities(gnss);
+
+			if (gnss_return_code == GNSS_NO_SAMPLES_ERROR) {
+				if (++number_of_no_sample_errors == configuration.gnss_sampling_rate * 60) {
+					register_watchdog_refresh();
+					jump_to_end_of_window(SAMPLE_WINDOW_ERROR);
+				}
+
+			}
+
+		}
+		// Any other error code is indication of memory corruption
+		else {
+
+			register_watchdog_refresh();
+			jump_to_end_of_window(MEMORY_CORRUPTION_ERROR);
+		}
 
 		// If this evaluates to true, something hung up with GNSS sampling. End the sample window
 		if (gnss->timer_timeout) {
 			register_watchdog_refresh();
-			jump_to_end_of_window(GNSS_ERROR);
+			jump_to_end_of_window(SAMPLE_WINDOW_ERROR);
 		}
 	}
 
@@ -707,9 +746,10 @@ void gnss_thread_entry(ULONG thread_input){
 	// Just to be overly sure about alignment
 	memcpy(&sbd_message.Lat, &last_lat, sizeof(float));
 	memcpy(&sbd_message.Lon, &last_lon, sizeof(float));
-	// We're using the "port" field to encode how many samples were averaged. If the number
-	// is >= 255, then you just get 255.
-	sbd_port = (gnss->total_samples_averaged > 255) ? 255 : gnss->total_samples_averaged;
+	// We're using the "port" field to encode how many samples were averaged divided by 10,
+	// up to the limit of an uint8_t
+	sbd_port = ((gnss->total_samples_averaged / 10) >= 255) ? 255 :
+			(gnss->total_samples_averaged / 10);
 	memcpy(&sbd_message.port, &sbd_port, sizeof(uint8_t));
 
 	// Port the RF switch to the modem
@@ -931,6 +971,8 @@ void waves_thread_entry(ULONG thread_input){
   */
 void iridium_thread_entry(ULONG thread_input){
 	iridium_error_code_t iridium_return_code;
+	UINT tx_return;
+	ULONG actual_flags;
 	int fail_counter;
 	char ascii_7 = '7';
 	uint8_t sbd_type = 52;
@@ -986,6 +1028,15 @@ void iridium_thread_entry(ULONG thread_input){
 	}
 
 	register_watchdog_refresh();
+
+	tx_return = tx_event_flags_get(&error_flags, GNSS_EXITED_EARLY, TX_NO_WAIT,
+			&actual_flags, TX_NO_WAIT);
+
+	if (tx_return == TX_SUCCESS) {
+
+		iridium->skip_current_message = true;
+
+	}
 
 	iridium->transmit_message(iridium);
 
@@ -1128,13 +1179,14 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		register_watchdog_refresh();
 		// Restore clocks to the same config as before stop2 mode
 		SystemClock_Config();
-		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
-		HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
-		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
-		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
-		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 		HAL_ResumeTick();
 		HAL_ICACHE_Enable();
+//		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+//		HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
+//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
+//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
+
 	}
 
 	register_watchdog_refresh();
@@ -1435,7 +1487,9 @@ static self_test_status_t initial_power_on_self_test(void)
 	self_test_status_t return_code;
 	gnss_error_code_t gnss_return_code;
 	iridium_error_code_t iridium_return_code;
+#if CT_ENABLED
 	ct_error_code_t ct_return_code;
+#endif
 	int fail_counter;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
@@ -1574,6 +1628,8 @@ static self_test_status_t initial_power_on_self_test(void)
 	// Regardless of if the self-test passed, we'll still set it as ready and try again
 	// in the sample window
 	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
+#else
+	return_code = SELF_TEST_PASSED;
 #endif
 
 	return return_code;
@@ -1586,10 +1642,10 @@ static self_test_status_t initial_power_on_self_test(void)
   *
   * @retval void
   */
-static void jump_to_end_of_window(ULONG error_bit_to_set)
+static void jump_to_end_of_window(ULONG error_bits_to_set)
 {
 	gnss->on_off(gnss, GPIO_PIN_RESET);
-	tx_event_flags_set(&error_flags, error_bit_to_set, TX_OR);
+	tx_event_flags_set(&error_flags, error_bits_to_set | GNSS_EXITED_EARLY, TX_OR);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(gnss->gnss_uart_handle);
 	HAL_DMA_DeInit(gnss->gnss_rx_dma_handle);
@@ -1601,7 +1657,8 @@ static void jump_to_end_of_window(ULONG error_bit_to_set)
 		HAL_NVIC_SystemReset();
 	}
 
-	if (tx_thread_resume(&end_of_cycle_thread) != TX_SUCCESS){
+
+	if (tx_thread_resume(&iridium_thread) != TX_SUCCESS){
 		shut_it_all_down();
 		HAL_NVIC_SystemReset();
 	}
@@ -1609,10 +1666,11 @@ static void jump_to_end_of_window(ULONG error_bit_to_set)
 	tx_thread_terminate(&gnss_thread);
 }
 
+#if CT_ENABLED
 /**
-  * @brief  Break out of the GNSS thread and jump to end_of_cycle_thread
+  * @brief  Break out of the CT thread and jump to Waves thread
   *
-  * @param  thread_to_terminate - thread which called this
+  * @param  void
   *
   * @retval void
   */
@@ -1630,6 +1688,7 @@ static void jump_to_waves(void)
 
 	tx_thread_terminate(&ct_thread);
 }
+#endif
 
 /**
   * @brief  If an error was detected along the way, send an error (Type 99) message.
@@ -1640,46 +1699,128 @@ static void jump_to_waves(void)
   */
 static void send_error_message(ULONG error_flags)
 {
+	iridium_error_code_t return_code;
+	char error_message[ERROR_MESSAGE_MAX_LENGTH] = {0};
+	const char* watchdog_reset = "WATCHDOG RESET. ";
+	const char* software_reset = "SOFTWARE RESET. ";
+	const char* gnss_error = "GNSS ERROR. ";
+	const char* gnss_resolution_error = "GNSS RESOLUTION ERROR. ";
+	const char* sample_window_error = "SAMPLE WINDOW ERROR. ";
+	const char* memory_corruption_error = "MEMORY CORRUPTION ERROR. ";
+	const char* memory_alloc_error = "MEMORY ALLOC ERROR. ";
+	const char* dma_error =  "DMA ERROR. ";
+	const char* uart_error = "UART ERROR. ";
+	const char* rtc_error = "RTC ERROR. ";
+	char* string_ptr = &(error_message[0]);
+
 	if (error_flags & WATCHDOG_RESET) {
-		if (iridium->transmit_error_message(iridium, "WATCHDOG RESET")
-				== IRIDIUM_SUCCESS)
+
+		if ((string_ptr - &(error_message[0])) + strlen(watchdog_reset)
+				<= ERROR_MESSAGE_MAX_LENGTH)
 		{
-			// Only want to send this message once, so clear reset_reason
-			device_handles->reset_reason = 0;
+			memcpy(string_ptr, watchdog_reset, strlen(watchdog_reset));
+			string_ptr += strlen(watchdog_reset);
 		}
 
 	}
 
-	else if (error_flags & SOFTWARE_RESET) {
-		if (iridium->transmit_error_message(iridium, "SOFTWARE RESET, FAULT CONDITION OCCURED")
-				== IRIDIUM_SUCCESS)
+	if (error_flags & SOFTWARE_RESET) {
+
+		if ((string_ptr - &(error_message[0])) + strlen(software_reset)
+				<= ERROR_MESSAGE_MAX_LENGTH)
 		{
-			// Only want to send this message once, so clear reset_reason
-			device_handles->reset_reason = 0;
+			memcpy(string_ptr, software_reset, strlen(software_reset));
+			string_ptr += strlen(software_reset);
 		}
 
 	}
 
-	else if (error_flags & GNSS_ERROR)
+	if (error_flags & GNSS_ERROR)
 	{
-		iridium->transmit_error_message(iridium, "GNSS FAILURE");
-		// Set the event flag so we know to reconfigure in the next window
-		tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_REQUIRED, TX_OR);
+		if ((string_ptr - &(error_message[0])) + strlen(gnss_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, gnss_error, strlen(gnss_error));
+			string_ptr += strlen(gnss_error);
+		}
 	}
 
-	else if (error_flags & DMA_ERROR)
+	if (error_flags & GNSS_RESOLUTION_ERROR)
 	{
-		iridium->transmit_error_message(iridium, "DMA FAILURE");
+		if ((string_ptr - &(error_message[0])) + strlen(gnss_resolution_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, gnss_resolution_error, strlen(gnss_resolution_error));
+			string_ptr += strlen(gnss_resolution_error);
+		}
 	}
 
-	else if (error_flags & UART_ERROR)
+	if (error_flags & SAMPLE_WINDOW_ERROR)
 	{
-		iridium->transmit_error_message(iridium, "UART FAILURE");
+		if ((string_ptr - &(error_message[0])) + strlen(sample_window_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, sample_window_error, strlen(sample_window_error));
+			string_ptr += strlen(sample_window_error);
+		}
 	}
 
-	else if (error_flags & RTC_ERROR)
+	if (error_flags & MEMORY_CORRUPTION_ERROR)
 	{
-		iridium->transmit_error_message(iridium, "RTC FAILURE");
+		if ((string_ptr - &(error_message[0])) + strlen(memory_corruption_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, memory_corruption_error, strlen(memory_corruption_error));
+			string_ptr += strlen(memory_corruption_error);
+		}
+	}
+
+	if (error_flags & MEMORY_ALLOC_ERROR)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(memory_alloc_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, memory_alloc_error, strlen(memory_alloc_error));
+			string_ptr += strlen(memory_alloc_error);
+		}
+	}
+
+	if (error_flags & DMA_ERROR)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(dma_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, dma_error, strlen(dma_error));
+			string_ptr += strlen(dma_error);
+		}
+	}
+
+	if (error_flags & UART_ERROR)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(uart_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, uart_error, strlen(uart_error));
+			string_ptr += strlen(uart_error);
+		}
+	}
+
+	if (error_flags & RTC_ERROR)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(rtc_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, rtc_error, strlen(rtc_error));
+			string_ptr += strlen(rtc_error);
+		}
+	}
+
+	return_code = iridium->transmit_error_message(iridium, error_message);
+
+	if ((return_code == IRIDIUM_SUCCESS) && (device_handles->reset_reason != 0))
+	{
+		// Only want to send this message once, so clear reset_reason
+		device_handles->reset_reason = 0;
 	}
 }
 

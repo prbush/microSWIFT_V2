@@ -14,6 +14,7 @@ static iridium_error_code_t send_basic_command_message(Iridium* self,
 static iridium_error_code_t send_msg_from_queue(Iridium* self);
 static iridium_error_code_t internal_transmit_message(Iridium* self,
 		uint8_t* payload, uint16_t payload_size);
+static void reset_struct_fields(Iridium* self);
 
 // static variables
 static const char* ack = "AT\r";
@@ -49,9 +50,7 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	self->error_message_buffer = error_message_buffer;
 	self->response_buffer = response_buffer;
 	self->storage_queue = storage_queue;
-	self->current_lat = 0.0;
-	self->current_lon = 0.0;
-	self->timer_timeout = false;
+	reset_struct_fields(self);
 	self->config = iridium_config;
 	self->charge_caps = iridium_charge_caps;
 	self->self_test = iridium_self_test;
@@ -431,67 +430,66 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	iridium_error_code_t queue_return_code __attribute__((unused));
 	bool message_tx_success = false;
 	bool all_messages_sent = false;
-	uint32_t timer_minutes = 0;
-
-//	// Make sure we can get an acknowledgment from the modem
-//	for (fail_counter = 0; fail_counter < MAX_RETRIES; fail_counter++) {
-//
-//		if (send_basic_command_message(self, ack, ACK_MESSAGE_SIZE, ONE_SECOND)
-//				== IRIDIUM_COMMAND_RESPONSE_ERROR) {
-//			cycle_power(self);
-//		} else {
-//			break;
-//		}
-//	}
-//	// If we were unable to get an ack from the modem, return IRIDIUM_UART_ERROR
-//	if (fail_counter == MAX_RETRIES) {
-//		return IRIDIUM_UART_ERROR;
-//	}
-
-	// We'll add extra time to the transmit window if there are a bunch of messages in the queue
-	if (self->storage_queue->num_msgs_enqueued >= 5 && self->storage_queue->num_msgs_enqueued < 10) {
-		timer_minutes = self->global_config->iridium_max_transmit_time + 5;
-	}
-	else if (self->storage_queue->num_msgs_enqueued >= 10) {
-		timer_minutes = self->global_config->iridium_max_transmit_time + 10;
-	} else {
-		timer_minutes = self->global_config->iridium_max_transmit_time;
-	}
+	uint32_t timer_minutes = self->global_config->iridium_max_transmit_time;
 
 	// reset the timer and clear the interrupt flag
 	self->timer_timeout = false;
 	self->reset_timer(self, timer_minutes);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
-	// Send the message that was just generated
-	while (!self->timer_timeout && !message_tx_success) {
-		return_code = internal_transmit_message(self, (uint8_t*)self->current_message,
-				sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
 
-		if (return_code == IRIDIUM_UART_ERROR) {
-			self->cycle_power(self);
-		}
-		message_tx_success = return_code == IRIDIUM_SUCCESS;
-	}
+	if (self->skip_current_message) {
 
-	// If we made it here, there's still time left, try sending a queued message
-	// First, make sure we actually have messages in the queue
-	all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
-	// If we have time, send messages from the queue
-	while (!self->timer_timeout && !all_messages_sent) {
-		queue_return_code = send_msg_from_queue(self);
 		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
-	}
 
-	// Message failed to send. If there is space in the queue, store it,
-	// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
-	if (self->timer_timeout && !message_tx_success) {
-		// reset the timer and clear the flag for the next time
-		HAL_TIM_Base_Stop_IT(self->timer);
-		self->timer_timeout = false;
-		__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+		while (!self->timer_timeout && !all_messages_sent) {
+			queue_return_code = send_msg_from_queue(self);
+			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+		}
 
-		return self->queue_add(self, self->current_message);
+		// Message failed to send. If there is space in the queue, store it,
+		// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
+		if (self->timer_timeout && !message_tx_success) {
+			// reset the timer and clear the flag for the next time
+			HAL_TIM_Base_Stop_IT(self->timer);
+			self->timer_timeout = false;
+			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+
+			return self->queue_add(self, self->current_message);
+		}
+
+	} else {
+
+		// Send the message that was just generated
+		while (!self->timer_timeout && !message_tx_success) {
+			return_code = internal_transmit_message(self, (uint8_t*)self->current_message,
+					sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
+
+			if (return_code == IRIDIUM_UART_ERROR) {
+				self->cycle_power(self);
+			}
+			message_tx_success = return_code == IRIDIUM_SUCCESS;
+		}
+
+		// If we made it here, there's may still be time left, try sending a queued message
+		// First, make sure we actually have messages in the queue
+		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+		// If we have time, send messages from the queue
+		while (!self->timer_timeout && !all_messages_sent) {
+			queue_return_code = send_msg_from_queue(self);
+			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+		}
+
+		// Message failed to send. If there is space in the queue, store it,
+		// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
+		if (self->timer_timeout && !message_tx_success) {
+			// reset the timer and clear the flag for the next time
+			HAL_TIM_Base_Stop_IT(self->timer);
+			self->timer_timeout = false;
+			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+
+			return self->queue_add(self, self->current_message);
+		}
 	}
 
 
@@ -820,4 +818,17 @@ float iridium_get_timestamp(Iridium* self)
 	timestamp += rtc_time.Seconds;
 	// Not including fractions of a second
 	return (float)timestamp;
+}
+
+/**
+ *
+ *
+ * @return void
+ */
+static void reset_struct_fields(Iridium* self)
+{
+	self->current_lat = 0.0;
+	self->current_lon = 0.0;
+	self->timer_timeout = false;
+	self->skip_current_message = false;
 }
