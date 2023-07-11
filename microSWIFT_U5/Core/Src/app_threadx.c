@@ -1184,11 +1184,11 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		SystemClock_Config();
 		HAL_ResumeTick();
 		HAL_ICACHE_Enable();
-//		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
-//		HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
-//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
-//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
-//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
+		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+		HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
+		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
+		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
 	}
 
@@ -1477,7 +1477,7 @@ void shut_it_all_down(void)
 
 }
 
-#if WATCHDOG_ENABLED
+
 /**
   * @brief  Put to the watchdog semaphore so the watchdog thread can refresh IWDG
   *
@@ -1487,16 +1487,13 @@ void shut_it_all_down(void)
   */
 void register_watchdog_refresh(void)
 {
+#if WATCHDOG_ENABLED
 	tx_semaphore_put(&watchdog_semaphore);
-}
-#else
-
-void register_watchdog_refresh(void)
-{
-
-}
-
 #endif
+}
+
+
+
 
 /**
   * @brief  Test communication with each peripheral.

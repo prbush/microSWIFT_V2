@@ -13,10 +13,10 @@
 #include "stdint.h"
 
 // For testing and debugging with a very short sample window
-//#define DEBUGGING_FAST_CYCLE
+#define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
-//#define SHORT_SLEEP
+#define SHORT_SLEEP
 
 #ifdef DEBUGGING_FAST_CYCLE
 
@@ -47,7 +47,7 @@
 // If there is a CT sensor present
 #define CT_ENABLED false
 // Whether or not to use the Independent watchdog
-#define WATCHDOG_ENABLED false
+#define WATCHDOG_ENABLED true
 
 typedef struct microSWIFT_configuration{
 	uint32_t samples_per_window;
