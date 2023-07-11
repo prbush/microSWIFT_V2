@@ -86,7 +86,8 @@ uint8_t* gnss_config_response_buf;
 uint8_t* iridium_response_message;
 uint8_t* iridium_error_message;
 // Messages that failed to send are stored here
-Iridium_message_storage* sbd_message_queue;
+//extern __attribute__((section("NO_INIT"), zero_init))Iridium_message_storage* sbd_message_queue;
+extern Iridium_message_storage sbd_message_queue;
 // Structs
 GNSS* gnss;
 Iridium* iridium;
@@ -288,13 +289,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-	//
-	// The Iridium message storage
-	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message_queue, sizeof(Iridium_message_storage) + 100,
-			TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-	  return ret;
-	}
+//	//
+//	// The Iridium message storage
+//	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message_queue, sizeof(Iridium_message_storage) + 100,
+//			TX_NO_WAIT);
+//	if (ret != TX_SUCCESS){
+//	  return ret;
+//	}
 	//
 	// The iridium struct
 	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium, sizeof(Iridium) + 100, TX_NO_WAIT);
@@ -469,7 +470,7 @@ void startup_thread_entry(ULONG thread_input){
 					device_handles->Iridium_rx_dma_handle, device_handles->iridium_timer,
 					device_handles->Iridium_tx_dma_handle, &thread_control_flags, &error_flags,
 					device_handles->hrtc, &sbd_message, iridium_error_message,
-					iridium_response_message, sbd_message_queue);
+					iridium_response_message, &sbd_message_queue);
 
 #if CT_ENABLED
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
@@ -1093,6 +1094,12 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	tx_thread_sleep(1);
 
 	register_watchdog_refresh();
+
+	/*******************************************************************************************
+	 * TESTING IRIDIUM MESSAGE QUEUE PERSISTENT STORAGE/ NO INIT
+	 */
+	  shut_it_all_down();
+	  HAL_NVIC_SystemReset();
 
 	// Just to be overly sure everything is off
 	shut_it_all_down();

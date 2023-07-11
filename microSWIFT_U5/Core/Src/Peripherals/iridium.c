@@ -344,11 +344,15 @@ iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index
  */
 void iridium_storage_queue_flush(Iridium* self)
 {
-	// Zero out the whole thing
-	for (int i = 0; i < MAX_NUM_MSGS_STORED; i++) {
-		self->storage_queue->msg_queue[i].valid = false;
+	if (self->storage_queue->magic_number != SBD_QUEUE_MAGIC_NUMBER) {
+		// Zero out the whole thing
+		for (int i = 0; i < MAX_NUM_MSGS_STORED; i++) {
+			self->storage_queue->msg_queue[i].valid = false;
+		}
+		self->storage_queue->num_msgs_enqueued = 0;
+		// Set the magic number to indicate the queue has been initialized
+		self->storage_queue->magic_number = SBD_QUEUE_MAGIC_NUMBER;
 	}
-	self->storage_queue->num_msgs_enqueued = 0;
 }
 
 /**
@@ -475,10 +479,19 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		// First, make sure we actually have messages in the queue
 		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 		// If we have time, send messages from the queue
-		while (!self->timer_timeout && !all_messages_sent) {
+
+		/*******************************************************************************************
+		 * TESTING IRIDIUM MESSAGE QUEUE PERSISTENT STORAGE/ NO INIT
+		 */
+		while (!all_messages_sent) {
 			queue_return_code = send_msg_from_queue(self);
 			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 		}
+
+//		while (!self->timer_timeout && !all_messages_sent) {
+//			queue_return_code = send_msg_from_queue(self);
+//			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+//		}
 
 		// Message failed to send. If there is space in the queue, store it,
 		// otherwise return IRIDIUM_STORAGE_QUEUE_FULL

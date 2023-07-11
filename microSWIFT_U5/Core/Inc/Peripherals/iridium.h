@@ -82,6 +82,8 @@ typedef enum iridium_error_code{
 #define SECONDS_1970_TO_2000 946684800
 #define EPOCH_YEAR 1970
 #define CURRENT_CENTURY 2000
+// Magic number used to indicate the SBD message queue has been initialized
+#define SBD_QUEUE_MAGIC_NUMBER 0x101340
 
 typedef struct sbd_message_type_52 {
 		 char			legacy_number_7;
@@ -164,6 +166,7 @@ typedef struct Iridium_message_storage {
 	// Store 7 days worth of messages
 	Iridium_message msg_queue [MAX_NUM_MSGS_STORED];
 	uint8_t num_msgs_enqueued;
+	uint32_t magic_number;
 }Iridium_message_storage;
 
 

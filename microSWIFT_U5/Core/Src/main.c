@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tx_api.h"
+#include "Peripherals/iridium.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,7 +60,8 @@ TIM_HandleTypeDef htim16;
 TIM_HandleTypeDef htim17;
 
 /* USER CODE BEGIN PV */
-
+// Messages that failed to send are stored here
+__attribute__((section("NOINIT"), zero_init)) Iridium_message_storage sbd_message_queue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

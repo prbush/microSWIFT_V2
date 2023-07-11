@@ -29,13 +29,14 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "stm32u5xx_hal.h"
 
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#define DBUG
-#undef DBUG
+//#define DBUG
+
 // For testing purposed, use the Nucleo onboard LEDs
-#define NUCLEO_LIGHT_SHOW
-#undef NUCLEO_LIGHT_SHOW
+//#define NUCLEO_LIGHT_SHOW
+
 #include "configuration.h"
 /* USER CODE END Includes */
 
