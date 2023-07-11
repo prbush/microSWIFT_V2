@@ -70,7 +70,7 @@ void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
  */
 gnss_error_code_t gnss_config(GNSS* self){
 	gnss_error_code_t return_code;
-	// The configuration message, type UBX_CFG_VALSET. Default is set to 4Hz.
+	// The configuration message, type UBX_CFG_VALSET. Default is set to 5Hz.
 	// !!!! This is output from U-Center 2 software, do not change !!!
 	uint8_t config[CONFIGURATION_ARRAY_SIZE] =
     {0xB5,0x62,0x06,0x8A,0x9C,0x00,0x01,0x01,0x00,0x00,
@@ -91,7 +91,7 @@ gnss_error_code_t gnss_config(GNSS* self){
      0x10,0x01,0x18,0x00,0x31,0x10,0x01,0xA4,0x00,0x11,
      0x20,0x14,0x18,0x5C};
 
-	if (self->global_config->gnss_sampling_rate == 5) {
+	if (self->global_config->gnss_sampling_rate == 4) {
 		config[119] = 0xFA;
 		config[162] = 0x4A;
 		config[163] = 0xC2;
@@ -112,7 +112,7 @@ gnss_error_code_t gnss_config(GNSS* self){
 	// and Battery-backed-RAM, so we'll adjust that now
 	config[7] = 0x02;
 
-	if (self->global_config->gnss_sampling_rate == 5) {
+	if (self->global_config->gnss_sampling_rate == 4) {
 		config[162] = 0x4B;
 		config[163] = 0x5D;
 	} else { // 4Hz
