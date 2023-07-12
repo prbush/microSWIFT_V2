@@ -626,7 +626,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 	while (frame_sync_attempts < MAX_FRAME_SYNC_ATTEMPTS) {
 		register_watchdog_refresh();
 		HAL_UARTEx_ReceiveToIdle_DMA(self->gnss_uart_handle, self->config_response_buf,
-				FRAME_SYNC_RX_SIZE);
+				FRAME_SYNC_RX_SIZE * 2);
 
 
 		tx_return = tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD,

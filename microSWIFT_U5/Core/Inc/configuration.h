@@ -16,7 +16,7 @@
 #define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
-#define SHORT_SLEEP
+//#define SHORT_SLEEP
 
 #ifdef DEBUGGING_FAST_CYCLE
 
@@ -31,7 +31,7 @@
 #define IRIDIUM_MAX_TRANSMIT_TIME 10
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
-#define GNSS_MAX_ACQUISITION_WAIT_TIME 15
+#define GNSS_MAX_ACQUISITION_WAIT_TIME 10
 #endif
 
 // Sampling rate in Hz for the GNSS sensor

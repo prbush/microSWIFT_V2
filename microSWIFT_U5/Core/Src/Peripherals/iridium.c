@@ -443,66 +443,104 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	HAL_TIM_Base_Start_IT(self->timer);
 
 	if (self->skip_current_message) {
+		/*******************************************************************************************
+		 * TESTING IRIDIUM MESSAGE QUEUE PERSISTENT STORAGE/ NO INIT
+		 */
 
-		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
-
-		while (!self->timer_timeout && !all_messages_sent) {
-			queue_return_code = send_msg_from_queue(self);
-			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
-		}
-
-		// Message failed to send. If there is space in the queue, store it,
-		// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
-		if (self->timer_timeout && !message_tx_success) {
+		if (self->storage_queue->num_msgs_enqueued < 10) {
 			// reset the timer and clear the flag for the next time
 			HAL_TIM_Base_Stop_IT(self->timer);
 			self->timer_timeout = false;
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
 			return self->queue_add(self, self->current_message);
-		}
+		} else {
 
-	} else {
-
-		// Send the message that was just generated
-		while (!self->timer_timeout && !message_tx_success) {
-			return_code = internal_transmit_message(self, (uint8_t*)self->current_message,
-					sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
-
-			if (return_code == IRIDIUM_UART_ERROR) {
-				self->cycle_power(self);
-			}
-			message_tx_success = return_code == IRIDIUM_SUCCESS;
-		}
-
-		// If we made it here, there's may still be time left, try sending a queued message
-		// First, make sure we actually have messages in the queue
-		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
-		// If we have time, send messages from the queue
-
-		/*******************************************************************************************
-		 * TESTING IRIDIUM MESSAGE QUEUE PERSISTENT STORAGE/ NO INIT
-		 */
-		while (!all_messages_sent) {
-			queue_return_code = send_msg_from_queue(self);
+			// If we made it here, there's may still be time left, try sending a queued message
+			// First, make sure we actually have messages in the queue
 			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+			while (!self->timer_timeout && !all_messages_sent) {
+				queue_return_code = send_msg_from_queue(self);
+				all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+			}
 		}
 
+//		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+//
 //		while (!self->timer_timeout && !all_messages_sent) {
 //			queue_return_code = send_msg_from_queue(self);
 //			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 //		}
+//
+//		// Message failed to send. If there is space in the queue, store it,
+//		// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
+//		if (self->timer_timeout && !message_tx_success) {
+//			// reset the timer and clear the flag for the next time
+//			HAL_TIM_Base_Stop_IT(self->timer);
+//			self->timer_timeout = false;
+//			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+//
+//			return self->queue_add(self, self->current_message);
+//		}
 
-		// Message failed to send. If there is space in the queue, store it,
-		// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
-		if (self->timer_timeout && !message_tx_success) {
+	} else {
+
+		/*******************************************************************************************
+		 * TESTING IRIDIUM MESSAGE QUEUE PERSISTENT STORAGE/ NO INIT
+		 */
+
+		if (self->storage_queue->num_msgs_enqueued < 10) {
 			// reset the timer and clear the flag for the next time
 			HAL_TIM_Base_Stop_IT(self->timer);
 			self->timer_timeout = false;
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
 			return self->queue_add(self, self->current_message);
+		} else {
+
+			// If we made it here, there's may still be time left, try sending a queued message
+			// First, make sure we actually have messages in the queue
+			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+			while (!self->timer_timeout && !all_messages_sent) {
+				queue_return_code = send_msg_from_queue(self);
+				all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+			}
 		}
+
+//		// Send the message that was just generated
+//		while (!self->timer_timeout && !message_tx_success) {
+//			return_code = internal_transmit_message(self, (uint8_t*)self->current_message,
+//					sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
+//
+//			if (return_code == IRIDIUM_UART_ERROR) {
+//				self->cycle_power(self);
+//			}
+//			message_tx_success = return_code == IRIDIUM_SUCCESS;
+//		}
+//
+//		// If we made it here, there's may still be time left, try sending a queued message
+//		// First, make sure we actually have messages in the queue
+//		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+//		// If we have time, send messages from the queue
+//
+//		/*******************************************************************************************
+//		 * TESTING IRIDIUM MESSAGE QUEUE PERSISTENT STORAGE/ NO INIT
+//		 */
+//		while (!self->timer_timeout && !all_messages_sent) {
+//			queue_return_code = send_msg_from_queue(self);
+//			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+//		}
+//
+//		// Message failed to send. If there is space in the queue, store it,
+//		// otherwise return IRIDIUM_STORAGE_QUEUE_FULL
+//		if (self->timer_timeout && !message_tx_success) {
+//			// reset the timer and clear the flag for the next time
+//			HAL_TIM_Base_Stop_IT(self->timer);
+//			self->timer_timeout = false;
+//			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
+//
+//			return self->queue_add(self, self->current_message);
+//		}
 	}
 
 

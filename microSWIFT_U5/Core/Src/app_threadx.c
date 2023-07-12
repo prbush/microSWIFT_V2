@@ -578,10 +578,11 @@ void startup_thread_entry(ULONG thread_input){
 			case SELF_TEST_CRITICAL_FAULT:
 				shut_it_all_down();
 				// Stay stuck here
-				while (1) {
+				for (int i = 0; i < 25; i++) {
 					register_watchdog_refresh();
 					led_sequence(SELF_TEST_CRITICAL_FAULT);
 				}
+				HAL_NVIC_SystemReset();
 
 			default:
 				// If we got here, there's probably a memory corruption
@@ -1095,12 +1096,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	register_watchdog_refresh();
 
-	/*******************************************************************************************
-	 * TESTING IRIDIUM MESSAGE QUEUE PERSISTENT STORAGE/ NO INIT
-	 */
-	  shut_it_all_down();
-	  HAL_NVIC_SystemReset();
-
 	// Just to be overly sure everything is off
 	shut_it_all_down();
 	HAL_Delay(100);
@@ -1525,9 +1520,10 @@ static self_test_status_t initial_power_on_self_test(void)
 	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
 	// turn on the GNSS FET
 	gnss->on_off(gnss, GPIO_PIN_SET);
+	HAL_Delay(100);
 	// Send the configuration commands to the GNSS unit.
 	fail_counter = 0;
-	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+	while (fail_counter < MAX_SELF_TEST_RETRIES * 2) {
 
 		register_watchdog_refresh();
 
