@@ -61,7 +61,7 @@ TIM_HandleTypeDef htim17;
 
 /* USER CODE BEGIN PV */
 // Messages that failed to send are stored here
-__attribute__((section("NOINIT"), zero_init)) Iridium_message_storage sbd_message_queue;
+__attribute__((section(".noinit_section"))) volatile Iridium_message_storage sbd_message_queue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

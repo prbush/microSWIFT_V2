@@ -43,8 +43,8 @@ _Min_Stack_Size = 0x1000 ;	/* required amount of stack */
 /* Memories definition */
 MEMORY
 {
-  RAM	(xrw)	: ORIGIN = 0x20000000,	LENGTH = 768K - 55K
-  NOINIT (xrw)  : ORIGIN = (0x20000000 + 768k) - 55k
+  RAM	(xrw)	: ORIGIN = 0x20000000,	LENGTH = 713K
+  NOINIT (xrw)  : ORIGIN = 0x200B2400,  LENGTH = 55K
   SRAM4	(xrw)	: ORIGIN = 0x28000000,	LENGTH = 16K
 }
 
@@ -73,12 +73,6 @@ SECTIONS
 
     _etext = .;        /* define a global symbols at end of code */
   } >RAM
-  
-  /* No init section, used for Iridium message storage queue */
-  .noinit (NOLOAD):
-  {
-  	KEEP(*(*.noinit*))
-  } > NOINIT
 
   /* Constant data into "RAM" Ram type memory */
   .rodata :
@@ -159,6 +153,12 @@ SECTIONS
     . = . + _Min_Stack_Size;
     . = ALIGN(8);
   } >RAM
+  
+  /* No init section, used for Iridium message storage queue */
+  .noinit (NOLOAD):
+  {
+  	KEEP(*(.noinit_section))
+  } > NOINIT
 
   /* Remove information from the compiler libraries */
   /DISCARD/ :

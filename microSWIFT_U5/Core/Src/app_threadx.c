@@ -657,13 +657,12 @@ void gnss_thread_entry(ULONG thread_input){
 		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE,
 				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
 
-		if (tx_return == TX_SUCCESS) {
-			if (!(actual_flags & GNSS_MSG_INCOMPLETE)) {
-				gnss->process_message(gnss);
-			}
+		// Full message came through
+		if ((tx_return == TX_SUCCESS) && !(actual_flags & GNSS_MSG_INCOMPLETE)) {
+			gnss->process_message(gnss);
 		}
-		// Message was dropped
-		else if (tx_return == TX_NO_EVENTS) {
+		// Message was dropped or incomplete
+		else if ((tx_return == TX_NO_EVENTS) || (actual_flags & GNSS_MSG_INCOMPLETE)) {
 
 			continue;
 
@@ -700,16 +699,15 @@ void gnss_thread_entry(ULONG thread_input){
 		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE,
 				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
 
-		if (tx_return == TX_SUCCESS) {
+		// Full message came through
+		if ((tx_return == TX_SUCCESS) && !(actual_flags & GNSS_MSG_INCOMPLETE)) {
 
-			if (!(actual_flags & GNSS_MSG_INCOMPLETE)) {
+			gnss->process_message(gnss);
+			number_of_no_sample_errors = 0;
 
-				gnss->process_message(gnss);
-
-			}
 		}
-		// Message was dropped
-		else if (tx_return == TX_NO_EVENTS) {
+		// Message was dropped or incomplete
+		else if ((tx_return == TX_NO_EVENTS) || (actual_flags & GNSS_MSG_INCOMPLETE)) {
 
 			gnss_return_code = gnss->get_running_average_velocities(gnss);
 
