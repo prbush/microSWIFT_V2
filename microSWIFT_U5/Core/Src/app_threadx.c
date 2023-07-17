@@ -94,6 +94,8 @@ Iridium* iridium;
 RF_Switch* rf_switch;
 // Handles for all the STM32 peripherals
 device_handles_t *device_handles;
+// The watchdog hour elapsed timer flag
+bool watchdog_hour_timer_elapsed = false;
 // Only included if we will be using the IMU
 #if IMU_ENABLED
 int16_t* IMU_N_Array;
@@ -625,7 +627,7 @@ void gnss_thread_entry(ULONG thread_input){
 	ULONG actual_flags;
 	int timer_ticks_to_get_message = round(((float)TX_TIMER_TICKS_PER_SECOND /
 			(float)configuration.gnss_sampling_rate) + 1);
-	uint8_t sample_window_timeout = ((configuration.samples_per_window / configuration.gnss_sampling_rate)
+	uint16_t sample_window_timeout = ((configuration.samples_per_window / configuration.gnss_sampling_rate)
 			/ 60) + 2;
 
 	register_watchdog_refresh();
@@ -1291,6 +1293,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	else if (htim->Instance == TIM16) {
 		gnss->timer_timeout = true;
 	}
+	else if (htim->Instance == TIM15) {
+		watchdog_hour_timer_elapsed = true;
+	}
 }
 
 /**
@@ -1489,7 +1494,9 @@ void shut_it_all_down(void)
 void register_watchdog_refresh(void)
 {
 #if WATCHDOG_ENABLED
-	tx_semaphore_put(&watchdog_semaphore);
+	if (!watchdog_hour_timer_elapsed) {
+		tx_semaphore_put(&watchdog_semaphore);
+	}
 #endif
 }
 

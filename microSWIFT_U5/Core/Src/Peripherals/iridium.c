@@ -443,6 +443,8 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	bool all_messages_sent = false;
 	uint32_t timer_minutes;
 
+	register_watchdog_refresh();
+
 	// Give a little extra time if the storage queue is filling up
 	if (self->storage_queue->num_msgs_enqueued > 10) {
 		timer_minutes = self->global_config->iridium_max_transmit_time + 2;
@@ -457,6 +459,8 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	HAL_TIM_Base_Start_IT(self->timer);
 
 	if (self->skip_current_message) {
+
+		register_watchdog_refresh();
 
 		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 
@@ -473,8 +477,11 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 
 	} else {
 
+		register_watchdog_refresh();
+
 		// Send the message that was just generated
 		while (!self->timer_timeout && !message_tx_success) {
+			register_watchdog_refresh();
 			return_code = internal_transmit_message(self, (uint8_t*)self->current_message,
 					sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
 
@@ -489,6 +496,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 		// If we have time, send messages from the queue
 		while (!self->timer_timeout && !all_messages_sent) {
+			register_watchdog_refresh();
 			queue_return_code = send_msg_from_queue(self);
 			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 		}
@@ -618,7 +626,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 			register_watchdog_refresh();
 			// We will only grab the response up to and including MO status
 			HAL_UART_Receive(self->iridium_uart_handle,
-					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 29);
+					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 25);
 			register_watchdog_refresh();
 			// Grab the MO status
 			SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
@@ -631,6 +639,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 
 			// If message Tx failed, put the modem to sleep and delay for a total of 30 seconds
 			self->sleep(self, GPIO_PIN_RESET);
+			register_watchdog_refresh();
 			HAL_Delay(25 * ONE_SECOND);
 			register_watchdog_refresh();
 			self->sleep(self, GPIO_PIN_SET);

@@ -511,7 +511,7 @@ gnss_error_code_t gnss_reset_uart(GNSS* self, uint16_t baud_rate)
  * @param self - GNSS struct
  * @param timeout_in_minutes - timeout in minutes
  */
-gnss_error_code_t gnss_reset_timer(GNSS* self, uint8_t timeout_in_minutes)
+gnss_error_code_t gnss_reset_timer(GNSS* self, uint16_t timeout_in_minutes)
 {
 	if (HAL_TIM_Base_DeInit(self->minutes_timer) != HAL_OK) {
 		return GNSS_TIMER_ERROR;

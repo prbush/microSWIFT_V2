@@ -171,7 +171,7 @@ typedef struct GNSS {
 	void			  (*cycle_power)(struct GNSS* self);
 	gnss_error_code_t (*set_rtc)(struct GNSS* self, uint8_t* msg_payload);
 	gnss_error_code_t (*reset_uart)(struct GNSS* self, uint16_t baud_rate);
-	gnss_error_code_t (*reset_timer)(struct GNSS* self, uint8_t timeout_in_minutes);
+	gnss_error_code_t (*reset_timer)(struct GNSS* self, uint16_t timeout_in_minutes);
 } GNSS;
 
 /* Function declarations */
@@ -192,7 +192,7 @@ void			  gnss_on_off(GNSS* self, GPIO_PinState pin_state);
 void			  gnss_cycle_power(GNSS* self);
 gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload);
 gnss_error_code_t gnss_reset_uart(GNSS* self, uint16_t baud_rate);
-gnss_error_code_t gnss_reset_timer(GNSS* self, uint8_t timeout_in_minutes);
+gnss_error_code_t gnss_reset_timer(GNSS* self, uint16_t timeout_in_minutes);
 // watchdog refresh function
 extern void 	  register_watchdog_refresh();
 
