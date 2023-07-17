@@ -441,7 +441,14 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 	iridium_error_code_t queue_return_code __attribute__((unused));
 	bool message_tx_success = false;
 	bool all_messages_sent = false;
-	uint32_t timer_minutes = self->global_config->iridium_max_transmit_time;
+	uint32_t timer_minutes;
+
+	// Give a little extra time if the storage queue is filling up
+	if (self->storage_queue->num_msgs_enqueued > 10) {
+		timer_minutes = self->global_config->iridium_max_transmit_time + 2;
+	} else {
+		timer_minutes = self->global_config->iridium_max_transmit_time;
+	}
 
 	// reset the timer and clear the interrupt flag
 	self->timer_timeout = false;
@@ -531,12 +538,6 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	char SBDWB_response_code;
 	int SBDI_response_code;
 	int fail_counter;
-//	int transmit_fail_counter = 0;
-//	int adaptive_delay_index;
-//	uint32_t adaptive_delay_time[5] = {ONE_SECOND * 3, ONE_SECOND * 5,
-//			ONE_SECOND * 28, ONE_SECOND * 58, ONE_SECOND * 178};
-//	int delay_time;
-//	bool sleep_break;
 	bool checksum_match;
 
 	// Assemble the load_sbd string
@@ -547,8 +548,6 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	while (!self->timer_timeout) {
 		// get the checksum
 		get_checksum((uint8_t*)payload, payload_size);
-		// reset flags
-//		sleep_break = false;
 		checksum_match = true;
 
 		// Tell the modem we want to send a message
@@ -619,7 +618,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 			register_watchdog_refresh();
 			// We will only grab the response up to and including MO status
 			HAL_UART_Receive(self->iridium_uart_handle,
-					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 30);
+					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 29);
 			register_watchdog_refresh();
 			// Grab the MO status
 			SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));

@@ -166,7 +166,7 @@ typedef struct Iridium_message_storage {
 	// Store 7 days worth of messages
 	Iridium_message msg_queue [MAX_NUM_MSGS_STORED];
 	uint8_t num_msgs_enqueued;
-	uint32_t magic_number;
+	uint64_t magic_number;
 }Iridium_message_storage;
 
 

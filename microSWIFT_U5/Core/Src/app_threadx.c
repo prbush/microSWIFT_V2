@@ -623,7 +623,8 @@ void gnss_thread_entry(ULONG thread_input){
 	uint8_t sbd_port;
 	UINT tx_return;
 	ULONG actual_flags;
-	int timer_ticks_to_get_message = (TX_TIMER_TICKS_PER_SECOND / configuration.gnss_sampling_rate) + 1;
+	int timer_ticks_to_get_message = round(((float)TX_TIMER_TICKS_PER_SECOND /
+			(float)configuration.gnss_sampling_rate) + 1);
 	uint8_t sample_window_timeout = ((configuration.samples_per_window / configuration.gnss_sampling_rate)
 			/ 60) + 2;
 

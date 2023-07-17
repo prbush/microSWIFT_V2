@@ -154,6 +154,12 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 	gnss_error_code_t return_code = GNSS_SELF_TEST_FAILED;
 	ULONG actual_flags;
 	uint8_t msg_buf[INITIAL_STAGES_BUFFER_SIZE];
+	int max_ticks_to_get_message = round((((float)((float)INITIAL_STAGES_BUFFER_SIZE /
+			(float)UBX_NAV_PVT_MESSAGE_LENGTH)) *
+			((float)((float)TX_TIMER_TICKS_PER_SECOND
+					/ (float)self->global_config->gnss_sampling_rate))) + 1);
+
+	// Zero out the message buffer
 	memset(&(msg_buf[0]), 0, INITIAL_STAGES_BUFFER_SIZE);
 
     // Grabbing and processing 5 samples takes ~ 1 second, so we'll keep trying until we hit
@@ -168,7 +174,7 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 				INITIAL_STAGES_BUFFER_SIZE);
 
 		if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-				&actual_flags, MAX_THREADX_WAIT_TICKS_FOR_CONFIG) != TX_SUCCESS) {
+				&actual_flags, max_ticks_to_get_message) != TX_SUCCESS) {
 			// If we didn't receive the needed messaged in time, cycle the GNSS sensor
 			self->cycle_power(self);
 			HAL_UART_DMAStop(self->gnss_uart_handle);
@@ -191,13 +197,13 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 
 	register_watchdog_refresh();
 
-	// Just to be overly sure we're starting the sampling window from a fresh slate
-	reset_struct_fields(self);
-	self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-
 	if (self->timer_timeout) {
 		return GNSS_TIME_RESOLUTION_ERROR;
 	}
+
+	// Just to be overly sure we're starting the sampling window from a fresh slate
+	reset_struct_fields(self);
+	self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 
 	return_code = start_dma(self, &(buffer[0]), msg_size);
 	register_watchdog_refresh();
@@ -609,9 +615,16 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 		size_t message_size, uint8_t response_class, uint8_t response_id)
 {
 	int frame_sync_attempts = 0;
+	int ticks_to_send_config = round(((float)TX_TIMER_TICKS_PER_SECOND *
+			((float)message_size * 8.0) / (float)GNSS_DEFAULT_BAUD_RATE) + 1);
+	int frame_sync_ticks = round(((float)TX_TIMER_TICKS_PER_SECOND *
+			(((float)FRAME_SYNC_RX_SIZE * 8.0) / (float)GNSS_DEFAULT_BAUD_RATE)) + 1) ;
+	int ticks_to_receive_msgs = round((((float)((float)CONFIG_BUFFER_SIZE /
+			(float)UBX_NAV_PVT_MESSAGE_LENGTH)) *
+			((float)((float)TX_TIMER_TICKS_PER_SECOND
+					/ (float)self->global_config->gnss_sampling_rate))) + 1);;
 	ULONG actual_flags;
 	UINT tx_return;
-//	uint8_t msg_buf[CONFIG_BUFFER_SIZE];
 	char payload[UBX_NAV_PVT_PAYLOAD_LENGTH];
 	const char* buf_start = (const char*)self->config_response_buf;
 	const char* buf_end = buf_start;
@@ -626,11 +639,11 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 	while (frame_sync_attempts < MAX_FRAME_SYNC_ATTEMPTS) {
 		register_watchdog_refresh();
 		HAL_UARTEx_ReceiveToIdle_DMA(self->gnss_uart_handle, self->config_response_buf,
-				FRAME_SYNC_RX_SIZE * 2);
+				FRAME_SYNC_RX_SIZE);
 
 
 		tx_return = tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD,
-				TX_OR_CLEAR, &actual_flags, 2);
+				TX_OR_CLEAR, &actual_flags, frame_sync_ticks);
 		// If the flag is not present, then we are idle
 		if (tx_return == TX_NO_EVENTS) {
 			HAL_UART_DMAStop(self->gnss_uart_handle);
@@ -659,7 +672,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 			message_size);
 	// Make sure the transmission went through completely
 	if (tx_event_flags_get(self->control_flags, GNSS_TX_COMPLETE, TX_OR_CLEAR,
-					&actual_flags, TX_TIMER_TICKS_PER_SECOND) != TX_SUCCESS) {
+					&actual_flags, ticks_to_send_config) != TX_SUCCESS) {
 		HAL_UART_DMAStop(self->gnss_uart_handle);
 		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		HAL_Delay(10);
@@ -672,7 +685,7 @@ static gnss_error_code_t send_config(GNSS* self, uint8_t* config_array,
 
 	// Make sure we receive the response within the right amount of time
 	if (tx_event_flags_get(self->control_flags, GNSS_CONFIG_RECVD, TX_OR_CLEAR,
-			&actual_flags, TX_TIMER_TICKS_PER_SECOND * 2) != TX_SUCCESS) {
+			&actual_flags, ticks_to_receive_msgs) != TX_SUCCESS) {
 		HAL_UART_DMAStop(self->gnss_uart_handle);
 		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		HAL_Delay(10);
