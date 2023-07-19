@@ -797,12 +797,10 @@ void HAL_RTCEx_WakeUpTimerIRQHandler(RTC_HandleTypeDef *hrtc)
   */
 __weak void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
 {
-  /* Prevent unused argument(s) compilation warning */
-  UNUSED(hrtc);
-
-  /* NOTE : This function should not be modified, when the callback is needed,
-            the HAL_RTCEx_WakeUpTimerEventCallback could be implemented in the user file
-   */
+	HAL_PWR_EnableBkUpAccess();
+	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+	HAL_PWR_DisableBkUpAccess();
 }
 
 

@@ -636,6 +636,7 @@ void gnss_thread_entry(ULONG thread_input){
 	rf_switch->set_gnss_port(rf_switch);
 
 	// Start the timer for resolution stages
+	HAL_TIM_Base_Stop_IT(gnss->minutes_timer);
 	gnss->reset_timer(gnss, configuration.gnss_max_acquisition_wait_time);
 	HAL_TIM_Base_Start_IT(gnss->minutes_timer);
 
@@ -977,6 +978,10 @@ void waves_thread_entry(ULONG thread_input){
   */
 void iridium_thread_entry(ULONG thread_input){
 	iridium_error_code_t iridium_return_code;
+	ULONG actual_error_flags = 0;
+	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR |
+			DMA_ERROR | UART_ERROR | RTC_ERROR | WATCHDOG_RESET | SOFTWARE_RESET |
+			GNSS_RESOLUTION_ERROR;
 	UINT tx_return;
 	ULONG actual_flags;
 	int fail_counter;
@@ -987,6 +992,34 @@ void iridium_thread_entry(ULONG thread_input){
 	float sbd_timestamp = iridium->get_timestamp(iridium);
 
 	register_watchdog_refresh();
+
+	// Check if we are skipping this message
+	tx_return = tx_event_flags_get(&error_flags, GNSS_EXITED_EARLY, TX_NO_WAIT,
+			&actual_flags, TX_NO_WAIT);
+	if (tx_return == TX_SUCCESS) {
+		iridium->skip_current_message = true;
+	}
+
+	// If this message was skipped and there's nothing in the queue, exit and jump to end_of_cycle_thread
+	if (iridium->skip_current_message && iridium->storage_queue->num_msgs_enqueued == 0) {
+		// Turn off the modem and RF switch
+		iridium->sleep(iridium, GPIO_PIN_RESET);
+		iridium->on_off(iridium, GPIO_PIN_RESET);
+		rf_switch->power_off(rf_switch);
+		// Deinit UART and DMA to prevent spurious interrupts
+		HAL_UART_DeInit(iridium->iridium_uart_handle);
+		HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
+		HAL_DMA_DeInit(iridium->iridium_tx_dma_handle);
+		HAL_TIM_Base_Stop_IT(iridium->timer);
+
+		// Resume EOC thread
+		if (tx_thread_resume(&end_of_cycle_thread) != TX_SUCCESS){
+			shut_it_all_down();
+			HAL_NVIC_SystemReset();
+		}
+
+		tx_thread_terminate(&iridium_thread);
+	}
 
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
@@ -1025,9 +1058,11 @@ void iridium_thread_entry(ULONG thread_input){
 	}
 
 	if (fail_counter == MAX_SELF_TEST_RETRIES) {
-		// If we couldn't get a response from the modem, shut everything down and force reset
-		// Save the message first
-		iridium->queue_add(iridium, iridium->current_message);
+		// If we couldn't get a response from the modem, shut everything down and force reset.
+		// But save the current message first
+		if (!iridium->skip_current_message) {
+			iridium->queue_add(iridium, iridium->current_message);
+		}
 		shut_it_all_down();
 		HAL_Delay(10);
 		HAL_NVIC_SystemReset();
@@ -1035,26 +1070,42 @@ void iridium_thread_entry(ULONG thread_input){
 
 	register_watchdog_refresh();
 
-	tx_return = tx_event_flags_get(&error_flags, GNSS_EXITED_EARLY, TX_NO_WAIT,
-			&actual_flags, TX_NO_WAIT);
-
-	if (tx_return == TX_SUCCESS) {
-
-		iridium->skip_current_message = true;
-
-	}
-
 	iridium->transmit_message(iridium);
 
 	register_watchdog_refresh();
 
-	// Turn off the modem
+	// Check for error messages
+	tx_event_flags_get(&error_flags, error_occured_flags, TX_OR_CLEAR, &actual_error_flags, TX_NO_WAIT);
+
+	// If there was a GNSS error or it could not resolve in time, make sure to terminate the thread
+	if ((actual_error_flags & GNSS_RESOLUTION_ERROR) || (actual_error_flags & GNSS_ERROR)){
+		// Set the event flag so we know to reconfigure in the next window
+		tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_REQUIRED, TX_OR);
+	}
+
+	// If we have an error flag, send an error message
+	if (actual_error_flags) {
+		register_watchdog_refresh();
+		send_error_message(actual_error_flags);
+
+		register_watchdog_refresh();
+	}
+
+	// If something went wrong with the RTC, we'll reset
+	if (actual_error_flags & RTC_ERROR) {
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
+	// Turn off the modem and RF switch
 	iridium->sleep(iridium, GPIO_PIN_RESET);
 	iridium->on_off(iridium, GPIO_PIN_RESET);
+	rf_switch->power_off(rf_switch);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(iridium->iridium_uart_handle);
 	HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
 	HAL_DMA_DeInit(iridium->iridium_tx_dma_handle);
+	HAL_TIM_Base_Stop_IT(iridium->timer);
 
 	if (tx_thread_resume(&end_of_cycle_thread) != TX_SUCCESS){
 		shut_it_all_down();
@@ -1072,6 +1123,168 @@ void iridium_thread_entry(ULONG thread_input){
   * @param  ULONG thread_input - unused
   * @retval void
   */
+//void end_of_cycle_thread_entry(ULONG thread_input){
+//	RTC_AlarmTypeDef alarm = {0};
+//	RTC_TimeTypeDef initial_rtc_time;
+//	RTC_TimeTypeDef rtc_time;
+//	RTC_DateTypeDef rtc_date;
+//	uint32_t wake_up_minute;
+//	UINT tx_return;
+//
+//#if CT_ENABLED
+//	error_occured_flags |= CT_ERROR;
+//#endif
+//
+//#if IMU_ENABLED
+//	error_flags |= IMU_ERROR;
+//#endif
+//
+//	// Must put this thread to sleep for a short while to allow other threads to terminate
+//	tx_thread_sleep(1);
+//
+//	register_watchdog_refresh();
+//
+//	// Just to be overly sure everything is off
+//	shut_it_all_down();
+//	HAL_Delay(100);
+//
+////	// Clear any pending RTC interrupts, See Errata section 2.2.4
+////	HAL_PWR_EnableBkUpAccess();
+////	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
+////	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+////	HAL_PWR_DisableBkUpAccess();
+//
+//#if CT_ENABLED
+//	HAL_NVIC_DisableIRQ(UART4_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(UART4_IRQn);
+//#endif
+//
+//	HAL_NVIC_DisableIRQ(GPDMA1_Channel0_IRQn);
+//	HAL_NVIC_DisableIRQ(GPDMA1_Channel1_IRQn);
+//	HAL_NVIC_DisableIRQ(GPDMA1_Channel2_IRQn);
+//	HAL_NVIC_DisableIRQ(GPDMA1_Channel3_IRQn);
+//	HAL_NVIC_DisableIRQ(GPDMA1_Channel4_IRQn);
+//	HAL_NVIC_DisableIRQ(UART5_IRQn);
+//	HAL_NVIC_DisableIRQ(LPUART1_IRQn);
+//	HAL_Delay(1);
+//
+//	HAL_NVIC_ClearPendingIRQ(RTC_S_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel0_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel1_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel2_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel3_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel4_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(UART5_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(LPUART1_IRQn);
+//	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
+//	HAL_Delay(1);
+////
+////	// See Errata section 2.2.4
+//	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
+//	HAL_NVIC_EnableIRQ(RTC_IRQn);
+////	// Only used for low power modes lower than stop2.
+////	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
+//
+//	HAL_RTC_GetTime(device_handles->hrtc, &initial_rtc_time, RTC_FORMAT_BIN);
+//	// Must call GetDate to keep the RTC happy, even if you don't use it
+//	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+//
+//#ifdef SHORT_SLEEP
+//	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
+//			(initial_rtc_time.Minutes + 1);
+//#else
+//	wake_up_minute = 0;
+//#endif
+//
+//	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+//
+//	while (rtc_time.Minutes != wake_up_minute) {
+//		// Get the date and time
+//		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
+//		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+//
+//		// We should be restarting the window at the top of the hour. If the initial time and just
+//		// checked time differ in hours, then we should start a new window. This should never occur,
+//		// but just as a second safety
+//		if (initial_rtc_time.Hours != rtc_time.Hours){
+//			SystemClock_Config();
+//			register_watchdog_refresh();
+//			HAL_ResumeTick();
+//			HAL_ICACHE_Enable();
+//			HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+//			HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+//			HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
+//			HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
+//			HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
+//			break;
+//		}
+//
+//		// Set the alarm to wake up the processor in 25 seconds
+//		alarm.Alarm = RTC_ALARM_A;
+//		alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
+//		alarm.AlarmTime = rtc_time;
+//		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 35) ? ((rtc_time.Seconds + 25) - 60) : (rtc_time.Seconds + 25);
+//		alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
+//		alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+//
+//		// If something goes wrong setting the alarm, force an RTC reset and go to the next window.
+//		// With luck, the RTC will get set again on the next window and everything will be cool.
+//		if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN) != HAL_OK) {
+//			shut_it_all_down();
+//			HAL_NVIC_SystemReset();
+//		}
+//
+//		register_watchdog_refresh();
+//		// See errata regarding ICACHE access on wakeup, section 2.2.11
+//		HAL_ICACHE_Disable();
+//		HAL_SuspendTick();
+//
+//		HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
+//
+//		register_watchdog_refresh();
+//		// Restore clocks to the same config as before stop2 mode
+//		SystemClock_Config();
+//		HAL_ResumeTick();
+//		HAL_ICACHE_Enable();
+//		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+//		HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
+//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
+//		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
+//
+//	}
+//
+//	register_watchdog_refresh();
+//
+//	// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
+//	HAL_NVIC_DisableIRQ(RTC_IRQn);
+//
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
+//	HAL_NVIC_EnableIRQ(UART5_IRQn);
+//	HAL_NVIC_EnableIRQ(LPUART1_IRQn);
+////	HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
+//
+//	// Reset and resume the startup thread
+//	tx_return = tx_thread_reset(&startup_thread);
+//	if (tx_return != TX_SUCCESS){
+//		shut_it_all_down();
+//		HAL_NVIC_SystemReset();
+//	}
+//
+//	tx_return = tx_thread_resume(&startup_thread);
+//	if (tx_return != TX_SUCCESS){
+//		shut_it_all_down();
+//		HAL_NVIC_SystemReset();
+//	}
+//
+//	tx_event_flags_set(&thread_control_flags, FULL_CYCLE_COMPLETE, TX_OR);
+//	tx_thread_terminate(&end_of_cycle_thread);
+//}
+
 void end_of_cycle_thread_entry(ULONG thread_input){
 	ULONG actual_error_flags = 0;
 	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR |
@@ -1095,12 +1308,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	// Must put this thread to sleep for a short while to allow other threads to terminate
 	tx_thread_sleep(1);
 
-	register_watchdog_refresh();
-
-	// Just to be overly sure everything is off
-	shut_it_all_down();
-	HAL_Delay(100);
-
 	// See if we had any errors along the way
 	tx_event_flags_get(&error_flags, error_occured_flags, TX_OR_CLEAR, &actual_error_flags, TX_NO_WAIT);
 
@@ -1110,18 +1317,21 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_REQUIRED, TX_OR);
 	}
 
-	// If we have an error flag, send an error message
-	if (actual_error_flags) {
-		rf_switch->power_on(rf_switch);
-		rf_switch->set_iridium_port(rf_switch);
-		iridium->sleep(iridium, GPIO_PIN_SET);
-		iridium->on_off(iridium, GPIO_PIN_SET);
-		send_error_message(actual_error_flags);
+	// Just to be overly sure everything is off
+	shut_it_all_down();
 
-		iridium->sleep(iridium, GPIO_PIN_RESET);
-		iridium->on_off(iridium, GPIO_PIN_RESET);
-		rf_switch->power_off(rf_switch);
-	}
+//	// If we have an error flag, send an error message
+//	if (actual_error_flags) {
+//		rf_switch->power_on(rf_switch);
+//		rf_switch->set_iridium_port(rf_switch);
+//		iridium->sleep(iridium, GPIO_PIN_SET);
+//		iridium->on_off(iridium, GPIO_PIN_SET);
+//		send_error_message(actual_error_flags);
+//
+//		iridium->sleep(iridium, GPIO_PIN_RESET);
+//		iridium->on_off(iridium, GPIO_PIN_RESET);
+//		rf_switch->power_off(rf_switch);
+//	}
 
 	// If something went wrong with the RTC, we'll reset
 	if (actual_error_flags & RTC_ERROR) {
@@ -1132,8 +1342,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	// See Errata section 2.2.4
 	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(RTC_IRQn);
-	// Only used for low power modes lower than stop2.
-//	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
+	// Only used for low power modes lower than stop2. Doesn't hurt anything to enable it for stop2
+	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
 
 	HAL_RTC_GetTime(device_handles->hrtc, &initial_rtc_time, RTC_FORMAT_BIN);
 	// Must call GetDate to keep the RTC happy, even if you don't use it
@@ -1164,7 +1374,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		alarm.Alarm = RTC_ALARM_A;
 		alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
 		alarm.AlarmTime = rtc_time;
-		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 31) ? ((rtc_time.Seconds + 29) - 60) : (rtc_time.Seconds + 29);
+		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 30) ? ((rtc_time.Seconds + 30) - 60) : (rtc_time.Seconds + 30);
 		alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
 		alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 
@@ -1175,31 +1385,25 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			HAL_NVIC_SystemReset();
 		}
 
-		register_watchdog_refresh();
 		// See errata regarding ICACHE access on wakeup, section 2.2.11
 		HAL_ICACHE_Disable();
 		HAL_SuspendTick();
 
 		HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
-
-		register_watchdog_refresh();
 		// Restore clocks to the same config as before stop2 mode
 		SystemClock_Config();
-		HAL_ResumeTick();
-		HAL_ICACHE_Enable();
 		HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
 		HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
 		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
 		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
 		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
-
+		HAL_ResumeTick();
+		HAL_ICACHE_Enable();
 	}
-
-	register_watchdog_refresh();
 
 	// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
 	HAL_NVIC_DisableIRQ(RTC_IRQn);
-//	HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
+	HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
 
 	// Reset and resume the startup thread
 	tx_return = tx_thread_reset(&startup_thread);
@@ -1309,10 +1513,12 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 	// Low overhead ISR does not require save/restore context
 	// Clear the alarm flag, flash an LED in debug mode
 	HAL_PWR_EnableBkUpAccess();
-	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
+//	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
 
 }
+
+
 
 void HAL_IWDG_EarlyWakeupCallback(IWDG_HandleTypeDef *hiwdg)
 {

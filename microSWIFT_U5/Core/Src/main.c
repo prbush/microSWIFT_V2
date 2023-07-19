@@ -56,7 +56,6 @@ DMA_HandleTypeDef handle_GPDMA1_Channel2;
 
 RTC_HandleTypeDef hrtc;
 
-TIM_HandleTypeDef htim15;
 TIM_HandleTypeDef htim16;
 TIM_HandleTypeDef htim17;
 
@@ -79,7 +78,6 @@ static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_IWDG_Init(void);
 static void MX_TIM16_Init(void);
-static void MX_TIM15_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
 /* USER CODE END PFP */
@@ -152,14 +150,15 @@ int main(void)
   MX_GPDMA1_Init();
   MX_RTC_Init();
   MX_ICACHE_Init();
+#if CT_ENABLED
   MX_UART4_Init();
+#endif
   MX_UART5_Init();
-  MX_ADC4_Init();
+//  MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
   MX_IWDG_Init();
   MX_TIM16_Init();
-  MX_TIM15_Init();
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -179,6 +178,18 @@ int main(void)
   handles.gnss_timer = &htim16;
   handles.watchdog_handle = &hiwdg;
   handles.reset_reason = reset_reason;
+
+
+	// Clear any pending RTC interrupts, See Errata section 2.2.4
+//	HAL_PWR_EnableBkUpAccess();
+//	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
+//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+//
+//	// See Errata section 2.2.4
+//	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
+//	HAL_NVIC_EnableIRQ(RTC_IRQn);
+//	// Only used for low power modes lower than stop2.
+//	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
@@ -282,8 +293,8 @@ static void SystemPower_Config(void)
     Error_Handler();
   }
   /* PWR_S3WU_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
+//  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
+//  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 }
 
 /**
@@ -366,8 +377,10 @@ static void MX_GPDMA1_Init(void)
   /* GPDMA1 interrupt Init */
     HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+#if CT_ENABLED
     HAL_NVIC_SetPriority(GPDMA1_Channel1_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
+#endif
     HAL_NVIC_SetPriority(GPDMA1_Channel2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
     HAL_NVIC_SetPriority(GPDMA1_Channel3_IRQn, 0, 0);
@@ -617,14 +630,14 @@ static void MX_RTC_Init(void)
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
-//  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
   hrtc.Init.BinMode = RTC_BINARY_MIX;
-//  hrtc.Init.BinMixBcdU = RTC_BINARY_MIX_BCDU_0;
+  hrtc.Init.BinMixBcdU = RTC_BINARY_MIX_BCDU_0;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
@@ -669,53 +682,8 @@ static void MX_RTC_Init(void)
   {
 	  Error_Handler();
   }
+  HAL_NVIC_DisableIRQ(RTC_S_IRQn);
   /* USER CODE END RTC_Init 2 */
-
-}
-
-/**
-  * @brief TIM15 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM15_Init(void)
-{
-
-  /* USER CODE BEGIN TIM15_Init 0 */
-
-  /* USER CODE END TIM15_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM15_Init 1 */
-
-  /* USER CODE END TIM15_Init 1 */
-  htim15.Instance = TIM15;
-  htim15.Init.Prescaler = 12000;
-  htim15.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim15.Init.Period = 59999;
-  htim15.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim15.Init.RepetitionCounter = 60;
-  htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim15) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim15, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim15, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM15_Init 2 */
-
-  /* USER CODE END TIM15_Init 2 */
 
 }
 
@@ -971,7 +939,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -517,7 +517,7 @@ gnss_error_code_t gnss_reset_timer(GNSS* self, uint16_t timeout_in_minutes)
 		return GNSS_TIMER_ERROR;
 	}
 	// For debugging, not practical to set the timeout to 0
-	if (timeout_in_minutes <= 0) {
+	if (timeout_in_minutes == 0) {
 		self->minutes_timer->Init.Period = 1;
 		self->minutes_timer->Init.RepetitionCounter = 0;
 	}
