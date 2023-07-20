@@ -154,10 +154,12 @@ int main(void)
   MX_UART4_Init();
 #endif
   MX_UART5_Init();
-//  MX_ADC4_Init();
+  MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
+#if WATCHDOG_ENABLED
   MX_IWDG_Init();
+#endif
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
@@ -178,18 +180,6 @@ int main(void)
   handles.gnss_timer = &htim16;
   handles.watchdog_handle = &hiwdg;
   handles.reset_reason = reset_reason;
-
-
-	// Clear any pending RTC interrupts, See Errata section 2.2.4
-//	HAL_PWR_EnableBkUpAccess();
-//	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
-//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-//
-//	// See Errata section 2.2.4
-//	HAL_NVIC_SetPriority(RTC_IRQn, 0, 0);
-//	HAL_NVIC_EnableIRQ(RTC_IRQn);
-//	// Only used for low power modes lower than stop2.
-//	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
@@ -292,9 +282,6 @@ static void SystemPower_Config(void)
   {
     Error_Handler();
   }
-  /* PWR_S3WU_IRQn interrupt configuration */
-//  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
-//  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
 }
 
 /**
@@ -377,10 +364,8 @@ static void MX_GPDMA1_Init(void)
   /* GPDMA1 interrupt Init */
     HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
-#if CT_ENABLED
     HAL_NVIC_SetPriority(GPDMA1_Channel1_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
-#endif
     HAL_NVIC_SetPriority(GPDMA1_Channel2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
     HAL_NVIC_SetPriority(GPDMA1_Channel3_IRQn, 0, 0);
@@ -389,10 +374,9 @@ static void MX_GPDMA1_Init(void)
     HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
 
   /* USER CODE BEGIN GPDMA1_Init 1 */
-
-  /* GPDMA1 interrupt Init */
-//  HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
-//  HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+#if !CT_ENABLED
+    HAL_NVIC_DisableIRQ(GPDMA1_Channel1_IRQn);
+#endif
 
   /* USER CODE END GPDMA1_Init 1 */
   /* USER CODE BEGIN GPDMA1_Init 2 */
@@ -682,7 +666,7 @@ static void MX_RTC_Init(void)
   {
 	  Error_Handler();
   }
-  HAL_NVIC_DisableIRQ(RTC_S_IRQn);
+//  HAL_NVIC_DisableIRQ(RTC_S_IRQn);
   /* USER CODE END RTC_Init 2 */
 
 }
@@ -839,9 +823,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA0 PA1 PA4 PA5
-                           PA7 PA8 UCPD1_CC1_Pin */
+                           PA6 PA7 PA8 UCPD1_CC1_Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_7|GPIO_PIN_8|UCPD1_CC1_Pin;
+                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|UCPD1_CC1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -939,6 +923,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
 
 /**
   * @brief  This function is executed in case of error occurrence.

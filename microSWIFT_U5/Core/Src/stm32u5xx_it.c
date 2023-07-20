@@ -63,6 +63,8 @@ extern DMA_HandleTypeDef handle_GPDMA1_Channel1;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel3;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel2;
 extern UART_HandleTypeDef hlpuart1;
+extern UART_HandleTypeDef huart4;
+extern UART_HandleTypeDef huart5;
 extern TIM_HandleTypeDef htim16;
 extern TIM_HandleTypeDef htim17;
 extern TIM_HandleTypeDef htim4;
@@ -277,6 +279,34 @@ void TIM4_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles UART4 global interrupt.
+  */
+void UART4_IRQHandler(void)
+{
+  /* USER CODE BEGIN UART4_IRQn 0 */
+
+  /* USER CODE END UART4_IRQn 0 */
+  HAL_UART_IRQHandler(&huart4);
+  /* USER CODE BEGIN UART4_IRQn 1 */
+
+  /* USER CODE END UART4_IRQn 1 */
+}
+
+/**
+  * @brief This function handles UART5 global interrupt.
+  */
+void UART5_IRQHandler(void)
+{
+  /* USER CODE BEGIN UART5_IRQn 0 */
+
+  /* USER CODE END UART5_IRQn 0 */
+  HAL_UART_IRQHandler(&huart5);
+  /* USER CODE BEGIN UART5_IRQn 1 */
+
+  /* USER CODE END UART5_IRQn 1 */
+}
+
+/**
   * @brief This function handles LPUART1 global interrupt.
   */
 void LPUART1_IRQHandler(void)
@@ -316,20 +346,6 @@ void TIM17_IRQHandler(void)
   /* USER CODE BEGIN TIM17_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END TIM17_IRQn 1 */
-}
-
-/**
-  * @brief This function handles PWR wake up from Stop3 interrupt.
-  */
-void PWR_S3WU_IRQHandler(void)
-{
-  /* USER CODE BEGIN PWR_S3WU_IRQn 0 */
-  _tx_thread_context_save();
-  /* USER CODE END PWR_S3WU_IRQn 0 */
-  HAL_PWREx_S3WU_IRQHandler(PWR_WAKEUP_PIN7);
-  /* USER CODE BEGIN PWR_S3WU_IRQn 1 */
-  _tx_thread_context_restore();
-  /* USER CODE END PWR_S3WU_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
