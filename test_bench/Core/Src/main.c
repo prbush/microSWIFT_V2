@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+#include "bno055_stm32.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -70,8 +71,7 @@ static void MX_I2C1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t volatile ubx_DMA_message_buf[100];
-uint8_t volatile message[100];
+
 /* USER CODE END 0 */
 
 /**
@@ -106,15 +106,19 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_GPDMA1_Init();
-  MX_UCPD1_Init();
-  MX_ADC1_Init();
-  MX_ICACHE_Init();
-  MX_USART2_UART_Init();
-  MX_USART3_UART_Init();
-  MX_USART1_UART_Init();
+//  MX_UCPD1_Init();
+//  MX_ADC1_Init();
+//  MX_ICACHE_Init();
+//  MX_USART2_UART_Init();
+//  MX_USART3_UART_Init();
+//  MX_USART1_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(IMU_FET_GPIO_Port, IMU_FET_Pin, GPIO_PIN_SET);
+  HAL_Delay(10);
+  bno055_assignI2C(&hi2c1);
+  bno055_setup();
+  bno055_setOperationModeNDOF();
 
   /* USER CODE END 2 */
 
@@ -127,6 +131,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	    bno055_vector_t v = bno055_getVectorEuler();
+	    bno055_vector_t w = bno055_getVectorQuaternion();
+	    HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -283,7 +290,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x40000A0B;
+  hi2c1.Init.Timing = 0x00100413;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -619,20 +626,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
-	// Need to make sure this is being called by USART3 (the GNSS UART port)
-	if (huart->Instance == USART3) {
-		memcpy((void*)message, (void*)ubx_DMA_message_buf, 100);
-
-		HAL_StatusTypeDef ret = HAL_UART_Receive_DMA(&huart3,
-				&(ubx_DMA_message_buf[0]), 100);
-
-		if (ret != HAL_OK) {
-			while(1);
-		}
-	}
-}
 /* USER CODE END 4 */
 
 /**

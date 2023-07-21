@@ -1185,8 +1185,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 #ifdef SHORT_SLEEP
-	wake_up_minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 :
-			(initial_rtc_time.Minutes + 2);
+	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
+			(initial_rtc_time.Minutes + 1);
 #else
 	wake_up_minute = 0;
 #endif
