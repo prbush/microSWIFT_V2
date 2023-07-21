@@ -658,7 +658,7 @@ void gnss_thread_entry(ULONG thread_input){
 	while (!(gnss->all_resolution_stages_complete || gnss->timer_timeout)) {
 
 		register_watchdog_refresh();
-		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE,
+		tx_return = tx_event_flags_get(&thread_control_flags, (GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE),
 				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
 
 		// Full message came through
@@ -797,7 +797,7 @@ void imu_thread_entry(ULONG thread_input){
 	 *
 	 */
 //	ULONG actual_flags;
-//	tx_event_flags_get(&thread_flags, IMU_READY, TX_OR, &actual_flags, TX_WAIT_FOREVER);
+//	tx_event_flags_get(&thread_flags, IMU_READY, TX_OR_CLEAR, &actual_flags, TX_WAIT_FOREVER);
 	tx_event_flags_set(&thread_flags, IMU_DONE, TX_OR);
 }
 #endif
@@ -994,8 +994,9 @@ void iridium_thread_entry(ULONG thread_input){
 	register_watchdog_refresh();
 
 	// Check if we are skipping this message
-	tx_return = tx_event_flags_get(&error_flags, GNSS_EXITED_EARLY, TX_NO_WAIT,
+	tx_return = tx_event_flags_get(&error_flags, GNSS_EXITED_EARLY, TX_OR_CLEAR,
 			&actual_flags, TX_NO_WAIT);
+
 	if (tx_return == TX_SUCCESS) {
 		iridium->skip_current_message = true;
 	}
@@ -1148,12 +1149,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	shut_it_all_down();
 	HAL_Delay(100);
 
-//	// Clear any pending RTC interrupts, See Errata section 2.2.4
-//	HAL_PWR_EnableBkUpAccess();
-//	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
-//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
-//	HAL_PWR_DisableBkUpAccess();
+//	Clear any pending interrupts, See Errata section 2.2.4
 
 #if CT_ENABLED
 	HAL_NVIC_DisableIRQ(UART4_IRQn);
@@ -1176,16 +1172,11 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel4_IRQn);
 	HAL_NVIC_ClearPendingIRQ(UART5_IRQn);
 	HAL_NVIC_ClearPendingIRQ(LPUART1_IRQn);
+
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
 	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 
-//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
-
-
-	HAL_Delay(1);
-
-	HAL_NVIC_SetPriority(RTC_IRQn, 1, 1);
-	HAL_NVIC_EnableIRQ(RTC_IRQn);
 //	// Only used for low power modes lower than stop2.
 //	HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN7_HIGH_3);
 
@@ -1194,8 +1185,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 #ifdef SHORT_SLEEP
-	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
-			(initial_rtc_time.Minutes + 1);
+	wake_up_minute = initial_rtc_time.Minutes >= 58 ? (initial_rtc_time.Minutes + 2) - 60 :
+			(initial_rtc_time.Minutes + 2);
 #else
 	wake_up_minute = 0;
 #endif
@@ -1203,6 +1194,10 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
 	while (rtc_time.Minutes != wake_up_minute) {
+//		// !!! Testing
+//		static int flash = 0;
+//		HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, (++flash % 2 == 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+
 		// Get the date and time
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
@@ -1257,14 +1252,20 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
 	}
+//	// !!! Testing
+//	HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
 
 	register_watchdog_refresh();
 
-	// Disable the RTC interrupt again to prevent spurious triggers (See Errata section 2.2.4)
-	HAL_NVIC_DisableIRQ(RTC_IRQn);
+	// Disable the RTC Alarm and clear flags
 	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_A);
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
 	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 
+#if CT_ENABLED
+	HAL_NVIC_EnableIRQ(UART4_IRQn);
+#endif
 	HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
 	HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
 	HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
@@ -1317,7 +1318,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
 		if (!gnss->is_configured) {
 
-			tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_RECVD, TX_NO_WAIT);
+			tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_RECVD, TX_OR);
 
 		} else {
 			memcpy(&(gnss->ubx_process_buf[0]), &(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
@@ -1341,7 +1342,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
-		tx_event_flags_set(&thread_control_flags, GNSS_TX_COMPLETE, TX_NO_WAIT);
+		tx_event_flags_set(&thread_control_flags, GNSS_TX_COMPLETE, TX_OR);
 	}
 }
 
@@ -1382,8 +1383,9 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 	// Low overhead ISR does not require save/restore context
 	// Clear the alarm flag, flash an LED in debug mode
 	HAL_PWR_EnableBkUpAccess();
-//	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
+	// Clear the Wake-up timer flag too (Errata 2.2.4)
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
 
 }
 
@@ -1751,7 +1753,7 @@ static self_test_status_t initial_power_on_self_test(void)
 static void jump_to_end_of_window(ULONG error_bits_to_set)
 {
 	gnss->on_off(gnss, GPIO_PIN_RESET);
-	tx_event_flags_set(&error_flags, error_bits_to_set | GNSS_EXITED_EARLY, TX_OR);
+	tx_event_flags_set(&error_flags, (error_bits_to_set | GNSS_EXITED_EARLY), TX_OR);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(gnss->gnss_uart_handle);
 	HAL_DMA_DeInit(gnss->gnss_rx_dma_handle);
