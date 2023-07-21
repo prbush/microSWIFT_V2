@@ -1152,6 +1152,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 //	HAL_PWR_EnableBkUpAccess();
 //	WRITE_REG(RTC->SCR, RTC_SCR_CALRAF);
 //	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
 //	HAL_PWR_DisableBkUpAccess();
 
 #if CT_ENABLED
@@ -1177,11 +1178,12 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_NVIC_ClearPendingIRQ(LPUART1_IRQn);
 	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 
+//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
+
 
 	HAL_Delay(1);
-	uint32_t what_interrupt = HAL_NVIC_GetPendingIRQ(RTC_IRQn);
-//
-//	// See Errata section 2.2.4
+
 	HAL_NVIC_SetPriority(RTC_IRQn, 1, 1);
 	HAL_NVIC_EnableIRQ(RTC_IRQn);
 //	// Only used for low power modes lower than stop2.

@@ -513,8 +513,6 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		}
 	}
 
-
-
 	// reset the timer and clear the flag for the next time
 	HAL_TIM_Base_Stop_IT(self->timer);
 	self->timer_timeout = false;
