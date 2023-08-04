@@ -56,6 +56,10 @@ extern void shut_it_all_down(void);
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern DMA_NodeTypeDef Node_GPDMA1_Channel5;
+extern DMA_QListTypeDef List_GPDMA1_Channel5;
+extern DMA_HandleTypeDef handle_GPDMA1_Channel5;
+extern ADC_HandleTypeDef hadc4;
 extern IWDG_HandleTypeDef hiwdg;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel4;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
@@ -265,6 +269,20 @@ void GPDMA1_Channel4_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles GPDMA1 Channel 5 global interrupt.
+  */
+void GPDMA1_Channel5_IRQHandler(void)
+{
+  /* USER CODE BEGIN GPDMA1_Channel5_IRQn 0 */
+
+  /* USER CODE END GPDMA1_Channel5_IRQn 0 */
+  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel5);
+  /* USER CODE BEGIN GPDMA1_Channel5_IRQn 1 */
+
+  /* USER CODE END GPDMA1_Channel5_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM4 global interrupt.
   */
 void TIM4_IRQHandler(void)
@@ -284,11 +302,11 @@ void TIM4_IRQHandler(void)
 void UART4_IRQHandler(void)
 {
   /* USER CODE BEGIN UART4_IRQn 0 */
-
+  _tx_thread_context_save();
   /* USER CODE END UART4_IRQn 0 */
   HAL_UART_IRQHandler(&huart4);
   /* USER CODE BEGIN UART4_IRQn 1 */
-
+  _tx_thread_context_restore();
   /* USER CODE END UART4_IRQn 1 */
 }
 
@@ -298,11 +316,11 @@ void UART4_IRQHandler(void)
 void UART5_IRQHandler(void)
 {
   /* USER CODE BEGIN UART5_IRQn 0 */
-
+  _tx_thread_context_save();
   /* USER CODE END UART5_IRQn 0 */
   HAL_UART_IRQHandler(&huart5);
   /* USER CODE BEGIN UART5_IRQn 1 */
-
+  _tx_thread_context_restore();
   /* USER CODE END UART5_IRQn 1 */
 }
 
@@ -346,6 +364,20 @@ void TIM17_IRQHandler(void)
   /* USER CODE BEGIN TIM17_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END TIM17_IRQn 1 */
+}
+
+/**
+  * @brief This function handles ADC4 (12bits) global interrupt.
+  */
+void ADC4_IRQHandler(void)
+{
+  /* USER CODE BEGIN ADC4_IRQn 0 */
+  _tx_thread_context_save();
+  /* USER CODE END ADC4_IRQn 0 */
+  HAL_ADC_IRQHandler(&hadc4);
+  /* USER CODE BEGIN ADC4_IRQn 1 */
+  _tx_thread_context_restore();
+  /* USER CODE END ADC4_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

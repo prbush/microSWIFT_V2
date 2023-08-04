@@ -58,12 +58,14 @@ void GPDMA1_Channel1_IRQHandler(void);
 void GPDMA1_Channel2_IRQHandler(void);
 void GPDMA1_Channel3_IRQHandler(void);
 void GPDMA1_Channel4_IRQHandler(void);
+void GPDMA1_Channel5_IRQHandler(void);
 void TIM4_IRQHandler(void);
 void UART4_IRQHandler(void);
 void UART5_IRQHandler(void);
 void LPUART1_IRQHandler(void);
 void TIM16_IRQHandler(void);
 void TIM17_IRQHandler(void);
+void ADC4_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 void GPDMA1_Channel0_IRQHandler(void);
 /* USER CODE END EFP */

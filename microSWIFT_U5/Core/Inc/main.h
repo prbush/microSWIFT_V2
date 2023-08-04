@@ -54,6 +54,7 @@ typedef struct {
 	TIM_HandleTypeDef* iridium_timer;
 	TIM_HandleTypeDef* gnss_timer;
 	IWDG_HandleTypeDef* watchdog_handle;
+	ADC_HandleTypeDef* battery_adc;
 	uint32_t reset_reason;
 } device_handles_t;
 /* USER CODE END ET */
@@ -76,6 +77,7 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define ADC_MICROVOLTS_PER_BIT 3292
 #define USER_BUTTON_Pin GPIO_PIN_13
 #define USER_BUTTON_GPIO_Port GPIOC
 #define EXT_LED_RED_Pin GPIO_PIN_0

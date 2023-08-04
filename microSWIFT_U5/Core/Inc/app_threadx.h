@@ -83,7 +83,9 @@ typedef enum control_flags{
 	GNSS_MSG_INCOMPLETE     = 1 << 17,
 	// GNSS timer flags
 	GNSS_INITIAL_RESOLUTION_STAGE 	= 1 << 18,
-	GNSS_WINDOW_PROCESSING_STAGE 	= 1 << 19
+	GNSS_WINDOW_PROCESSING_STAGE 	= 1 << 19,
+	// Battery ADC conversion flag
+	BATTERY_VOLTAGE_CONVERSION_COMPLETE = 1 << 20
 } control_flags_t;
 
 

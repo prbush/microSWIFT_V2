@@ -42,6 +42,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
+DMA_NodeTypeDef Node_GPDMA1_Channel5;
+DMA_QListTypeDef List_GPDMA1_Channel5;
+DMA_HandleTypeDef handle_GPDMA1_Channel5;
 
 IWDG_HandleTypeDef hiwdg;
 
@@ -94,7 +97,6 @@ extern void shut_it_all_down(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -150,16 +152,12 @@ int main(void)
   MX_GPDMA1_Init();
   MX_RTC_Init();
   MX_ICACHE_Init();
-#if CT_ENABLED
   MX_UART4_Init();
-#endif
   MX_UART5_Init();
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
-#if WATCHDOG_ENABLED
   MX_IWDG_Init();
-#endif
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
@@ -179,6 +177,7 @@ int main(void)
   handles.iridium_timer = &htim17;
   handles.gnss_timer = &htim16;
   handles.watchdog_handle = &hiwdg;
+  handles.battery_adc = &hadc4;
   handles.reset_reason = reset_reason;
 
   MX_ThreadX_Init(&handles);
@@ -299,30 +298,49 @@ static void MX_ADC4_Init(void)
   ADC_ChannelConfTypeDef sConfig = {0};
 
   /* USER CODE BEGIN ADC4_Init 1 */
-
+//  __HAL_RCC_VREF_CLK_DISABLE();
+//  HAL_SYSCFG_DisableVREFBUF();
+//  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE3) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  __HAL_RCC_VREF_CLK_ENABLE();
+//
+//  /** Configure the internal voltage reference buffer voltage scale
+//  */
+//  HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE1);
+//
+//  /** Enable the Internal Voltage Reference buffer
+//  */
+//  HAL_SYSCFG_EnableVREFBUF();
+//
+//  /** Configure the internal voltage reference buffer high impedance mode
+//  */
+//  HAL_SYSCFG_VREFBUF_HighImpedanceConfig(SYSCFG_VREFBUF_HIGH_IMPEDANCE_DISABLE);
+////  HAL_SYSCFG_VREFBUF_HighImpedanceConfig(SYSCFG_VREFBUF_HIGH_IMPEDANCE_ENABLE);
   /* USER CODE END ADC4_Init 1 */
 
   /** Common config
   */
   hadc4.Instance = ADC4;
-  hadc4.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc4.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV32;
   hadc4.Init.Resolution = ADC_RESOLUTION_12B;
   hadc4.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc4.Init.ScanConvMode = ADC4_SCAN_DISABLE;
-  hadc4.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc4.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc4.Init.LowPowerAutoPowerOff = ADC_LOW_POWER_NONE;
   hadc4.Init.LowPowerAutoWait = DISABLE;
-  hadc4.Init.ContinuousConvMode = DISABLE;
+  hadc4.Init.ContinuousConvMode = ENABLE;
   hadc4.Init.NbrOfConversion = 1;
-  hadc4.Init.DiscontinuousConvMode = DISABLE;
   hadc4.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc4.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc4.Init.DMAContinuousRequests = DISABLE;
   hadc4.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
   hadc4.Init.VrefProtection = ADC_VREF_PPROT_NONE;
-  hadc4.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_1CYCLE_5;
-  hadc4.Init.SamplingTimeCommon2 = ADC4_SAMPLETIME_1CYCLE_5;
+  hadc4.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+  hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_79CYCLES_5;
+  hadc4.Init.SamplingTimeCommon2 = ADC4_SAMPLETIME_814CYCLES_5;
   hadc4.Init.OversamplingMode = DISABLE;
   if (HAL_ADC_Init(&hadc4) != HAL_OK)
   {
@@ -331,9 +349,9 @@ static void MX_ADC4_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  sConfig.Channel = ADC_CHANNEL_6;
   sConfig.Rank = ADC4_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC4_SAMPLINGTIME_COMMON_1;
+  sConfig.SamplingTime = ADC4_SAMPLINGTIME_COMMON_2;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
   if (HAL_ADC_ConfigChannel(&hadc4, &sConfig) != HAL_OK)
@@ -341,7 +359,11 @@ static void MX_ADC4_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN ADC4_Init 2 */
-
+  HAL_PWREx_EnableVddA();
+  HAL_ADCEx_Calibration_Start(&hadc4, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
+  // Need at least a 4 ADC clock cycle delay after calibration before doing anything else with the
+  // ADC -- 10ms ought to do.
+  HAL_Delay(10);
   /* USER CODE END ADC4_Init 2 */
 
 }
@@ -372,6 +394,8 @@ static void MX_GPDMA1_Init(void)
     HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
     HAL_NVIC_SetPriority(GPDMA1_Channel4_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
+    HAL_NVIC_SetPriority(GPDMA1_Channel5_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel5_IRQn);
 
   /* USER CODE BEGIN GPDMA1_Init 1 */
 #if !CT_ENABLED
@@ -798,12 +822,10 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PF3 PF4 PF5 PF6
                            PF7 PF8 PF9 PF10
-                           PF11 PF12 PF13 PF14
-                           PF15 */
+                           PF11 PF12 PF13 PF14 */
   GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
                           |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
@@ -923,7 +945,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -85,6 +85,7 @@ uint8_t* gnss_config_response_buf;
 // Iridium buffers
 uint8_t* iridium_response_message;
 uint8_t* iridium_error_message;
+uint32_t* adc_buf;
 // Messages that failed to send are stored here
 //extern __attribute__((section("NO_INIT"), zero_init))Iridium_message_storage* sbd_message_queue;
 extern Iridium_message_storage sbd_message_queue;
@@ -92,6 +93,7 @@ extern Iridium_message_storage sbd_message_queue;
 GNSS* gnss;
 Iridium* iridium;
 RF_Switch* rf_switch;
+Battery* battery;
 // Handles for all the STM32 peripherals
 device_handles_t *device_handles;
 // The watchdog hour elapsed timer flag
@@ -291,13 +293,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
-//	//
-//	// The Iridium message storage
-//	ret = tx_byte_allocate(byte_pool, (VOID**) &sbd_message_queue, sizeof(Iridium_message_storage) + 100,
-//			TX_NO_WAIT);
-//	if (ret != TX_SUCCESS){
-//	  return ret;
-//	}
 	//
 	// The iridium struct
 	ret = tx_byte_allocate(byte_pool, (VOID**) &iridium, sizeof(Iridium) + 100, TX_NO_WAIT);
@@ -310,6 +305,18 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 			TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
+	}
+	//
+	// The battery struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &battery, sizeof(Battery) + 100, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+	//
+	// The battery adc buffer
+	ret = tx_byte_allocate(byte_pool, (VOID**) &adc_buf, sizeof(uint32_t) * NUMBER_OF_ADC_SAMPLES, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
 	}
 // Only if the IMU will be utilized
 #if IMU_ENABLED
@@ -478,8 +485,20 @@ void startup_thread_entry(ULONG thread_input){
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
 					&thread_control_flags, &error_flags, ct_data, samples_buf);
 #endif
-	// Initialize the RF switch and set it to the GNSS port
 	rf_switch_init(rf_switch);
+
+	battery_init(battery, device_handles->battery_adc, &thread_control_flags);
+
+	/******************************************************************************************************
+	 * TESTING!!!!!
+	 */
+	battery->start_conversion(battery);
+	real16_T voltage;
+	battery->get_voltage(battery, &voltage);
+
+	/******************************************************************************************************
+	 * END TESTING!!!!!
+	 */
 
 	tx_return = tx_event_flags_get(&thread_control_flags, FULL_CYCLE_COMPLETE, TX_OR_CLEAR,
 			&actual_flags, TX_NO_WAIT);
@@ -988,7 +1007,6 @@ void iridium_thread_entry(ULONG thread_input){
 	char ascii_7 = '7';
 	uint8_t sbd_type = 52;
 	uint16_t sbd_size = 327;
-	real16_T sbd_voltage = floatToHalf(6.2);
 	float sbd_timestamp = iridium->get_timestamp(iridium);
 
 	register_watchdog_refresh();
@@ -1029,7 +1047,6 @@ void iridium_thread_entry(ULONG thread_input){
 	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(char));
 	memcpy(&sbd_message.type, &sbd_type, sizeof(uint8_t));
 	memcpy(&sbd_message.size, &sbd_size, sizeof(uint16_t));
-	memcpy(&sbd_message.mean_voltage, &sbd_voltage, sizeof(real16_T));
 	memcpy(&sbd_message.timestamp, &sbd_timestamp, sizeof(float));
 
 	// Last posit was placed in the SBD message in GNSS thread, copy that over to
@@ -1394,6 +1411,31 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 void HAL_IWDG_EarlyWakeupCallback(IWDG_HandleTypeDef *hiwdg)
 {
 	shut_it_all_down();
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	static uint32_t number_of_conversions = 0;
+	static uint64_t v_sum = 0;
+
+	if (number_of_conversions < NUMBER_OF_ADC_SAMPLES) {
+		uint32_t sample = HAL_ADC_GetValue(hadc);
+		adc_buf[number_of_conversions] = sample;
+		v_sum += (sample * ADC_MICROVOLTS_PER_BIT) + battery->calibration_offset;
+		number_of_conversions++;
+	}
+	else {
+		// Write the voltage to the battery struct
+		battery->voltage = (uint32_t)((double)v_sum / (double)NUMBER_OF_ADC_SAMPLES);
+		// Reset static variables
+		v_sum = 0;
+		number_of_conversions = 0;
+
+		HAL_ADC_Stop_DMA(hadc);
+		// Set the conversion complete flag
+		tx_event_flags_set(&thread_control_flags, BATTERY_VOLTAGE_CONVERSION_COMPLETE, TX_OR);
+	}
+
 }
 
 ///**
