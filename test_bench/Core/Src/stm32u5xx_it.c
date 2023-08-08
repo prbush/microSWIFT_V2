@@ -55,6 +55,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern ADC_HandleTypeDef hadc4;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
@@ -255,6 +256,20 @@ void USART3_IRQHandler(void)
   /* USER CODE BEGIN USART3_IRQn 1 */
 
   /* USER CODE END USART3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles ADC4 (12bits) global interrupt.
+  */
+void ADC4_IRQHandler(void)
+{
+  /* USER CODE BEGIN ADC4_IRQn 0 */
+
+  /* USER CODE END ADC4_IRQn 0 */
+  HAL_ADC_IRQHandler(&hadc4);
+  /* USER CODE BEGIN ADC4_IRQn 1 */
+
+  /* USER CODE END ADC4_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

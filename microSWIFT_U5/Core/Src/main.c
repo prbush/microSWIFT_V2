@@ -42,9 +42,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
-DMA_NodeTypeDef Node_GPDMA1_Channel5;
-DMA_QListTypeDef List_GPDMA1_Channel5;
-DMA_HandleTypeDef handle_GPDMA1_Channel5;
 
 IWDG_HandleTypeDef hiwdg;
 
@@ -292,7 +289,7 @@ static void MX_ADC4_Init(void)
 {
 
   /* USER CODE BEGIN ADC4_Init 0 */
-
+  HAL_PWREx_EnableVddA();
   /* USER CODE END ADC4_Init 0 */
 
   ADC_ChannelConfTypeDef sConfig = {0};
@@ -337,9 +334,9 @@ static void MX_ADC4_Init(void)
   hadc4.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc4.Init.DMAContinuousRequests = DISABLE;
   hadc4.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
-  hadc4.Init.VrefProtection = ADC_VREF_PPROT_NONE;
+  hadc4.Init.VrefProtection = ADC_VREF_PPROT_VREFPROT;
   hadc4.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-  hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_79CYCLES_5;
+  hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_814CYCLES_5;
   hadc4.Init.SamplingTimeCommon2 = ADC4_SAMPLETIME_814CYCLES_5;
   hadc4.Init.OversamplingMode = DISABLE;
   if (HAL_ADC_Init(&hadc4) != HAL_OK)
@@ -351,7 +348,7 @@ static void MX_ADC4_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_6;
   sConfig.Rank = ADC4_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC4_SAMPLINGTIME_COMMON_2;
+  sConfig.SamplingTime = ADC4_SAMPLINGTIME_COMMON_1;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
   if (HAL_ADC_ConfigChannel(&hadc4, &sConfig) != HAL_OK)
@@ -359,11 +356,7 @@ static void MX_ADC4_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN ADC4_Init 2 */
-  HAL_PWREx_EnableVddA();
-  HAL_ADCEx_Calibration_Start(&hadc4, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
-  // Need at least a 4 ADC clock cycle delay after calibration before doing anything else with the
-  // ADC -- 10ms ought to do.
-  HAL_Delay(10);
+
   /* USER CODE END ADC4_Init 2 */
 
 }
@@ -394,8 +387,6 @@ static void MX_GPDMA1_Init(void)
     HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
     HAL_NVIC_SetPriority(GPDMA1_Channel4_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
-    HAL_NVIC_SetPriority(GPDMA1_Channel5_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(GPDMA1_Channel5_IRQn);
 
   /* USER CODE BEGIN GPDMA1_Init 1 */
 #if !CT_ENABLED
@@ -945,6 +936,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
 
 /**
   * @brief  This function is executed in case of error occurrence.

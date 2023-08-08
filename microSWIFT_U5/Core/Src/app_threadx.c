@@ -1430,12 +1430,15 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 		// Reset static variables
 		v_sum = 0;
 		number_of_conversions = 0;
-
-		HAL_ADC_Stop_DMA(hadc);
 		// Set the conversion complete flag
 		tx_event_flags_set(&thread_control_flags, BATTERY_VOLTAGE_CONVERSION_COMPLETE, TX_OR);
 	}
 
+}
+
+void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
+{
+	while(1);
 }
 
 ///**

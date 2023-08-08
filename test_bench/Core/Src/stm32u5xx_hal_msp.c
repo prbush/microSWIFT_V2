@@ -74,7 +74,8 @@ void HAL_MspInit(void)
   /* System interrupt init*/
 
   /* USER CODE BEGIN MspInit 1 */
-
+  HAL_PWREx_EnableVddIO2();
+  HAL_PWREx_EnableVddA();
   /* USER CODE END MspInit 1 */
 }
 
@@ -88,36 +89,39 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
-  if(hadc->Instance==ADC1)
+  if(hadc->Instance==ADC4)
   {
-  /* USER CODE BEGIN ADC1_MspInit 0 */
+  /* USER CODE BEGIN ADC4_MspInit 0 */
 
-  /* USER CODE END ADC1_MspInit 0 */
+  /* USER CODE END ADC4_MspInit 0 */
 
   /** Initializes the peripherals clock
   */
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADCDAC;
-    PeriphClkInit.AdcDacClockSelection = RCC_ADCDACCLKSOURCE_HSI;
+    PeriphClkInit.AdcDacClockSelection = RCC_ADCDACCLKSOURCE_SYSCLK;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
     {
       Error_Handler();
     }
 
     /* Peripheral clock enable */
-    __HAL_RCC_ADC12_CLK_ENABLE();
+    __HAL_RCC_ADC4_CLK_ENABLE();
 
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-    /**ADC1 GPIO Configuration
-    PC2     ------> ADC1_IN3
+    __HAL_RCC_GPIOF_CLK_ENABLE();
+    /**ADC4 GPIO Configuration
+    PF15     ------> ADC4_IN6
     */
-    GPIO_InitStruct.Pin = VBUS_SENSE_Pin;
+    GPIO_InitStruct.Pin = GPIO_PIN_15;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(VBUS_SENSE_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
-  /* USER CODE BEGIN ADC1_MspInit 1 */
+    /* ADC4 interrupt Init */
+    HAL_NVIC_SetPriority(ADC4_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(ADC4_IRQn);
+  /* USER CODE BEGIN ADC4_MspInit 1 */
 
-  /* USER CODE END ADC1_MspInit 1 */
+  /* USER CODE END ADC4_MspInit 1 */
   }
 
 }
@@ -130,22 +134,24 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 */
 void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
 {
-  if(hadc->Instance==ADC1)
+  if(hadc->Instance==ADC4)
   {
-  /* USER CODE BEGIN ADC1_MspDeInit 0 */
+  /* USER CODE BEGIN ADC4_MspDeInit 0 */
 
-  /* USER CODE END ADC1_MspDeInit 0 */
+  /* USER CODE END ADC4_MspDeInit 0 */
     /* Peripheral clock disable */
-    __HAL_RCC_ADC12_CLK_DISABLE();
+    __HAL_RCC_ADC4_CLK_DISABLE();
 
-    /**ADC1 GPIO Configuration
-    PC2     ------> ADC1_IN3
+    /**ADC4 GPIO Configuration
+    PF15     ------> ADC4_IN6
     */
-    HAL_GPIO_DeInit(VBUS_SENSE_GPIO_Port, VBUS_SENSE_Pin);
+    HAL_GPIO_DeInit(GPIOF, GPIO_PIN_15);
 
-  /* USER CODE BEGIN ADC1_MspDeInit 1 */
+    /* ADC4 interrupt DeInit */
+    HAL_NVIC_DisableIRQ(ADC4_IRQn);
+  /* USER CODE BEGIN ADC4_MspDeInit 1 */
 
-  /* USER CODE END ADC1_MspDeInit 1 */
+  /* USER CODE END ADC4_MspDeInit 1 */
   }
 
 }

@@ -22,7 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
-#include "bno055_stm32.h"
+#include "stdbool.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,11 +37,11 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define TOTAL_ADC_SAMPLES 400
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc4;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -59,19 +60,22 @@ static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_GPDMA1_Init(void);
 static void MX_UCPD1_Init(void);
-static void MX_ADC1_Init(void);
 static void MX_ICACHE_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_ADC4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+bool adc_conversion_complete = false;
+uint32_t adc_array[TOTAL_ADC_SAMPLES] = {0};
+uint32_t voltage = 0;
+uint32_t adc_calibration_offset = 0;
 /* USER CODE END 0 */
 
 /**
@@ -106,19 +110,14 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_GPDMA1_Init();
-//  MX_UCPD1_Init();
-//  MX_ADC1_Init();
-//  MX_ICACHE_Init();
-//  MX_USART2_UART_Init();
-//  MX_USART3_UART_Init();
-//  MX_USART1_UART_Init();
+  MX_UCPD1_Init();
+  MX_ICACHE_Init();
+  MX_USART2_UART_Init();
+  MX_USART3_UART_Init();
+  MX_USART1_UART_Init();
   MX_I2C1_Init();
+  MX_ADC4_Init();
   /* USER CODE BEGIN 2 */
-  HAL_GPIO_WritePin(IMU_FET_GPIO_Port, IMU_FET_Pin, GPIO_PIN_SET);
-  HAL_Delay(10);
-  bno055_assignI2C(&hi2c1);
-  bno055_setup();
-  bno055_setOperationModeNDOF();
 
   /* USER CODE END 2 */
 
@@ -128,12 +127,16 @@ int main(void)
   while (1)
   {
 
+	  adc_calibration_offset = HAL_ADCEx_Calibration_GetValue(&hadc4, ADC_SINGLE_ENDED);
+	  if (HAL_ADC_Start_IT(&hadc4) != HAL_OK) {
+		  Error_Handler();
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	    bno055_vector_t v = bno055_getVectorEuler();
-	    bno055_vector_t w = bno055_getVectorQuaternion();
-	    HAL_Delay(1000);
+	  while (!adc_conversion_complete);
+	  uint32_t adc_voltage = voltage;
+	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -156,9 +159,7 @@ void SystemClock_Config(void)
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_MSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_3;
@@ -203,46 +204,61 @@ static void SystemPower_Config(void)
 }
 
 /**
-  * @brief ADC1 Initialization Function
+  * @brief ADC4 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_ADC1_Init(void)
+static void MX_ADC4_Init(void)
 {
 
-  /* USER CODE BEGIN ADC1_Init 0 */
+  /* USER CODE BEGIN ADC4_Init 0 */
 
-  /* USER CODE END ADC1_Init 0 */
+  /* USER CODE END ADC4_Init 0 */
 
-  /* USER CODE BEGIN ADC1_Init 1 */
+  ADC_ChannelConfTypeDef sConfig = {0};
 
-  /* USER CODE END ADC1_Init 1 */
+  /* USER CODE BEGIN ADC4_Init 1 */
+
+  /* USER CODE END ADC4_Init 1 */
 
   /** Common config
   */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
-  hadc1.Init.Resolution = ADC_RESOLUTION_14B;
-  hadc1.Init.GainCompensation = 0;
-  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
-  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
-  hadc1.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
-  hadc1.Init.OversamplingMode = DISABLE;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  hadc4.Instance = ADC4;
+  hadc4.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV32;
+  hadc4.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc4.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc4.Init.ScanConvMode = ADC4_SCAN_DISABLE;
+  hadc4.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  hadc4.Init.LowPowerAutoPowerOff = ADC_LOW_POWER_NONE;
+  hadc4.Init.LowPowerAutoWait = DISABLE;
+  hadc4.Init.ContinuousConvMode = ENABLE;
+  hadc4.Init.NbrOfConversion = 1;
+  hadc4.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc4.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc4.Init.DMAContinuousRequests = DISABLE;
+  hadc4.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
+  hadc4.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+  hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_814CYCLES_5;
+  hadc4.Init.SamplingTimeCommon2 = ADC4_SAMPLETIME_1CYCLE_5;
+  hadc4.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc4) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN ADC1_Init 2 */
 
-  /* USER CODE END ADC1_Init 2 */
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_6;
+  sConfig.Rank = ADC4_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC4_SAMPLINGTIME_COMMON_1;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc4, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC4_Init 2 */
+  /* USER CODE END ADC4_Init 2 */
 
 }
 
@@ -552,6 +568,7 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
@@ -573,6 +590,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USER_BUTTON_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : VBUS_SENSE_Pin */
+  GPIO_InitStruct.Pin = VBUS_SENSE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(VBUS_SENSE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : UCPD_FLT_Pin */
   GPIO_InitStruct.Pin = UCPD_FLT_Pin;
@@ -626,7 +649,43 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	static uint32_t number_of_samples_completed = 0;
+	static uint64_t adc_sum = 0;
+	uint32_t current_sample;
 
+	if (number_of_samples_completed < TOTAL_ADC_SAMPLES) {
+
+		current_sample = HAL_ADC_GetValue(hadc);
+		adc_array[number_of_samples_completed] = current_sample;
+		adc_sum += current_sample;
+		number_of_samples_completed++;
+
+	} else {
+
+		// Stop the ADC channel
+		HAL_ADC_Stop_IT(hadc);
+		adc_conversion_complete = true;
+		voltage = adc_sum / TOTAL_ADC_SAMPLES;
+		// Reset static variables
+		number_of_samples_completed = 0;
+		adc_sum = 0;
+
+	}
+}
+
+void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
+{
+  /* Note: Disable ADC interruption that caused this error before entering in
+           infinite loop below. */
+
+  /* In case of error due to overrun: Disable ADC group regular overrun interruption */
+  LL_ADC_DisableIT_OVR(ADC1);
+
+  /* Error reporting */
+  Error_Handler();
+}
 /* USER CODE END 4 */
 
 /**

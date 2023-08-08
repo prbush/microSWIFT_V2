@@ -13,7 +13,7 @@
 #include "NEDWaves/rtwhalf.h"
 #include "app_threadx.h"
 
-#define NUMBER_OF_ADC_SAMPLES 1200
+#define NUMBER_OF_ADC_SAMPLES 400
 #define BATTERY_CALIBRATION_OFFSET 0
 
 typedef enum battery_error_code {

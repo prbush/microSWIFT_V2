@@ -56,9 +56,6 @@ extern void shut_it_all_down(void);
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern DMA_NodeTypeDef Node_GPDMA1_Channel5;
-extern DMA_QListTypeDef List_GPDMA1_Channel5;
-extern DMA_HandleTypeDef handle_GPDMA1_Channel5;
 extern ADC_HandleTypeDef hadc4;
 extern IWDG_HandleTypeDef hiwdg;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel4;
@@ -266,20 +263,6 @@ void GPDMA1_Channel4_IRQHandler(void)
   /* USER CODE BEGIN GPDMA1_Channel4_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel4_IRQn 1 */
-}
-
-/**
-  * @brief This function handles GPDMA1 Channel 5 global interrupt.
-  */
-void GPDMA1_Channel5_IRQHandler(void)
-{
-  /* USER CODE BEGIN GPDMA1_Channel5_IRQn 0 */
-
-  /* USER CODE END GPDMA1_Channel5_IRQn 0 */
-  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel5);
-  /* USER CODE BEGIN GPDMA1_Channel5_IRQn 1 */
-
-  /* USER CODE END GPDMA1_Channel5_IRQn 1 */
 }
 
 /**
