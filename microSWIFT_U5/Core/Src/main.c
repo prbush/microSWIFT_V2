@@ -289,33 +289,12 @@ static void MX_ADC4_Init(void)
 {
 
   /* USER CODE BEGIN ADC4_Init 0 */
-  HAL_PWREx_EnableVddA();
   /* USER CODE END ADC4_Init 0 */
 
   ADC_ChannelConfTypeDef sConfig = {0};
 
   /* USER CODE BEGIN ADC4_Init 1 */
-//  __HAL_RCC_VREF_CLK_DISABLE();
-//  HAL_SYSCFG_DisableVREFBUF();
-//  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE3) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//
-//  __HAL_RCC_VREF_CLK_ENABLE();
-//
-//  /** Configure the internal voltage reference buffer voltage scale
-//  */
-//  HAL_SYSCFG_VREFBUF_VoltageScalingConfig(SYSCFG_VREFBUF_VOLTAGE_SCALE1);
-//
-//  /** Enable the Internal Voltage Reference buffer
-//  */
-//  HAL_SYSCFG_EnableVREFBUF();
-//
-//  /** Configure the internal voltage reference buffer high impedance mode
-//  */
-//  HAL_SYSCFG_VREFBUF_HighImpedanceConfig(SYSCFG_VREFBUF_HIGH_IMPEDANCE_DISABLE);
-////  HAL_SYSCFG_VREFBUF_HighImpedanceConfig(SYSCFG_VREFBUF_HIGH_IMPEDANCE_ENABLE);
+
   /* USER CODE END ADC4_Init 1 */
 
   /** Common config

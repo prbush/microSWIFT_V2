@@ -487,18 +487,7 @@ void startup_thread_entry(ULONG thread_input){
 #endif
 	rf_switch_init(rf_switch);
 
-	battery_init(battery, device_handles->battery_adc, &thread_control_flags);
-
-	/******************************************************************************************************
-	 * TESTING!!!!!
-	 */
-	battery->start_conversion(battery);
-	real16_T voltage;
-	battery->get_voltage(battery, &voltage);
-
-	/******************************************************************************************************
-	 * END TESTING!!!!!
-	 */
+	battery_init(battery, device_handles->battery_adc, &thread_control_flags, &error_flags);
 
 	tx_return = tx_event_flags_get(&thread_control_flags, FULL_CYCLE_COMPLETE, TX_OR_CLEAR,
 			&actual_flags, TX_NO_WAIT);
@@ -846,7 +835,9 @@ void ct_thread_entry(ULONG thread_input){
 	memcpy(&sbd_message.mean_salinity, &half_salinity, sizeof(real16_T));
 	memcpy(&sbd_message.mean_temp, &half_temp, sizeof(real16_T));
 
-	fail_counter = 0;
+	// The first message will have a different frame length from a header, so adjust the fail
+	// counter appropriately
+	fail_counter = -1;
 	// Turn on the CT sensor, warm it up, and frame sync
 	while (fail_counter < MAX_SELF_TEST_RETRIES) {
 
@@ -854,9 +845,7 @@ void ct_thread_entry(ULONG thread_input){
 
 		ct_return_code = ct->self_test(ct, false);
 		if (ct_return_code != CT_SUCCESS) {
-
-			ct->on_off(ct, GPIO_PIN_RESET);
-			HAL_Delay(100);
+			HAL_Delay(103);
 			fail_counter++;
 
 		} else {
@@ -1007,6 +996,7 @@ void iridium_thread_entry(ULONG thread_input){
 	char ascii_7 = '7';
 	uint8_t sbd_type = 52;
 	uint16_t sbd_size = 327;
+	real16_T voltage;
 	float sbd_timestamp = iridium->get_timestamp(iridium);
 
 	register_watchdog_refresh();
@@ -1042,6 +1032,12 @@ void iridium_thread_entry(ULONG thread_input){
 
 	// Port the RF switch to the modem
 	rf_switch->set_iridium_port(rf_switch);
+
+	// Grab the battery voltage
+	battery->start_conversion(battery);
+	battery->get_voltage(battery, &voltage);
+	battery->shutdown_adc();
+	memcpy(&sbd_message.mean_voltage, &voltage, sizeof(real16_T));
 
 	// finish filling out the SBD message
 	memcpy(&sbd_message.legacy_number_7, &ascii_7, sizeof(char));
@@ -1149,14 +1145,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	uint32_t wake_up_minute;
 	UINT tx_return;
 
-#if CT_ENABLED
-	error_occured_flags |= CT_ERROR;
-#endif
-
-#if IMU_ENABLED
-	error_flags |= IMU_ERROR;
-#endif
-
 	// Must put this thread to sleep for a short while to allow other threads to terminate
 	tx_thread_sleep(1);
 
@@ -1211,9 +1199,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
 	while (rtc_time.Minutes != wake_up_minute) {
-//		// !!! Testing
-//		static int flash = 0;
-//		HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, (++flash % 2 == 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
 
 		// Get the date and time
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
@@ -1269,8 +1254,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
 	}
-//	// !!! Testing
-//	HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
 
 	register_watchdog_refresh();
 
@@ -1426,19 +1409,22 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 	}
 	else {
 		// Write the voltage to the battery struct
-		battery->voltage = (uint32_t)((double)v_sum / (double)NUMBER_OF_ADC_SAMPLES);
+		battery->voltage = (float)((((float)v_sum / (float)NUMBER_OF_ADC_SAMPLES) + ADC_CALIBRATION_CONSTANT_MICROVOLTS) / MICROVOLTS_PER_VOLT);
 		// Reset static variables
 		v_sum = 0;
 		number_of_conversions = 0;
 		// Set the conversion complete flag
 		tx_event_flags_set(&thread_control_flags, BATTERY_VOLTAGE_CONVERSION_COMPLETE, TX_OR);
+		// Done with our samples, shut it down.
+		HAL_ADC_Stop_IT(hadc);
 	}
 
 }
 
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 {
-	while(1);
+	// Set the ADC conversion error flag and move on
+	tx_event_flags_set(&error_flags, ADC_CONVERSION_ERROR, TX_OR);
 }
 
 ///**
@@ -1750,7 +1736,9 @@ static self_test_status_t initial_power_on_self_test(void)
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	/////////////////////////// CT STARTUP SEQUENCE ///////////////////////////////////////////////
 	// Make sure we get good data from the CT sensor
-	fail_counter = 0;
+	// The first message will have a different frame length from a header, so adjust the fail
+	// counter appropriately
+	fail_counter = -1;
 	while (fail_counter < MAX_SELF_TEST_RETRIES) {
 
 		register_watchdog_refresh();
@@ -1758,8 +1746,7 @@ static self_test_status_t initial_power_on_self_test(void)
 		ct_return_code = ct->self_test(ct, false);
 		if (ct_return_code != CT_SUCCESS) {
 
-			ct->on_off(ct, GPIO_PIN_RESET);
-			HAL_Delay(100);
+			HAL_Delay(103);
 			fail_counter++;
 
 		} else {

@@ -15,6 +15,9 @@
 
 #define NUMBER_OF_ADC_SAMPLES 400
 #define BATTERY_CALIBRATION_OFFSET 0
+#define MICROVOLTS_PER_VOLT 1000000
+#define ADC_CALIBRATION_CONSTANT_MICROVOLTS 25000
+#define BATTERY_ERROR_VOLTAGE_VALUE 0x70E2
 
 typedef enum battery_error_code {
 	BATTERY_SUCCESS = 0,
@@ -25,18 +28,22 @@ typedef enum battery_error_code {
 
 typedef struct Battery {
 	ADC_HandleTypeDef* 		adc_handle;
-	TX_EVENT_FLAGS_GROUP* control_flags;
+	TX_EVENT_FLAGS_GROUP* 	control_flags;
+	TX_EVENT_FLAGS_GROUP* 	error_flags;
 
-	float									voltage;
-	uint32_t							calibration_offset;
+	float					voltage;
+	uint32_t				calibration_offset;
 
 	battery_error_code_t 	(*start_conversion)(struct Battery* self);
 	battery_error_code_t 	(*get_voltage)(struct Battery* self, real16_T* voltage);
+	void 					(*shutdown_adc)(void);
 }Battery;
 
 
-void battery_init(Battery* self, ADC_HandleTypeDef* adc_handle, TX_EVENT_FLAGS_GROUP* control_flags);
+void battery_init(Battery* self, ADC_HandleTypeDef* adc_handle, TX_EVENT_FLAGS_GROUP* control_flags,
+		TX_EVENT_FLAGS_GROUP* error_flags);
 battery_error_code_t battery_start_conversion(Battery* self);
 battery_error_code_t battery_get_voltage(Battery* self, real16_T* voltage);
+void 				 battery_shutdown_adc(void);
 
 #endif /* SRC_BATTERY_H_ */

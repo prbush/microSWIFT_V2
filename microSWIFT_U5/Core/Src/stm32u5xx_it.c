@@ -83,12 +83,13 @@ extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-  shut_it_all_down();
-  HAL_NVIC_SystemReset();
+
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
   while (1)
   {
+	  shut_it_all_down();
+	  HAL_NVIC_SystemReset();
   }
   /* USER CODE END NonMaskableInt_IRQn 1 */
 }

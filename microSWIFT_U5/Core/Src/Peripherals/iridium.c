@@ -616,38 +616,35 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 		}
 
 		// Tell the modem to send the message
-		if(!self->timer_timeout) {
+		register_watchdog_refresh();
+		HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
+				strlen(send_sbd), ONE_SECOND);
+		register_watchdog_refresh();
+		// We will only grab the response up to and including MO status
+		HAL_UART_Receive(self->iridium_uart_handle,
+				&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 30);
+		register_watchdog_refresh();
+		// Grab the MO status
+		SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
 
+		if (SBDI_response_code == 1) {
+			send_basic_command_message(self, clear_MO, SBDD_RESPONSE_SIZE, ONE_SECOND * 10);
 			register_watchdog_refresh();
-			HAL_UART_Transmit(self->iridium_uart_handle, (uint8_t*)&(send_sbd[0]),
-					strlen(send_sbd), ONE_SECOND);
-			register_watchdog_refresh();
-			// We will only grab the response up to and including MO status
-			HAL_UART_Receive(self->iridium_uart_handle,
-					&(self->response_buffer[0]), SBDI_RESPONSE_SIZE, ONE_SECOND * 25);
-			register_watchdog_refresh();
-			// Grab the MO status
-			SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
-
-			if (SBDI_response_code == 1) {
-				send_basic_command_message(self, clear_MO, SBDD_RESPONSE_SIZE, ONE_SECOND * 10);
-				register_watchdog_refresh();
-				return IRIDIUM_SUCCESS;
-			}
-
-			// If message Tx failed, put the modem to sleep and delay for a total of 30 seconds
-			self->sleep(self, GPIO_PIN_RESET);
-			register_watchdog_refresh();
-			HAL_Delay(25 * ONE_SECOND);
-			register_watchdog_refresh();
-			self->sleep(self, GPIO_PIN_SET);
-			HAL_Delay(5 * ONE_SECOND);
-			register_watchdog_refresh();
-
-			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
-			return_code = IRIDIUM_TRANSMIT_UNSUCCESSFUL;
+			return IRIDIUM_SUCCESS;
 		}
+
+		// If message Tx failed, put the modem to sleep and delay for a total of 30 seconds
+		self->sleep(self, GPIO_PIN_RESET);
+		register_watchdog_refresh();
+		HAL_Delay(25 * ONE_SECOND);
+		register_watchdog_refresh();
+		self->sleep(self, GPIO_PIN_SET);
+		HAL_Delay(5 * ONE_SECOND);
+		register_watchdog_refresh();
+
+		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
+		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+		return_code = IRIDIUM_TRANSMIT_UNSUCCESSFUL;
 	}
 
 	register_watchdog_refresh();
