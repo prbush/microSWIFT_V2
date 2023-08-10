@@ -169,12 +169,10 @@ void iridium_on_off(Iridium* self, GPIO_PinState pin_state)
 	if (pin_state == GPIO_PIN_SET) {
 		HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, pin_state);
 		// Wait 10ms between powering 5V bus FET and the Iridium power FET
-//		HAL_Delay(10);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 		HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
 	} else {
 		HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin, pin_state);
-//		HAL_Delay(10);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 		HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, pin_state);
 	}
@@ -563,8 +561,9 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	char SBDWB_response_code;
 	int SBDI_response_code;
 	int fail_counter;
+	int tx_response_time;
 	bool checksum_match;
-	bool message_response_received = false;
+	bool message_response_received;
 
 	// Assemble the load_sbd string
 	itoa(payload_size, payload_size_str, 10);
@@ -572,9 +571,13 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 	load_sbd[12] = '\r';
 
 	while (!self->timer_timeout) {
+		register_watchdog_refresh();
+
+		message_response_received = false;
+		tx_response_time = 0;
+
 		// get the checksum
 		get_checksum((uint8_t*)payload, payload_size);
-		checksum_match = true;
 
 		// Tell the modem we want to send a message
 		for (fail_counter = 0; fail_counter < MAX_RETRIES && !self->timer_timeout; fail_counter++) {
@@ -664,16 +667,15 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 		// We will only grab the response up to and including MO status
 		HAL_UART_Receive_DMA(self->iridium_uart_handle,
 				&(self->response_buffer[0]), SBDI_RESPONSE_SIZE);
-		// Register a bunch of watchdog refreshes because the response time could exceed the watchdog
-		// refresh time
-		for (int i = 0; i < 15; i++) {
+		// Since it takes longer than the maximum watchdog refresh interval, we'll check once a second to see
+		// if we have received the response from the modem, refreshing the watchdog along the way
+		while (!message_response_received && (tx_response_time < 45)) {
+			message_response_received = (tx_event_flags_get(self->control_flags, IRIDIUM_MSG_RECVD, TX_OR_CLEAR,
+					&actual_flags, TX_TIMER_TICKS_PER_SECOND) == TX_SUCCESS);
 			register_watchdog_refresh();
+			tx_response_time++;
 		}
 
-		if (tx_event_flags_get(self->control_flags, IRIDIUM_MSG_RECVD, TX_OR_CLEAR, &actual_flags,
-				TX_TIMER_TICKS_PER_SECOND * 40) != TX_SUCCESS) {
-			return IRIDIUM_UART_ERROR;
-		}
 		register_watchdog_refresh();
 		// Grab the MO status
 		SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
@@ -717,7 +719,6 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	uint16_t error_msg_str_length = strlen(error_message);
 	uint16_t payload_iterator = 0;
-//	char error_message_payload[IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE + IRIDIUM_CHECKSUM_LENGTH];
 	float timestamp;
 	float* timestamp_ptr = &timestamp;
 	float* lat_ptr = &self->current_lat;
