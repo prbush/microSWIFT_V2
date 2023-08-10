@@ -81,11 +81,13 @@ typedef enum control_flags{
 	GNSS_TX_COMPLETE 		= 1 << 15,
 	GNSS_MSG_RECEIVED 		= 1 << 16,
 	GNSS_MSG_INCOMPLETE     = 1 << 17,
+	IRIDIUM_TX_COMPLETE     = 1 << 18,
+	IRIDIUM_MSG_INCOMPLETE  = 1 << 19,
 	// GNSS timer flags
-	GNSS_INITIAL_RESOLUTION_STAGE 	= 1 << 18,
-	GNSS_WINDOW_PROCESSING_STAGE 	= 1 << 19,
+	GNSS_INITIAL_RESOLUTION_STAGE 	= 1 << 20,
+	GNSS_WINDOW_PROCESSING_STAGE 	= 1 << 21,
 	// Battery ADC conversion flag
-	BATTERY_VOLTAGE_CONVERSION_COMPLETE = 1 << 20
+	BATTERY_VOLTAGE_CONVERSION_COMPLETE = 1 << 22
 } control_flags_t;
 
 
@@ -133,6 +135,8 @@ typedef enum self_test_status{
 #define THREAD_MEDIUM_STACK_SIZE 1024
 #define THREAD_SMALL_STACK_SIZE 512
 #define THREAD_EXTRA_SMALL_STACK_SIZE 256
+
+#define MS_PER_SECOND 1000
 
 // The max times we'll try to get a single peripheral up before sending reset vector
 #define MAX_SELF_TEST_RETRIES 10

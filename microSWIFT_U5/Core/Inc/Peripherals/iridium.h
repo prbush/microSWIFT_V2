@@ -38,8 +38,8 @@ typedef enum iridium_error_code{
 } iridium_error_code_t;
 
 // Macros
-#define IRIDIUM_INITIAL_CAP_CHARGE_TIME 30000
-#define IRIDIUM_TOP_UP_CAP_CHARGE_TIME 10000
+#define IRIDIUM_INITIAL_CAP_CHARGE_TIME TX_TIMER_TICKS_PER_SECOND * 30
+#define IRIDIUM_TOP_UP_CAP_CHARGE_TIME TX_TIMER_TICKS_PER_SECOND * 10
 #define MAX_RETRIES 10
 #define ACK_MESSAGE_SIZE 9
 #define DISABLE_FLOW_CTRL_SIZE 12
@@ -138,7 +138,7 @@ typedef struct Iridium {
 	float current_lon;
 
 	iridium_error_code_t (*config)(struct Iridium* self);
-	void				 (*charge_caps)(struct Iridium* self, uint32_t caps_charge_time);
+	void				 (*charge_caps)(struct Iridium* self, uint32_t caps_charge_time_ticks);
 	iridium_error_code_t (*self_test)(struct Iridium* self);
 	iridium_error_code_t (*transmit_message)(struct Iridium* self);
 	iridium_error_code_t (*transmit_error_message)(struct Iridium* self, char* error_message);
@@ -180,7 +180,7 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 		uint8_t* error_message_buffer, uint8_t* response_buffer,
 		Iridium_message_storage* storage_queue);
 iridium_error_code_t iridium_config(Iridium* self);
-void				 iridium_charge_caps(Iridium* self, uint32_t caps_charge_time);
+void				 iridium_charge_caps(Iridium* self, uint32_t caps_charge_time_ticks);
 iridium_error_code_t iridium_self_test(Iridium* self);
 iridium_error_code_t iridium_transmit_message(Iridium* self);
 iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_message);

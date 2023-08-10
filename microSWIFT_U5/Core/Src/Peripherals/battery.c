@@ -51,7 +51,8 @@ battery_error_code_t battery_start_conversion(Battery* self)
 	}
 	// Need at least a 4 ADC clock cycle delay after calibration before doing anything else with the
 	// ADC -- 10ms ought to do.
-	HAL_Delay(10);
+//	HAL_Delay(10);
+	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 	self->calibration_offset = HAL_ADCEx_Calibration_GetValue(self->adc_handle, ADC_SINGLE_ENDED);
 
 	if (HAL_ADC_Start_IT(self->adc_handle) != HAL_OK) {

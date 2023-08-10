@@ -89,7 +89,8 @@ ct_error_code_t ct_parse_sample(CT* self)
 		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
 			// If this evaluates to true, we're out of sync. Insert a short delay
 			return_code = CT_PARSING_ERROR;
-			HAL_Delay(250);
+//			HAL_Delay(250);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 			continue;
 		}
 		index += TEMP_OFFSET_FROM_UNITS;
@@ -203,7 +204,8 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	index = strstr(self->data_buf, temp_units);
 	// Make the message was received in the right alignment
 	if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
-		HAL_Delay(103);
+//		HAL_Delay(103);
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
 		return return_code;
@@ -212,7 +214,8 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	temperature = atof(index);
 	// error return of atof() is 0.0
 	if (temperature == 0.0){
-		HAL_Delay(103);
+//		HAL_Delay(103);
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
 		return return_code;
@@ -220,7 +223,8 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 
 	index = strstr(self->data_buf, salinity_units);
 	if (index == NULL){
-		HAL_Delay(103);
+//		HAL_Delay(103);
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
 		return return_code;
@@ -230,7 +234,8 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	salinity = atof(index);
 
 	if (salinity == 0.0){
-		HAL_Delay(103);
+//		HAL_Delay(103);
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
 		return return_code;
@@ -241,7 +246,8 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 		elapsed_time = HAL_GetTick() - start_time;
 		int32_t required_delay = WARMUP_TIME - elapsed_time;
 		if (required_delay > 0) {
-			HAL_Delay(required_delay);
+//			HAL_Delay(required_delay);
+			tx_thread_sleep((required_delay / MS_PER_SECOND) * TX_TIMER_TICKS_PER_SECOND);
 		}
 	}
 

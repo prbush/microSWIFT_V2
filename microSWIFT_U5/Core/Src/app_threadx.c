@@ -426,6 +426,7 @@ void watchdog_thread_entry(ULONG thread_input){
 	while(1) {
 		tx_semaphore_get(&watchdog_semaphore, TX_WAIT_FOREVER);
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
 	}
 }
 
@@ -845,7 +846,8 @@ void ct_thread_entry(ULONG thread_input){
 
 		ct_return_code = ct->self_test(ct, false);
 		if (ct_return_code != CT_SUCCESS) {
-			HAL_Delay(103);
+//			HAL_Delay(103);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
 		} else {
@@ -1062,7 +1064,8 @@ void iridium_thread_entry(ULONG thread_input){
 		if (iridium_return_code != IRIDIUM_SUCCESS) {
 
 			iridium->cycle_power(iridium);
-			HAL_Delay(10);
+//			HAL_Delay(10);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
 		} else {
@@ -1078,7 +1081,8 @@ void iridium_thread_entry(ULONG thread_input){
 			iridium->queue_add(iridium, iridium->current_message);
 		}
 		shut_it_all_down();
-		HAL_Delay(10);
+//		HAL_Delay(10);
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 		HAL_NVIC_SystemReset();
 	}
 
@@ -1152,7 +1156,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	// Just to be overly sure everything is off
 	shut_it_all_down();
-	HAL_Delay(100);
+//	HAL_Delay(100);
+	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 //	Clear any pending interrupts, See Errata section 2.2.4
 
@@ -1343,6 +1348,8 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
 		tx_event_flags_set(&thread_control_flags, GNSS_TX_COMPLETE, TX_OR);
+	} else if (huart->Instance == iridium->iridium_uart_handle->Instance) {
+		tx_event_flags_set(&thread_control_flags, IRIDIUM_TX_COMPLETE, TX_OR);
 	}
 }
 
@@ -1466,40 +1473,50 @@ static void led_sequence(led_sequence_t sequence)
 		case INITIAL_LED_SEQUENCE:
 			for (int i = 0; i < 10; i++){
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
-				HAL_Delay(250);
+//				HAL_Delay(250);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
-				HAL_Delay(250);
+//				HAL_Delay(250);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
-				HAL_Delay(250);
+//				HAL_Delay(250);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
-				HAL_Delay(250);
+//				HAL_Delay(250);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 			}
 			break;
 
 		case TEST_PASSED_LED_SEQUENCE:
 			for (int i = 0; i < 5; i++){
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
-				HAL_Delay(1000);
+//				HAL_Delay(1000);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
-				HAL_Delay(1000);
+//				HAL_Delay(1000);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
 			}
 			break;
 
 		case TEST_NON_CRITICAL_FAULT_LED_SEQUENCE:
 			for (int i = 0; i < 20; i++){
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
-				HAL_Delay(250);
+//				HAL_Delay(250);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
-				HAL_Delay(250);
+//				HAL_Delay(250);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 			}
 			break;
 
 		case TEST_CRITICAL_FAULT_LED_SEQUENCE:
 			for (int i = 0; i < 10; i++){
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
-				HAL_Delay(500);
+//				HAL_Delay(500);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 2);
 				HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
-				HAL_Delay(500);
+//				HAL_Delay(500);
+				tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 2);
 			}
 			break;
 
@@ -1634,7 +1651,8 @@ static self_test_status_t initial_power_on_self_test(void)
 	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
 	// turn on the GNSS FET
 	gnss->on_off(gnss, GPIO_PIN_SET);
-	HAL_Delay(100);
+//	HAL_Delay(100);
+	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 	// Send the configuration commands to the GNSS unit.
 	fail_counter = 0;
 	while (fail_counter < MAX_SELF_TEST_RETRIES * 2) {
@@ -1679,7 +1697,8 @@ static self_test_status_t initial_power_on_self_test(void)
 		if (iridium_return_code != IRIDIUM_SUCCESS) {
 
 			iridium->cycle_power(iridium);
-			HAL_Delay(10);
+//			HAL_Delay(10);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
 		} else {
@@ -1705,7 +1724,8 @@ static self_test_status_t initial_power_on_self_test(void)
 		if (iridium_return_code != IRIDIUM_SUCCESS) {
 
 			iridium->cycle_power(iridium);
-			HAL_Delay(10);
+//			HAL_Delay(10);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
 		} else {
@@ -1746,7 +1766,8 @@ static self_test_status_t initial_power_on_self_test(void)
 		ct_return_code = ct->self_test(ct, false);
 		if (ct_return_code != CT_SUCCESS) {
 
-			HAL_Delay(103);
+//			HAL_Delay(103);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
 		} else {

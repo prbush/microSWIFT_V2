@@ -39,7 +39,6 @@
 "./Core/Src/syscalls.o"
 "./Core/Src/sysmem.o"
 "./Core/Src/system_stm32u5xx.o"
-"./Core/Src/test_app_threadx.o"
 "./Core/Src/tx_initialize_low_level.o"
 "./Core/Startup/startup_stm32u575zitxq.o"
 "./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal.o"
