@@ -126,6 +126,7 @@ static self_test_status_t initial_power_on_self_test(void);
 static void led_sequence(uint8_t sequence);
 static void jump_to_end_of_window(ULONG error_bits_to_set);
 static void send_error_message(ULONG error_flags);
+static void restart_watchdog_hour_timer(TIM_HandleTypeDef* timer_handle);
 #if CT_ENABLED
 static void jump_to_waves(void);
 #endif
@@ -134,6 +135,7 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 // Externally visible functions
 void shut_it_all_down(void);
 void register_watchdog_refresh(void);
+
 
 
 
@@ -442,6 +444,8 @@ void startup_thread_entry(ULONG thread_input){
 	ULONG actual_flags = 0;
 	UINT tx_return;
 	int fail_counter = 0;
+
+	restart_watchdog_hour_timer(device_handles->watchdog_hour_timer);
 
 	register_watchdog_refresh();
 
@@ -1396,8 +1400,6 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 
 }
 
-
-
 void HAL_IWDG_EarlyWakeupCallback(IWDG_HandleTypeDef *hiwdg)
 {
 	shut_it_all_down();
@@ -1433,28 +1435,6 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 	// Set the ADC conversion error flag and move on
 	tx_event_flags_set(&error_flags, ADC_CONVERSION_ERROR, TX_OR);
 }
-
-///**
-//  * @brief  Delay in blocking mode. This is to ensure HAL_delay will work even if SysTick is disabled.
-//  *
-//  * @note   !!! This only works with a main clock speed of 12mHz !!!
-//  *
-//  * @param  Delay : Delay in milliseconds
-//  * @retval None
-//  */
-//void HAL_Delay(uint32_t Delay)
-//{
-//	__IO int dummy_variable = 0;
-//	__IO int i;
-//
-//	// Compiler cannot optimize any of this away.
-//	for (i = 0; i < Delay * 532; i++) {
-//		i++;
-//		dummy_variable = i;
-//		i--;
-//	}
-//	i = dummy_variable;
-//}
 
 /**
   * @brief  Static function to flash a sequence of onboard LEDs to indicate
@@ -1621,6 +1601,9 @@ void register_watchdog_refresh(void)
 #if WATCHDOG_ENABLED
 	if (!watchdog_hour_timer_elapsed) {
 		tx_semaphore_put(&watchdog_semaphore);
+	} else {
+		// Drain the watchdog refresh semaphore
+		while (tx_semaphore_get(&watchdog_semaphore, TX_NO_WAIT) == TX_SUCCESS);
 	}
 #endif
 }
@@ -1985,5 +1968,52 @@ static void send_error_message(ULONG error_flags)
 	}
 }
 
+static void restart_watchdog_hour_timer(TIM_HandleTypeDef* timer_handle)
+{
+
+	if (HAL_TIM_Base_Stop_IT(timer_handle) != HAL_OK) {
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
+	TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+	TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+	/* USER CODE BEGIN TIM15_Init 1 */
+
+	/* USER CODE END TIM15_Init 1 */
+	timer_handle->Instance = TIM15;
+	timer_handle->Init.Prescaler = 12000;
+	timer_handle->Init.CounterMode = TIM_COUNTERMODE_UP;
+	timer_handle->Init.Period = 59999;
+	timer_handle->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+	timer_handle->Init.RepetitionCounter = 60;
+	timer_handle->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(timer_handle) != HAL_OK)
+	{
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+	sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+	if (HAL_TIM_ConfigClockSource(timer_handle, &sClockSourceConfig) != HAL_OK)
+	{
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(timer_handle, &sMasterConfig) != HAL_OK)
+	{
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
+	if (HAL_TIM_Base_Start_IT(timer_handle) != HAL_OK) {
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
+	watchdog_hour_timer_elapsed = false;
+}
 
 /* USER CODE END 1 */
