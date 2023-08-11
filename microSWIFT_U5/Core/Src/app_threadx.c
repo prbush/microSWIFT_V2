@@ -1389,11 +1389,23 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 
 }
 
+/**
+  * @brief  Independent watchdog early wakeup callback
+  *
+  * @param  hiwdg : IWDG handle
+  * @retval None
+  */
 void HAL_IWDG_EarlyWakeupCallback(IWDG_HandleTypeDef *hiwdg)
 {
 	shut_it_all_down();
 }
 
+/**
+  * @brief  ADC conversion complete callback
+  *
+  * @param  hadc : ADC handle
+  * @retval None
+  */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
 	static uint32_t number_of_conversions = 0;
@@ -1418,6 +1430,12 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 
 }
 
+/**
+  * @brief  ADC error callback
+  *
+  * @param  hadc : ADC handle
+  * @retval None
+  */
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 {
 	// Set the ADC conversion error flag and move on
