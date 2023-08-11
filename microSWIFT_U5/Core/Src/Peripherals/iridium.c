@@ -179,7 +179,12 @@ void iridium_on_off(Iridium* self, GPIO_PinState pin_state)
 }
 
 /**
+ * Store an unsent message in flash memory.
+ * !!!
+ * This function has not been implimented yet!
+ * !!!
  *
+ * @param self - Iridium struct
  *
  * @return iridium_error_code_t
  */
@@ -197,9 +202,12 @@ iridium_error_code_t iridium_store_in_flash(Iridium* self)
 }
 
 /**
+ * Reset the Iridium UART.
  *
+ * @param self - Iridium struct
  *
- * @return iridium_error_code_t
+ * @return IRIDIUM_SUCCESS on success
+ * 		   IRIDIUM_UART_ERROR when an error is encountered
  */
 iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rate)
 {
@@ -245,9 +253,13 @@ iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rat
 }
 
 /**
+ * Reset the Iridium timer. Will generate an interrupt after timeout_in_minutes.
  *
+ * @param self- Iridium struct
+ * @param timeout_in_minutes - number of minutes to set the timeout to
  *
- * @return iridium_error_code_t
+ * @return IRIDIUM_SUCCESS or
+ * 		   IRIDIUM_TIMER_ERROR on error when trying to initialize timer
  */
 iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minutes)
 {
@@ -279,9 +291,13 @@ iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minut
 }
 
 /**
+ * Addd a message to the Iridium storage queue
  *
+ * @param self- Iridium struct
+ * @param payload - message to store
  *
- * @return iridium_error_code_t
+ * @return 	IRIDIUM_SUCCESS or
+ * 			IRIDIUM_STORAGE_QUEUE_FULL if there is no space remaining in the queue
  */
 iridium_error_code_t iridium_storage_queue_add(Iridium* self, sbd_message_type_52* payload)
 {
@@ -310,7 +326,9 @@ iridium_error_code_t iridium_storage_queue_add(Iridium* self, sbd_message_type_5
  *
  * @param self- Iridium struct
  * @param msg_index - return parameter for next message index
- * @return iridium_error_code_t - either IRIDIUM_STORAGE_QUEUE_EMPTY or IRIDIUM_SUCCESS
+ *
+ * @return 	IRIDIUM_SUCCESS or
+ * 			IRIDIUM_STORAGE_QUEUE_EMPTY if the queue is empty
  */
 iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index)
 {
@@ -366,7 +384,7 @@ void iridium_storage_queue_flush(Iridium* self)
 }
 
 /**
- * Static helper message to send message from the queue.
+ * Static helper function to send message from the queue.
  *
  * @param self- Iridium struct
  * @return iridium_error_code_t
@@ -392,9 +410,13 @@ static iridium_error_code_t send_msg_from_queue(Iridium* self)
 }
 
 /**
+ * Static helper function to get the checksum of an Iridium message.
  *
+ * @param self- Iridium struct
+ * @param payload_size - size in bytes of the payload for which the
+ * 						 checksum is being calculates
  *
- * @return iridium_error_code_t
+ * @return void
  */
 static void get_checksum(uint8_t* payload, size_t payload_size)
 {
@@ -411,9 +433,16 @@ static void get_checksum(uint8_t* payload, size_t payload_size)
 }
 
 /**
+ * Static helper function to send a basic command message to the modem
  *
+ * @param self- Iridium struct
+ * @param command - command string
+ * @param response_size - size of the modem response
+ * @param wait_time_ticks - maximum length of time the modem could take to respond
+ * 							(in scheduler ticks)
  *
- * @return iridium_error_code_t
+ * @return	IRIDIUM_SUCCESS or
+ * 			IRIDIUM_UART_ERROR
  */
 static iridium_error_code_t send_basic_command_message(Iridium* self,
 		const char* command, uint8_t response_size, uint32_t wait_time_ticks)
@@ -446,9 +475,12 @@ static iridium_error_code_t send_basic_command_message(Iridium* self,
 }
 
 /**
+ * Transmit a message from the modem. First, the current window's message will be sent,
+ * and if time is remaining, messages from the queue will be sent after.
  *
+ * @param self- Iridium struct
  *
- * @return iridium_error_code_t
+ * @return	IRIDIUM_SUCCESS or
  */
 iridium_error_code_t iridium_transmit_message(Iridium* self)
 {
@@ -546,6 +578,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
  *
  * @param self - pointer to Iridium struct
  * @param payload - pointer to a SBD message payload
+ *
  * @return IRIDIUM_SUCCESS to indicate message was sent
  * 		   IRIDIUM_TRANSMIT_ERROR if it didn't send
  * 		   IRIDIUM_UART_ERROR if something went wrong trying to talk to the modem
@@ -710,6 +743,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
  * @param self - Iridium struct
  * @param error_message - null terminated error message of 320 bytes or less. Note that this
  * 						  string is mutable to handle the case of terminating a too-long string
+ *
  * @return IRIDIUM_SUCCESS to indicate message was sent
  * 		   IRIDIUM_TRANSMIT_ERROR if it didn't send
  * 		   IRIDIUM_UART_ERROR if something went wrong trying to talk to the modem
