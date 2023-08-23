@@ -123,7 +123,6 @@ static gnss_error_code_t gnss_config(void){
 
 	if (return_code != GNSS_SUCCESS) {
 		self->reset_uart(GNSS_DEFAULT_BAUD_RATE);
-//		HAL_Delay(10);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 		return return_code;
 	}
@@ -148,7 +147,6 @@ static gnss_error_code_t gnss_config(void){
 	if (return_code != GNSS_SUCCESS) {
 
 		self->reset_uart(GNSS_DEFAULT_BAUD_RATE);
-//		HAL_Delay(10);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 		return return_code;
 	}
