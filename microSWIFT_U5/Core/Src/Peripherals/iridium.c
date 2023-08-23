@@ -516,7 +516,7 @@ static iridium_error_code_t iridium_transmit_message(void)
 
 	// Give a little extra time if the storage queue is filling up
 	if (self->storage_queue->num_msgs_enqueued > 10) {
-		timer_minutes = self->global_config->iridium_max_transmit_time + 2;
+		timer_minutes = self->global_config->iridium_max_transmit_time + 5;
 	} else {
 		timer_minutes = self->global_config->iridium_max_transmit_time;
 	}

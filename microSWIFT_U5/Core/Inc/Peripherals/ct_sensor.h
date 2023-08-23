@@ -65,20 +65,16 @@ typedef struct CT{
 	// Keep track of the number of samples
 	uint32_t total_samples;
 	// Function pointers
-	ct_error_code_t (*parse_sample)  (struct CT* self);
-	ct_error_code_t (*get_averages)  (struct CT* self);
-	void		    (*on_off) 		 (struct CT* self, GPIO_PinState pin_state);
-	ct_error_code_t (*self_test) 	 (struct CT* self, bool add_warmup_time);
-	ct_error_code_t (*reset_ct_uart) (struct CT* self, uint16_t baud_rate);
+	ct_error_code_t (*parse_sample)  (void);
+	ct_error_code_t (*get_averages)  (void);
+	void		    (*on_off) 		 (GPIO_PinState pin_state);
+	ct_error_code_t (*self_test) 	 (bool add_warmup_time);
+	ct_error_code_t (*reset_ct_uart) (uint16_t baud_rate);
 } CT;
 
-void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeDef* ct_uart_handle,
+void ct_init(CT* struct_ptr, microSWIFT_configuration* global_config, UART_HandleTypeDef* ct_uart_handle,
 		DMA_HandleTypeDef* ct_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
 		TX_EVENT_FLAGS_GROUP* error_flags, char* data_buf, ct_samples* samples_buf);
-ct_error_code_t ct_parse_sample(CT* self);
-ct_error_code_t ct_get_averages(CT* self);
-void 			ct_on_off(CT* self, GPIO_PinState pin_state);
-ct_error_code_t ct_self_test(CT* self, bool add_warmup_time);
-ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate);
+
 
 #endif /* SRC_CT_H_ */

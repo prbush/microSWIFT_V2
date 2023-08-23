@@ -7,8 +7,17 @@
 
 #include "Peripherals/ct_sensor.h"
 
+// Object instance pointer
+CT* self;
+
+static ct_error_code_t ct_parse_sample(void);
+static ct_error_code_t ct_get_averages(void);
+static void 		   ct_on_off(GPIO_PinState pin_state);
+static ct_error_code_t ct_self_test(bool add_warmup_time);
+static ct_error_code_t reset_ct_uart(uint16_t baud_rate);
+
 // Helper functions
-static void reset_ct_struct_fields(CT* self);
+static void reset_ct_struct_fields(void);
 
 // Search terms
 static const char* temp_units = "Deg.C";
@@ -20,15 +29,14 @@ static const char* salinity_units = "PSU";
  *
  * @return void
  */
-void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeDef* ct_uart_handle,
+void ct_init(CT* struct_ptr, microSWIFT_configuration* global_config, UART_HandleTypeDef* ct_uart_handle,
 		DMA_HandleTypeDef* ct_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
 		TX_EVENT_FLAGS_GROUP* error_flags, char* data_buf, ct_samples* samples_buf)
 {
-//	for (int i = 0; i < global_config->total_ct_samples; i++) {
-//		self->samples_buf[i].conductivity = 0.0;
-//		self->samples_buf[i].temp = 0.0;
-//	}
-	reset_ct_struct_fields(self);
+	// Assign object pointer
+	self = struct_ptr;
+
+	reset_ct_struct_fields();
 	self->global_config = global_config;
 	self->ct_uart_handle = ct_uart_handle;
 	self->ct_dma_handle = ct_dma_handle;
@@ -51,7 +59,7 @@ void ct_init(CT* self, microSWIFT_configuration* global_config, UART_HandleTypeD
  *
  * @return ct_error_code_t
  */
-ct_error_code_t ct_parse_sample(CT* self)
+static ct_error_code_t ct_parse_sample(void)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code = CT_SUCCESS;
@@ -68,7 +76,7 @@ ct_error_code_t ct_parse_sample(CT* self)
 	}
 
 	while(++fail_counter < MAX_RETRIES) {
-		reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+		reset_ct_uart(CT_DEFAULT_BAUD_RATE);
 		HAL_Delay(1);
 		HAL_UART_Receive_DMA(self->ct_uart_handle,
 			(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE);
@@ -89,7 +97,6 @@ ct_error_code_t ct_parse_sample(CT* self)
 		if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
 			// If this evaluates to true, we're out of sync. Insert a short delay
 			return_code = CT_PARSING_ERROR;
-//			HAL_Delay(250);
 			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 4);
 			continue;
 		}
@@ -129,7 +136,7 @@ ct_error_code_t ct_parse_sample(CT* self)
  * @return ct_samples struct containing the averages conductivity
  *         and temperature values
  */
-ct_error_code_t ct_get_averages(CT* self)
+static ct_error_code_t ct_get_averages(void)
 {
 	double temp_sum = 0.0;
 	double salinity_sum = 0.0;
@@ -154,7 +161,7 @@ ct_error_code_t ct_get_averages(CT* self)
  *
  * @return ct_error_code_t
  */
-void ct_on_off(CT* self, GPIO_PinState pin_state)
+static void ct_on_off(GPIO_PinState pin_state)
 {
 	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, pin_state);
 }
@@ -164,7 +171,7 @@ void ct_on_off(CT* self, GPIO_PinState pin_state)
  *
  * @return ct_error_code_t
  */
-ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
+static ct_error_code_t ct_self_test(bool add_warmup_time)
 {
 	ULONG actual_flags;
 	ct_error_code_t return_code;
@@ -174,15 +181,15 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	// Sensor sends a message every 2 seconds @ 9600 baud, takes 0.245 seconds to get it out
 	int required_ticks_to_get_message = TX_TIMER_TICKS_PER_SECOND * 3;
 
-	self->on_off(self, GPIO_PIN_SET);
-	self->reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+	self->on_off(GPIO_PIN_SET);
+	self->reset_ct_uart(CT_DEFAULT_BAUD_RATE);
 
 	start_time = HAL_GetTick();
 
 	if (HAL_UART_Receive_DMA(self->ct_uart_handle,
 		(uint8_t*)&(self->data_buf[0]), CT_DATA_ARRAY_SIZE) != HAL_OK) {
 
-		reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+		reset_ct_uart(CT_DEFAULT_BAUD_RATE);
 
 		return_code = CT_UART_ERROR;
 		return return_code;
@@ -195,7 +202,7 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 			&actual_flags, required_ticks_to_get_message) != TX_SUCCESS) {
 
 		HAL_UART_DMAStop(self->ct_uart_handle);
-		reset_ct_uart(self, CT_DEFAULT_BAUD_RATE);
+		reset_ct_uart(CT_DEFAULT_BAUD_RATE);
 
 		return_code = CT_UART_ERROR;
 		return return_code;
@@ -204,7 +211,6 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	index = strstr(self->data_buf, temp_units);
 	// Make the message was received in the right alignment
 	if (index == NULL || index > &(self->data_buf[0]) + TEMP_MEASUREMENT_START_INDEX){
-//		HAL_Delay(103);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
@@ -214,7 +220,6 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	temperature = atof(index);
 	// error return of atof() is 0.0
 	if (temperature == 0.0){
-//		HAL_Delay(103);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
@@ -223,7 +228,6 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 
 	index = strstr(self->data_buf, salinity_units);
 	if (index == NULL){
-//		HAL_Delay(103);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
@@ -234,7 +238,6 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 	salinity = atof(index);
 
 	if (salinity == 0.0){
-//		HAL_Delay(103);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
 		return_code = CT_PARSING_ERROR;
@@ -246,7 +249,6 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
 		elapsed_time = HAL_GetTick() - start_time;
 		int32_t required_delay = WARMUP_TIME - elapsed_time;
 		if (required_delay > 0) {
-//			HAL_Delay(required_delay);
 			tx_thread_sleep((required_delay / MS_PER_SECOND) * TX_TIMER_TICKS_PER_SECOND);
 		}
 	}
@@ -263,7 +265,7 @@ ct_error_code_t ct_self_test(CT* self, bool add_warmup_time)
  * @param self - GNSS struct
  * @param baud_rate - baud rate to set port to
  */
-ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
+static ct_error_code_t reset_ct_uart(uint16_t baud_rate)
 {
 
 	if (HAL_UART_DeInit(self->ct_uart_handle) != HAL_OK) {
@@ -303,7 +305,7 @@ ct_error_code_t reset_ct_uart(CT* self, uint16_t baud_rate)
 	return CT_SUCCESS;
 }
 
-static void reset_ct_struct_fields(CT* self)
+static void reset_ct_struct_fields(void)
 {
 	// We will know if the CT sensor fails by the value 9999 in the
 	// iridium message

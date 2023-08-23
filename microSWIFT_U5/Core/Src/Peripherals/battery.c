@@ -6,22 +6,30 @@
  */
 
 #include "Peripherals/battery.h"
+// Object intance pointer
+static Battery* self;
 
-extern uint32_t* adc_buf;
+static battery_error_code_t battery_start_conversion(void);
+static battery_error_code_t battery_get_voltage(real16_T* voltage);
+static void 				battery_shutdown_adc(void);
 
-void battery_init(Battery* self, ADC_HandleTypeDef* adc_handle, TX_EVENT_FLAGS_GROUP* control_flags,
+void battery_init(Battery* struct_ptr, ADC_HandleTypeDef* adc_handle, TX_EVENT_FLAGS_GROUP* control_flags,
 		TX_EVENT_FLAGS_GROUP* error_flags)
 {
+	// Assign object pointer
+	self = struct_ptr;
+
 	self->adc_handle = adc_handle;
 	self->control_flags = control_flags;
 	self->error_flags = error_flags;
 	self->voltage = 0;
+
 	self->start_conversion = battery_start_conversion;
 	self->get_voltage = battery_get_voltage;
 	self->shutdown_adc = battery_shutdown_adc;
 }
 
-battery_error_code_t battery_start_conversion(Battery* self)
+static battery_error_code_t battery_start_conversion(void)
 {
 	battery_error_code_t return_code;
 
@@ -64,7 +72,7 @@ battery_error_code_t battery_start_conversion(Battery* self)
 	return return_code;
 }
 
-battery_error_code_t battery_get_voltage(Battery* self, real16_T* voltage)
+static battery_error_code_t battery_get_voltage(real16_T* voltage)
 {
 	uint32_t max_ticks_to_get_voltage = TX_TIMER_TICKS_PER_SECOND;
 	ULONG actual_flags;
@@ -88,7 +96,7 @@ battery_error_code_t battery_get_voltage(Battery* self, real16_T* voltage)
 	return BATTERY_SUCCESS;
 }
 
-void battery_shutdown_adc(void)
+static void battery_shutdown_adc(void)
 {
 
 	HAL_SYSCFG_DisableVREFBUF();

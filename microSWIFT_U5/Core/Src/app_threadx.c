@@ -526,7 +526,7 @@ void startup_thread_entry(ULONG thread_input){
 		}
 
 		// Power up the RF switch
-		rf_switch->power_on(rf_switch);
+		rf_switch->power_on();
 
 		// Check if there was a GNSS error. If so, reconfigure device
 		tx_return = tx_event_flags_get(&thread_control_flags, GNSS_CONFIG_REQUIRED,
@@ -537,9 +537,9 @@ void startup_thread_entry(ULONG thread_input){
 
 				register_watchdog_refresh();
 
-				if (gnss->config(gnss) != GNSS_SUCCESS) {
+				if (gnss->config() != GNSS_SUCCESS) {
 					// Config didn't work, cycle power and try again
-					gnss->cycle_power(gnss);
+					gnss->cycle_power();
 					fail_counter++;
 				} else {
 					break;
@@ -566,7 +566,7 @@ void startup_thread_entry(ULONG thread_input){
 		// Flash some lights to let the user know its on and working
 		led_sequence(INITIAL_LED_SEQUENCE);
 
-		rf_switch->power_on(rf_switch);
+		rf_switch->power_on();
 
 		register_watchdog_refresh();
 
@@ -639,16 +639,16 @@ void gnss_thread_entry(ULONG thread_input){
 	register_watchdog_refresh();
 
 	// Grab the RF switch
-	rf_switch->set_gnss_port(rf_switch);
+	rf_switch->set_gnss_port();
 
 	// Start the timer for resolution stages
 	HAL_TIM_Base_Stop_IT(gnss->minutes_timer);
-	gnss->reset_timer(gnss, configuration.gnss_max_acquisition_wait_time);
+	gnss->reset_timer(configuration.gnss_max_acquisition_wait_time);
 	HAL_TIM_Base_Start_IT(gnss->minutes_timer);
 
 	// Wait until we get a series of good UBX_NAV_PVT messages and are
 	// tracking a good number of satellites before moving on
-	if (gnss->sync_and_start_reception(gnss, start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
+	if (gnss->sync_and_start_reception(start_GNSS_UART_DMA, ubx_DMA_message_buf, UBX_MESSAGE_SIZE)
 				!= GNSS_SUCCESS)
 	{
 		// If we were unable to get good GNSS reception and start the DMA transfer loop, then
@@ -669,7 +669,7 @@ void gnss_thread_entry(ULONG thread_input){
 
 		// Full message came through
 		if ((tx_return == TX_SUCCESS) && !(actual_flags & GNSS_MSG_INCOMPLETE)) {
-			gnss->process_message(gnss);
+			gnss->process_message();
 		}
 		// Message was dropped or incomplete
 		else if ((tx_return == TX_NO_EVENTS) || (actual_flags & GNSS_MSG_INCOMPLETE)) {
@@ -698,7 +698,7 @@ void gnss_thread_entry(ULONG thread_input){
 	// We were able to resolve time within the given window of time. Now start the timer to ensure
 	// the sample window doesn't take too long
 	HAL_TIM_Base_Stop_IT(gnss->minutes_timer);
-	gnss->reset_timer(gnss, sample_window_timeout);
+	gnss->reset_timer(sample_window_timeout);
 	HAL_TIM_Base_Start_IT(gnss->minutes_timer);
 
 	// Wait until all the samples have been processed
@@ -712,14 +712,14 @@ void gnss_thread_entry(ULONG thread_input){
 		// Full message came through
 		if ((tx_return == TX_SUCCESS) && !(actual_flags & GNSS_MSG_INCOMPLETE)) {
 
-			gnss->process_message(gnss);
+			gnss->process_message();
 			number_of_no_sample_errors = 0;
 
 		}
 		// Message was dropped or incomplete
 		else if ((tx_return == TX_NO_EVENTS) || (actual_flags & GNSS_MSG_INCOMPLETE)) {
 
-			gnss_return_code = gnss->get_running_average_velocities(gnss);
+			gnss_return_code = gnss->get_running_average_velocities();
 
 			if (gnss_return_code == GNSS_NO_SAMPLES_ERROR) {
 				if (++number_of_no_sample_errors == configuration.gnss_sampling_rate * 60) {
@@ -749,13 +749,13 @@ void gnss_thread_entry(ULONG thread_input){
 	// Stop the timer
 	HAL_TIM_Base_Stop_IT(gnss->minutes_timer);
 	// turn off the GNSS sensor
-	gnss->on_off(gnss, GPIO_PIN_RESET);
+	gnss->on_off(GPIO_PIN_RESET);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(gnss->gnss_uart_handle);
 	HAL_DMA_DeInit(gnss->gnss_rx_dma_handle);
 	HAL_DMA_DeInit(gnss->gnss_tx_dma_handle);
 
-	gnss->get_location(gnss, &last_lat, &last_lon);
+	gnss->get_location(&last_lat, &last_lon);
 	// Just to be overly sure about alignment
 	memcpy(&sbd_message.Lat, &last_lat, sizeof(float));
 	memcpy(&sbd_message.Lon, &last_lon, sizeof(float));
@@ -766,7 +766,7 @@ void gnss_thread_entry(ULONG thread_input){
 	memcpy(&sbd_message.port, &sbd_port, sizeof(uint8_t));
 
 	// Port the RF switch to the modem
-	rf_switch->set_iridium_port(rf_switch);
+	rf_switch->set_iridium_port();
 
 	register_watchdog_refresh();
 
@@ -841,7 +841,7 @@ void ct_thread_entry(ULONG thread_input){
 
 		register_watchdog_refresh();
 
-		ct_return_code = ct->self_test(ct, false);
+		ct_return_code = ct->self_test(false);
 		if (ct_return_code != CT_SUCCESS) {
 			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
@@ -863,7 +863,7 @@ void ct_thread_entry(ULONG thread_input){
 	while (ct->total_samples < configuration.total_ct_samples) {
 
 		register_watchdog_refresh();
-		ct_return_code = ct_parse_sample(ct);
+		ct_return_code = ct->parse_sample();
 
 		if (ct_return_code == CT_PARSING_ERROR) {
 			ct_parsing_error_counter++;
@@ -884,13 +884,13 @@ void ct_thread_entry(ULONG thread_input){
 	register_watchdog_refresh();
 
 	// Turn off the CT sensor
-	ct->on_off(ct, GPIO_PIN_RESET);
+	ct->on_off(GPIO_PIN_RESET);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(ct->ct_uart_handle);
 	HAL_DMA_DeInit(ct->ct_dma_handle);
 
 	// Got our samples, now average them
-	ct_return_code = ct->get_averages(ct);
+	ct_return_code = ct->get_averages();
 	// Make sure something didn't go terribly wrong
 	if (ct_return_code == CT_NOT_ENOUGH_SAMPLES) {
 		register_watchdog_refresh();
@@ -1011,7 +1011,7 @@ void iridium_thread_entry(ULONG thread_input){
 		// Turn off the modem and RF switch
 		iridium->sleep(GPIO_PIN_RESET);
 		iridium->on_off(GPIO_PIN_RESET);
-		rf_switch->power_off(rf_switch);
+		rf_switch->power_off();
 		// Deinit UART and DMA to prevent spurious interrupts
 		HAL_UART_DeInit(iridium->iridium_uart_handle);
 		HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
@@ -1028,11 +1028,11 @@ void iridium_thread_entry(ULONG thread_input){
 	}
 
 	// Port the RF switch to the modem
-	rf_switch->set_iridium_port(rf_switch);
+	rf_switch->set_iridium_port();
 
 	// Grab the battery voltage
-	battery->start_conversion(battery);
-	battery->get_voltage(battery, &voltage);
+	battery->start_conversion();
+	battery->get_voltage(&voltage);
 	battery->shutdown_adc();
 	memcpy(&sbd_message.mean_voltage, &voltage, sizeof(real16_T));
 
@@ -1105,7 +1105,7 @@ void iridium_thread_entry(ULONG thread_input){
 	// Turn off the modem and RF switch
 	iridium->sleep(GPIO_PIN_RESET);
 	iridium->on_off(GPIO_PIN_RESET);
-	rf_switch->power_off(rf_switch);
+	rf_switch->power_off();
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(iridium->iridium_uart_handle);
 	HAL_DMA_DeInit(iridium->iridium_rx_dma_handle);
@@ -1287,7 +1287,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
 		if (Size < UBX_NAV_PVT_MESSAGE_LENGTH) {
-			gnss->get_running_average_velocities(gnss);
+			gnss->get_running_average_velocities();
 			tx_event_flags_set(&thread_control_flags, GNSS_MSG_INCOMPLETE, TX_OR);
 		} else {
 			memcpy(&(gnss->ubx_process_buf[0]), &(ubx_DMA_message_buf[0]), UBX_MESSAGE_SIZE);
@@ -1511,7 +1511,7 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 
 	register_watchdog_refresh();
 
-	gnss->reset_uart(gnss, GNSS_DEFAULT_BAUD_RATE);
+	gnss->reset_uart(GNSS_DEFAULT_BAUD_RATE);
 
 	memset(&(buffer[0]), 0, UBX_MESSAGE_SIZE * 2);
 
@@ -1622,7 +1622,7 @@ static self_test_status_t initial_power_on_self_test(void)
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
 	// turn on the GNSS FET
-	gnss->on_off(gnss, GPIO_PIN_SET);
+	gnss->on_off(GPIO_PIN_SET);
 	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 	// Send the configuration commands to the GNSS unit.
 	fail_counter = 0;
@@ -1630,7 +1630,7 @@ static self_test_status_t initial_power_on_self_test(void)
 
 		register_watchdog_refresh();
 
-		gnss_return_code = gnss->config(gnss);
+		gnss_return_code = gnss->config();
 		if (gnss_return_code != GNSS_SUCCESS) {
 			// Config didn't go through, try again
 			fail_counter++;
@@ -1732,7 +1732,7 @@ static self_test_status_t initial_power_on_self_test(void)
 
 		register_watchdog_refresh();
 
-		ct_return_code = ct->self_test(ct, false);
+		ct_return_code = ct->self_test(false);
 		if (ct_return_code != CT_SUCCESS) {
 
 			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
@@ -1752,7 +1752,7 @@ static self_test_status_t initial_power_on_self_test(void)
 	}
 
 	// We can turn off the CT sensor for now
-	ct->on_off(ct, GPIO_PIN_RESET);
+	ct->on_off(GPIO_PIN_RESET);
 
 	// Regardless of if the self-test passed, we'll still set it as ready and try again
 	// in the sample window
@@ -1773,7 +1773,7 @@ static self_test_status_t initial_power_on_self_test(void)
   */
 static void jump_to_end_of_window(ULONG error_bits_to_set)
 {
-	gnss->on_off(gnss, GPIO_PIN_RESET);
+	gnss->on_off(GPIO_PIN_RESET);
 	// If there was a GNSS error or it could not resolve in time, set the flag to reconfig next time
 	if ((error_bits_to_set & GNSS_RESOLUTION_ERROR) || (error_bits_to_set & GNSS_ERROR)){
 		// Set the event flag so we know to reconfigure in the next window
@@ -1812,7 +1812,7 @@ static void jump_to_end_of_window(ULONG error_bits_to_set)
   */
 static void jump_to_waves(void)
 {
-	ct->on_off(ct, GPIO_PIN_RESET);
+	ct->on_off(GPIO_PIN_RESET);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(ct->ct_uart_handle);
 	HAL_DMA_DeInit(ct->ct_dma_handle);

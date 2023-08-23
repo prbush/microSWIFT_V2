@@ -34,16 +34,13 @@ typedef struct Battery {
 	float					voltage;
 	uint32_t				calibration_offset;
 
-	battery_error_code_t 	(*start_conversion)(struct Battery* self);
-	battery_error_code_t 	(*get_voltage)(struct Battery* self, real16_T* voltage);
+	battery_error_code_t 	(*start_conversion)(void);
+	battery_error_code_t 	(*get_voltage)(real16_T* voltage);
 	void 					(*shutdown_adc)(void);
 }Battery;
 
 
-void battery_init(Battery* self, ADC_HandleTypeDef* adc_handle, TX_EVENT_FLAGS_GROUP* control_flags,
+void battery_init(Battery* struct_ptr, ADC_HandleTypeDef* adc_handle, TX_EVENT_FLAGS_GROUP* control_flags,
 		TX_EVENT_FLAGS_GROUP* error_flags);
-battery_error_code_t battery_start_conversion(Battery* self);
-battery_error_code_t battery_get_voltage(Battery* self, real16_T* voltage);
-void 				 battery_shutdown_adc(void);
 
 #endif /* SRC_BATTERY_H_ */

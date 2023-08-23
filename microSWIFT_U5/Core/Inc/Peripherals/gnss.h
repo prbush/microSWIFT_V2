@@ -158,41 +158,28 @@ typedef struct GNSS {
 	bool all_samples_processed;
 	bool timer_timeout;
 	// Function pointers
-	gnss_error_code_t (*config)(struct GNSS* self);
-	gnss_error_code_t (*sync_and_start_reception)(struct GNSS* self,
+	gnss_error_code_t (*config)(void);
+	gnss_error_code_t (*sync_and_start_reception)(
 				gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
 				uint8_t* buffer, size_t msg_size);
-	gnss_error_code_t (*get_location)(struct GNSS* self, float* latitude,
-			float* longitude);
-	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
-	void		 	  (*process_message)(struct GNSS* self);
-	gnss_error_code_t (*sleep)(struct GNSS* self, bool put_to_sleep);
-	void			  (*on_off)(struct GNSS* self, GPIO_PinState pin_state);
-	void			  (*cycle_power)(struct GNSS* self);
-	gnss_error_code_t (*set_rtc)(struct GNSS* self, uint8_t* msg_payload);
-	gnss_error_code_t (*reset_uart)(struct GNSS* self, uint16_t baud_rate);
-	gnss_error_code_t (*reset_timer)(struct GNSS* self, uint16_t timeout_in_minutes);
+	gnss_error_code_t (*get_location)(float* latitude, float* longitude);
+	gnss_error_code_t (*get_running_average_velocities)(void);
+	void		 	  (*process_message)(void);
+	gnss_error_code_t (*sleep)(bool put_to_sleep);
+	void			  (*on_off)(GPIO_PinState pin_state);
+	void			  (*cycle_power)(void);
+	gnss_error_code_t (*set_rtc)(uint8_t* msg_payload);
+	gnss_error_code_t (*reset_uart)(uint16_t baud_rate);
+	gnss_error_code_t (*reset_timer)(uint16_t timeout_in_minutes);
 } GNSS;
 
 /* Function declarations */
-void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
+void gnss_init(GNSS* struct_ptr, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_rx_dma_handle,
 		DMA_HandleTypeDef* gnss_tx_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
 		TX_EVENT_FLAGS_GROUP* error_flags, TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf,
 		uint8_t* config_response_buffer, RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array,
 		float* GNSS_E_Array, float* GNSS_D_Array);
-gnss_error_code_t gnss_config(GNSS* self);
-gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
-		uint8_t* buffer, size_t msg_size);
-gnss_error_code_t gnss_get_location(GNSS* self, float* latitude, float* longitude);
-gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
-void 			  gnss_process_message(GNSS* self);
-gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);
-void			  gnss_on_off(GNSS* self, GPIO_PinState pin_state);
-void			  gnss_cycle_power(GNSS* self);
-gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload);
-gnss_error_code_t gnss_reset_uart(GNSS* self, uint16_t baud_rate);
-gnss_error_code_t gnss_reset_timer(GNSS* self, uint16_t timeout_in_minutes);
 // watchdog refresh function
 extern void 	  register_watchdog_refresh();
 
