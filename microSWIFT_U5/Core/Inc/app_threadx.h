@@ -106,7 +106,8 @@ typedef enum error_flags{
 	SAMPLE_WINDOW_ERROR = 1 << 12,
 	MEMORY_CORRUPTION_ERROR = 1 << 13,
 	GNSS_EXITED_EARLY = 1 << 14,
-	ADC_CONVERSION_ERROR = 1 << 15
+	ADC_CONVERSION_ERROR = 1 << 15,
+	GNSS_FRAME_SYNC_ERROR = 1 << 16
 }error_flags_t;
 
 typedef enum led_sequence{
@@ -146,7 +147,6 @@ typedef enum self_test_status{
 
 /* Exported functions prototypes ---------------------------------------------*/
 UINT App_ThreadX_Init(VOID *memory_ptr);
-
 
 /* USER CODE BEGIN EFP */
 void MX_ThreadX_Init(device_handles_t *handles);

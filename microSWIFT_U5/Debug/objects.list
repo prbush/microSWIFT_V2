@@ -28,7 +28,6 @@
 "./Core/Src/Peripherals/iridium.o"
 "./Core/Src/Peripherals/rf_switch.o"
 "./Core/Src/Peripherals/u_ubx_protocol.o"
-"./Core/Src/Peripherals/watchdog.o"
 "./Core/Src/app_threadx.o"
 "./Core/Src/byte_array.o"
 "./Core/Src/linked_list.o"

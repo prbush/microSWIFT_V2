@@ -654,7 +654,7 @@ void gnss_thread_entry(ULONG thread_input){
 		// If we were unable to get good GNSS reception and start the DMA transfer loop, then
 		// go to sleep until the top of the next hour. Sleep will be handled in end_of_cycle_thread
 		register_watchdog_refresh();
-		jump_to_end_of_window(GNSS_RESOLUTION_ERROR);
+		jump_to_end_of_window(GNSS_FRAME_SYNC_ERROR);
 	}
 	else
 	{
@@ -664,7 +664,7 @@ void gnss_thread_entry(ULONG thread_input){
 	while (!(gnss->all_resolution_stages_complete || gnss->timer_timeout)) {
 
 		register_watchdog_refresh();
-		tx_return = tx_event_flags_get(&thread_control_flags, (GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE),
+		tx_return = tx_event_flags_get(&thread_control_flags, ((GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE)),
 				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
 
 		// Full message came through
@@ -989,29 +989,28 @@ void iridium_thread_entry(ULONG thread_input){
 			DMA_ERROR | UART_ERROR | RTC_ERROR | WATCHDOG_RESET | SOFTWARE_RESET |
 			GNSS_RESOLUTION_ERROR;
 	UINT tx_return;
-	ULONG actual_flags;
 	int fail_counter;
 	char ascii_7 = '7';
 	uint8_t sbd_type = 52;
 	uint16_t sbd_size = 327;
 	real16_T voltage;
-	float sbd_timestamp = iridium->get_timestamp(iridium);
+	float sbd_timestamp = iridium->get_timestamp();
 
 	register_watchdog_refresh();
 
 	// Check if we are skipping this message
 	tx_return = tx_event_flags_get(&error_flags, GNSS_EXITED_EARLY, TX_OR_CLEAR,
-			&actual_flags, TX_NO_WAIT);
+			&actual_error_flags, TX_NO_WAIT);
 
 	if (tx_return == TX_SUCCESS) {
 		iridium->skip_current_message = true;
 	}
 
 	// If this message was skipped and there's nothing in the queue, exit and jump to end_of_cycle_thread
-	if (iridium->skip_current_message && iridium->storage_queue->num_msgs_enqueued == 0) {
+	if (iridium->skip_current_message && (iridium->storage_queue->num_msgs_enqueued == 0)) {
 		// Turn off the modem and RF switch
-		iridium->sleep(iridium, GPIO_PIN_RESET);
-		iridium->on_off(iridium, GPIO_PIN_RESET);
+		iridium->sleep(GPIO_PIN_RESET);
+		iridium->on_off(GPIO_PIN_RESET);
 		rf_switch->power_off(rf_switch);
 		// Deinit UART and DMA to prevent spurious interrupts
 		HAL_UART_DeInit(iridium->iridium_uart_handle);
@@ -1049,17 +1048,17 @@ void iridium_thread_entry(ULONG thread_input){
 	memcpy(&iridium->current_lon, &sbd_message.Lon, sizeof(float));
 
 	// This will turn on the modem and make sure the caps are charged
-	iridium->charge_caps(iridium, IRIDIUM_TOP_UP_CAP_CHARGE_TIME);
+	iridium->charge_caps(IRIDIUM_TOP_UP_CAP_CHARGE_TIME);
 
 	fail_counter = 0;
 	while (fail_counter < MAX_SELF_TEST_RETRIES) {
 
 		register_watchdog_refresh();
 		// See if we can get an ack message from the modem
-		iridium_return_code = iridium->self_test(iridium);
+		iridium_return_code = iridium->self_test();
 		if (iridium_return_code != IRIDIUM_SUCCESS) {
 
-			iridium->cycle_power(iridium);
+			iridium->cycle_power();
 			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
@@ -1073,7 +1072,7 @@ void iridium_thread_entry(ULONG thread_input){
 		// If we couldn't get a response from the modem, shut everything down and force reset.
 		// But save the current message first
 		if (!iridium->skip_current_message) {
-			iridium->queue_add(iridium, iridium->current_message);
+			iridium->queue_add(iridium->current_message);
 		}
 		shut_it_all_down();
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
@@ -1082,18 +1081,12 @@ void iridium_thread_entry(ULONG thread_input){
 
 	register_watchdog_refresh();
 
-	iridium->transmit_message(iridium);
+	iridium->transmit_message();
 
 	register_watchdog_refresh();
 
 	// Check for error messages
 	tx_event_flags_get(&error_flags, error_occured_flags, TX_OR_CLEAR, &actual_error_flags, TX_NO_WAIT);
-
-	// If there was a GNSS error or it could not resolve in time, make sure to terminate the thread
-	if ((actual_error_flags & GNSS_RESOLUTION_ERROR) || (actual_error_flags & GNSS_ERROR)){
-		// Set the event flag so we know to reconfigure in the next window
-		tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_REQUIRED, TX_OR);
-	}
 
 	// If we have an error flag, send an error message
 	if (actual_error_flags) {
@@ -1110,8 +1103,8 @@ void iridium_thread_entry(ULONG thread_input){
 	}
 
 	// Turn off the modem and RF switch
-	iridium->sleep(iridium, GPIO_PIN_RESET);
-	iridium->on_off(iridium, GPIO_PIN_RESET);
+	iridium->sleep(GPIO_PIN_RESET);
+	iridium->on_off(GPIO_PIN_RESET);
 	rf_switch->power_off(rf_switch);
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(iridium->iridium_uart_handle);
@@ -1661,9 +1654,9 @@ static self_test_status_t initial_power_on_self_test(void)
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
 	// Only do this on initial power up, else leave it alone!
-	iridium->queue_flush(iridium);
+	iridium->queue_flush();
 	// Turn on the modem and charge up the caps
-	iridium->charge_caps(iridium, IRIDIUM_INITIAL_CAP_CHARGE_TIME);
+	iridium->charge_caps(IRIDIUM_INITIAL_CAP_CHARGE_TIME);
 
 	// Send over an ack message and make sure we get a response
 	fail_counter = 0;
@@ -1671,10 +1664,10 @@ static self_test_status_t initial_power_on_self_test(void)
 
 		register_watchdog_refresh();
 		// See if we can get an ack message from the modem
-		iridium_return_code = iridium->self_test(iridium);
+		iridium_return_code = iridium->self_test();
 		if (iridium_return_code != IRIDIUM_SUCCESS) {
 
-			iridium->cycle_power(iridium);
+			iridium->cycle_power();
 			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
@@ -1697,10 +1690,10 @@ static self_test_status_t initial_power_on_self_test(void)
 
 		register_watchdog_refresh();
 
-		iridium_return_code = iridium->config(iridium);
+		iridium_return_code = iridium->config();
 		if (iridium_return_code != IRIDIUM_SUCCESS) {
 
-			iridium->cycle_power(iridium);
+			iridium->cycle_power();
 			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 			fail_counter++;
 
@@ -1718,7 +1711,7 @@ static self_test_status_t initial_power_on_self_test(void)
 	}
 
 	// We'll keep power to the modem but put it to sleep
-	iridium->sleep(iridium, GPIO_PIN_RESET);
+	iridium->sleep(GPIO_PIN_RESET);
 
 	// We got an ack and were able to config the Iridium modem
 	tx_event_flags_set(&thread_control_flags, IRIDIUM_READY, TX_OR);
@@ -1781,7 +1774,14 @@ static self_test_status_t initial_power_on_self_test(void)
 static void jump_to_end_of_window(ULONG error_bits_to_set)
 {
 	gnss->on_off(gnss, GPIO_PIN_RESET);
+	// If there was a GNSS error or it could not resolve in time, set the flag to reconfig next time
+	if ((error_bits_to_set & GNSS_RESOLUTION_ERROR) || (error_bits_to_set & GNSS_ERROR)){
+		// Set the event flag so we know to reconfigure in the next window
+		tx_event_flags_set(&thread_control_flags, GNSS_CONFIG_REQUIRED, TX_OR);
+	}
+
 	tx_event_flags_set(&error_flags, (error_bits_to_set | GNSS_EXITED_EARLY), TX_OR);
+
 	// Deinit UART and DMA to prevent spurious interrupts
 	HAL_UART_DeInit(gnss->gnss_uart_handle);
 	HAL_DMA_DeInit(gnss->gnss_rx_dma_handle);
@@ -1951,7 +1951,7 @@ static void send_error_message(ULONG error_flags)
 		}
 	}
 
-	return_code = iridium->transmit_error_message(iridium, error_message);
+	return_code = iridium->transmit_error_message(error_message);
 
 	if ((return_code == IRIDIUM_SUCCESS) && (device_handles->reset_reason != 0))
 	{

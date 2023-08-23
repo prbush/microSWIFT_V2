@@ -6,14 +6,26 @@
  */
 
 #include "Peripherals/rf_switch.h"
+// Internal object pointer
+static RF_Switch* self;
+// Object functions
+static void rf_switch_power_on(void);
+static void rf_switch_power_off(void);
+static void rf_switch_set_gnss_port(void);
+static void rf_switch_set_iridium_port(void);
+
+
 
 /**
  * Initialize the RF switch struct. RF switch will initialize to the GNSS port.
  *
  * @return gnss_error_code_t
  */
-void rf_switch_init(RF_Switch* self)
+void rf_switch_init(RF_Switch* struct_ptr)
 {
+	// Assign object pointer
+	self = struct_ptr;
+
 	self->en_gpio_group = GPIOD;
 	self->vctl_gpio_group = GPIOD;
 	self->en_gpio_pin = RF_SWITCH_EN_Pin;
@@ -30,10 +42,12 @@ void rf_switch_init(RF_Switch* self)
  *
  * @return 	void
  */
-void rf_switch_power_on(RF_Switch* self)
+static void rf_switch_power_on(void)
 {
+	self->en_pin_current_state = GPIO_PIN_SET;
+
 	HAL_GPIO_WritePin(self->en_gpio_group, self->en_gpio_pin,
-				GPIO_PIN_SET);
+			self->en_pin_current_state);
 }
 
 /**
@@ -41,10 +55,12 @@ void rf_switch_power_on(RF_Switch* self)
  *
  * @return 	void
  */
-void rf_switch_power_off(RF_Switch* self)
+static void rf_switch_power_off(void)
 {
+	self->en_pin_current_state = GPIO_PIN_RESET;
+
 	HAL_GPIO_WritePin(self->en_gpio_group, self->en_gpio_pin,
-				GPIO_PIN_RESET);
+			self->en_pin_current_state);
 }
 
 
@@ -53,7 +69,7 @@ void rf_switch_power_off(RF_Switch* self)
  *
  * @return 	void
  */
-void rf_switch_set_gnss_port(RF_Switch* self)
+static void rf_switch_set_gnss_port(void)
 {
 	self->vctl_pin_current_state = GPIO_PIN_SET;
 
@@ -69,7 +85,7 @@ void rf_switch_set_gnss_port(RF_Switch* self)
  *
  * @return 	void
  */
-void rf_switch_set_iridium_port(RF_Switch* self)
+static void rf_switch_set_iridium_port(void)
 {
 	self->vctl_pin_current_state = GPIO_PIN_RESET;
 

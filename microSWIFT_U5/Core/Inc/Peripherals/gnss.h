@@ -128,7 +128,7 @@ typedef struct GNSS {
 	float* GNSS_E_Array;
 	float* GNSS_D_Array;
 	// Number of messages processed in a given buffer
-	int32_t messages_processed;
+	uint32_t messages_processed;
 	// Keep a running track of sum -- to be used in getRunningAverage
 	// NOTE: These values are in units of mm/s and must be converted
 	int32_t v_north_sum;

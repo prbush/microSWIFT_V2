@@ -6,15 +6,34 @@
  */
 
 #include "Peripherals/iridium.h"
+// Object pointer
+static Iridium* self;
+// Object functions
+static iridium_error_code_t iridium_config(void);
+static void iridium_charge_caps(uint32_t caps_charge_time_ticks);
+static iridium_error_code_t iridium_self_test(void);
+static void iridium_sleep(GPIO_PinState pin_state);
+static void iridium_on_off(GPIO_PinState pin_state);
+static iridium_error_code_t iridium_reset_iridium_uart(uint16_t baud_rate);
+static iridium_error_code_t iridium_reset_timer(uint8_t timeout_in_minutes);
+static iridium_error_code_t iridium_storage_queue_add(sbd_message_type_52* payload);
+static iridium_error_code_t iridium_storage_queue_get(uint8_t* msg_index);
+static void iridium_storage_queue_flush(void);
+static iridium_error_code_t iridium_transmit_message(void);
+static iridium_error_code_t iridium_transmit_error_message(char* error_message);
+static void iridium_cycle_power(void);
+static float iridium_get_timestamp(void);
 
-// Static functions
+
+// Helper functions
+static iridium_error_code_t iridium_store_in_flash(void);
 static void get_checksum(uint8_t* payload, size_t payload_size);
-static iridium_error_code_t send_basic_command_message(Iridium* self,
-		const char* command, uint8_t response_size, uint32_t wait_time);
-static iridium_error_code_t send_msg_from_queue(Iridium* self);
-static iridium_error_code_t internal_transmit_message(Iridium* self,
-		uint8_t* payload, uint16_t payload_size);
-static void reset_struct_fields(Iridium* self);
+static iridium_error_code_t send_basic_command_message(const char* command,
+		uint8_t response_size, uint32_t wait_time);
+static iridium_error_code_t send_msg_from_queue(void);
+static iridium_error_code_t internal_transmit_message(uint8_t* payload,
+		uint16_t payload_size);
+static void reset_struct_fields(void);
 
 // static variables
 static const char* ack = "AT\r";
@@ -30,7 +49,7 @@ static const char* send_sbd = "AT+SBDI\r";
  *
  * @return void
  */
-void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
+void iridium_init(Iridium* struct_ptr, microSWIFT_configuration* global_config,
 		UART_HandleTypeDef* iridium_uart_handle, DMA_HandleTypeDef* iridium_rx_dma_handle,
 		TIM_HandleTypeDef* timer, DMA_HandleTypeDef* iridium_tx_dma_handle,
 		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
@@ -38,6 +57,9 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 		uint8_t* error_message_buffer, uint8_t* response_buffer,
 		Iridium_message_storage* storage_queue)
 {
+	// Assign the object pointer
+	self = struct_ptr;
+
 	self->global_config = global_config;
 	self->iridium_uart_handle = iridium_uart_handle;
 	self->iridium_rx_dma_handle = iridium_rx_dma_handle;
@@ -50,7 +72,7 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
 	self->error_message_buffer = error_message_buffer;
 	self->response_buffer = response_buffer;
 	self->storage_queue = storage_queue;
-	reset_struct_fields(self);
+	reset_struct_fields();
 	self->config = iridium_config;
 	self->charge_caps = iridium_charge_caps;
 	self->self_test = iridium_self_test;
@@ -75,40 +97,40 @@ void iridium_init(Iridium* self, microSWIFT_configuration* global_config,
  *
  * @return iridium_error_code_t
  */
-iridium_error_code_t iridium_config(Iridium* self)
+static iridium_error_code_t iridium_config(void)
 {
 	iridium_error_code_t return_code;
 
 	// Get an ack message
-	return_code = send_basic_command_message(self, ack, ACK_MESSAGE_SIZE, TX_TIMER_TICKS_PER_SECOND);
+	return_code = send_basic_command_message(ack, ACK_MESSAGE_SIZE, TX_TIMER_TICKS_PER_SECOND);
 	if (return_code != IRIDIUM_SUCCESS) {
 		return return_code;
 	}
 	// disable flow control
-	return_code = send_basic_command_message(self, disable_flow_control, DISABLE_FLOW_CTRL_SIZE,
+	return_code = send_basic_command_message(disable_flow_control, DISABLE_FLOW_CTRL_SIZE,
 			TX_TIMER_TICKS_PER_SECOND);
 	if (return_code != IRIDIUM_SUCCESS) {
 		return return_code;
 	}
 	// enable SBD ring indications
-	return_code = send_basic_command_message(self, enable_ring_indications, ENABLE_RI_SIZE,
+	return_code = send_basic_command_message(enable_ring_indications, ENABLE_RI_SIZE,
 			TX_TIMER_TICKS_PER_SECOND);
 	if (return_code != IRIDIUM_SUCCESS) {
 		return return_code;
 	}
 	// Store this configuration as profile 0
-	return_code = send_basic_command_message(self, store_config, STORE_CONFIG_SIZE, TX_TIMER_TICKS_PER_SECOND);
+	return_code = send_basic_command_message(store_config, STORE_CONFIG_SIZE, TX_TIMER_TICKS_PER_SECOND);
 	if (return_code != IRIDIUM_SUCCESS) {
 		return return_code;
 	}
 	// set profile 0 as the power-up profile
-	return_code = send_basic_command_message(self, select_power_up_profile, SELECT_PWR_UP_SIZE,
+	return_code = send_basic_command_message(select_power_up_profile, SELECT_PWR_UP_SIZE,
 			TX_TIMER_TICKS_PER_SECOND);
 	if (return_code != IRIDIUM_SUCCESS) {
 		return return_code;
 	}
 
-	self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+	self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 
 	return return_code;
 }
@@ -118,11 +140,11 @@ iridium_error_code_t iridium_config(Iridium* self)
  *
  * @return iridium_error_code_t
  */
-void iridium_charge_caps(Iridium* self, uint32_t caps_charge_time_ticks)
+static void iridium_charge_caps(uint32_t caps_charge_time_ticks)
 {
 	// Power the unit by pulling the sleep pin to ground.
-	self->on_off(self, GPIO_PIN_SET);
-	self->sleep(self, GPIO_PIN_SET);
+	self->on_off(GPIO_PIN_SET);
+	self->sleep(GPIO_PIN_SET);
 
 	tx_thread_sleep(caps_charge_time_ticks);
 }
@@ -132,9 +154,9 @@ void iridium_charge_caps(Iridium* self, uint32_t caps_charge_time_ticks)
  *
  * @return iridium_error_code_t
  */
-iridium_error_code_t iridium_self_test(Iridium* self)
+static iridium_error_code_t iridium_self_test(void)
 {
-	return send_basic_command_message(self, ack, ACK_MESSAGE_SIZE, TX_TIMER_TICKS_PER_SECOND);
+	return send_basic_command_message(ack, ACK_MESSAGE_SIZE, TX_TIMER_TICKS_PER_SECOND);
 }
 
 /**
@@ -148,7 +170,7 @@ iridium_error_code_t iridium_self_test(Iridium* self)
  *
  * @return void
  */
-void iridium_sleep(Iridium* self, GPIO_PinState pin_state)
+static void iridium_sleep(GPIO_PinState pin_state)
 {
 	HAL_GPIO_WritePin(GPIOD, IRIDIUM_OnOff_Pin, pin_state);
 }
@@ -164,7 +186,7 @@ void iridium_sleep(Iridium* self, GPIO_PinState pin_state)
  *
  * @return void
  */
-void iridium_on_off(Iridium* self, GPIO_PinState pin_state)
+static void iridium_on_off(GPIO_PinState pin_state)
 {
 	if (pin_state == GPIO_PIN_SET) {
 		HAL_GPIO_WritePin(GPIOF, BUS_5V_FET_Pin, pin_state);
@@ -188,7 +210,7 @@ void iridium_on_off(Iridium* self, GPIO_PinState pin_state)
  *
  * @return iridium_error_code_t
  */
-iridium_error_code_t iridium_store_in_flash(Iridium* self)
+static iridium_error_code_t iridium_store_in_flash(void)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 
@@ -209,7 +231,7 @@ iridium_error_code_t iridium_store_in_flash(Iridium* self)
  * @return IRIDIUM_SUCCESS on success
  * 		   IRIDIUM_UART_ERROR when an error is encountered
  */
-iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rate)
+static iridium_error_code_t iridium_reset_iridium_uart(uint16_t baud_rate)
 {
 
 	if (HAL_UART_DeInit(self->iridium_uart_handle) != HAL_OK) {
@@ -261,7 +283,7 @@ iridium_error_code_t iridium_reset_iridium_uart(Iridium* self, uint16_t baud_rat
  * @return IRIDIUM_SUCCESS or
  * 		   IRIDIUM_TIMER_ERROR on error when trying to initialize timer
  */
-iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minutes)
+static iridium_error_code_t iridium_reset_timer(uint8_t timeout_in_minutes)
 {
 	if (HAL_TIM_Base_DeInit(self->timer) != HAL_OK) {
 		return IRIDIUM_TIMER_ERROR;
@@ -299,7 +321,7 @@ iridium_error_code_t iridium_reset_timer(Iridium* self, uint8_t timeout_in_minut
  * @return 	IRIDIUM_SUCCESS or
  * 			IRIDIUM_STORAGE_QUEUE_FULL if there is no space remaining in the queue
  */
-iridium_error_code_t iridium_storage_queue_add(Iridium* self, sbd_message_type_52* payload)
+static iridium_error_code_t iridium_storage_queue_add(sbd_message_type_52* payload)
 {
 	if (self->storage_queue->num_msgs_enqueued == MAX_NUM_MSGS_STORED) {
 		return IRIDIUM_STORAGE_QUEUE_FULL;
@@ -330,7 +352,7 @@ iridium_error_code_t iridium_storage_queue_add(Iridium* self, sbd_message_type_5
  * @return 	IRIDIUM_SUCCESS or
  * 			IRIDIUM_STORAGE_QUEUE_EMPTY if the queue is empty
  */
-iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index)
+static iridium_error_code_t iridium_storage_queue_get(uint8_t* msg_index)
 {
 	float significant_wave_height = 0.0;
 	float msg_wave_float = 0.0;
@@ -339,7 +361,7 @@ iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index
 
 	// Queue corruption check
 	if (self->storage_queue->magic_number != SBD_QUEUE_MAGIC_NUMBER) {
-		self->queue_flush(self);
+		self->queue_flush();
 		return IRIDIUM_STORAGE_QUEUE_EMPTY;
 	}
 	// Empty queue check
@@ -370,7 +392,7 @@ iridium_error_code_t iridium_storage_queue_get(Iridium* self, uint8_t* msg_index
  * @param self- Iridium struct
  * @return void
  */
-void iridium_storage_queue_flush(Iridium* self)
+static void iridium_storage_queue_flush(void)
 {
 	if (self->storage_queue->magic_number != SBD_QUEUE_MAGIC_NUMBER) {
 		// Zero out the whole thing
@@ -389,16 +411,16 @@ void iridium_storage_queue_flush(Iridium* self)
  * @param self- Iridium struct
  * @return iridium_error_code_t
  */
-static iridium_error_code_t send_msg_from_queue(Iridium* self)
+static iridium_error_code_t send_msg_from_queue(void)
 {
 	iridium_error_code_t return_code;
 	uint8_t payload_index = 0;
-	return_code = self->queue_get(self, &payload_index);
+	return_code = self->queue_get(&payload_index);
 	if (return_code == IRIDIUM_STORAGE_QUEUE_EMPTY) {
 		return return_code;
 	}
 	// try transmitting the message
-	return_code = internal_transmit_message(self,
+	return_code = internal_transmit_message(
 			(uint8_t*)&(self->storage_queue->msg_queue[payload_index].payload),
 			sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
 	// If the message successfully transmitted, mark it as invalid
@@ -444,13 +466,13 @@ static void get_checksum(uint8_t* payload, size_t payload_size)
  * @return	IRIDIUM_SUCCESS or
  * 			IRIDIUM_UART_ERROR
  */
-static iridium_error_code_t send_basic_command_message(Iridium* self,
-		const char* command, uint8_t response_size, uint32_t wait_time_ticks)
+static iridium_error_code_t send_basic_command_message(const char* command,
+		uint8_t response_size, uint32_t wait_time_ticks)
 {
 	char * needle;
 	ULONG actual_flags;
 
-	self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+	self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 	memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
 
 	HAL_UART_Transmit_DMA(self->iridium_uart_handle, (uint8_t*)&(command[0]),
@@ -482,7 +504,7 @@ static iridium_error_code_t send_basic_command_message(Iridium* self,
  *
  * @return	IRIDIUM_SUCCESS or
  */
-iridium_error_code_t iridium_transmit_message(Iridium* self)
+static iridium_error_code_t iridium_transmit_message(void)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	iridium_error_code_t queue_return_code __attribute__((unused));
@@ -501,7 +523,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 
 	// reset the timer and clear the interrupt flag
 	self->timer_timeout = false;
-	self->reset_timer(self, timer_minutes);
+	self->reset_timer(timer_minutes);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
 
@@ -512,7 +534,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 
 		while (!self->timer_timeout && !all_messages_sent) {
-			queue_return_code = send_msg_from_queue(self);
+			queue_return_code = send_msg_from_queue();
 			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 		}
 
@@ -529,12 +551,12 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		// Send the message that was just generated
 		while (!self->timer_timeout && !message_tx_success) {
 			register_watchdog_refresh();
-			return_code = internal_transmit_message(self, (uint8_t*)self->current_message,
+			return_code = internal_transmit_message((uint8_t*)self->current_message,
 					sizeof(sbd_message_type_52) - IRIDIUM_CHECKSUM_LENGTH);
 
 			if (return_code == IRIDIUM_UART_ERROR) {
-				self->cycle_power(self);
-				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+				self->cycle_power();
+				self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 			}
 			message_tx_success = return_code == IRIDIUM_SUCCESS;
 		}
@@ -545,7 +567,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 		// If we have time, send messages from the queue
 		while (!self->timer_timeout && !all_messages_sent) {
 			register_watchdog_refresh();
-			queue_return_code = send_msg_from_queue(self);
+			queue_return_code = send_msg_from_queue();
 			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 		}
 
@@ -557,7 +579,7 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
 			self->timer_timeout = false;
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
-			return self->queue_add(self, self->current_message);
+			return self->queue_add(self->current_message);
 		}
 	}
 
@@ -583,8 +605,8 @@ iridium_error_code_t iridium_transmit_message(Iridium* self)
  * 		   IRIDIUM_TRANSMIT_ERROR if it didn't send
  * 		   IRIDIUM_UART_ERROR if something went wrong trying to talk to the modem
  */
-static iridium_error_code_t internal_transmit_message(Iridium* self,
-		uint8_t* payload, uint16_t payload_size)
+static iridium_error_code_t internal_transmit_message(uint8_t* payload,
+		uint16_t payload_size)
 {
 	iridium_error_code_t return_code = IRIDIUM_TRANSMIT_TIMEOUT;
 	ULONG actual_flags;
@@ -634,12 +656,12 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 			// Success case
 			if (needle != NULL) {
 				memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+				self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 				break;
 			}
 			// Clear the response buffer and reset UART for the next step
 			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+			self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 		}
 
 		if (fail_counter == MAX_RETRIES) {
@@ -668,7 +690,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 			// Success case
 			if (SBDWB_response_code == '0') {
 				memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-				self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+				self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 				checksum_match = true;
 				break;
 			}
@@ -680,7 +702,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 			}
 			// Clear the response buffer and reset UART for the next step
 			memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+			self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 		}
 
 		if ((fail_counter == MAX_RETRIES) || (!checksum_match)) {
@@ -714,22 +736,22 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
 		SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
 
 		if (SBDI_response_code == 1) {
-			send_basic_command_message(self, clear_MO, SBDD_RESPONSE_SIZE, TX_TIMER_TICKS_PER_SECOND * 10);
+			send_basic_command_message(clear_MO, SBDD_RESPONSE_SIZE, TX_TIMER_TICKS_PER_SECOND * 10);
 			register_watchdog_refresh();
 			return IRIDIUM_SUCCESS;
 		}
 
 		// If message Tx failed, put the modem to sleep and delay for a total of 30 seconds
-		self->sleep(self, GPIO_PIN_RESET);
+		self->sleep(GPIO_PIN_RESET);
 		register_watchdog_refresh();
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 25);
 		register_watchdog_refresh();
-		self->sleep(self, GPIO_PIN_SET);
+		self->sleep(GPIO_PIN_SET);
 		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 5);
 		register_watchdog_refresh();
 
 		memset(&(self->response_buffer[0]), 0, IRIDIUM_MAX_RESPONSE_SIZE);
-		self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+		self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 		return_code = IRIDIUM_TRANSMIT_UNSUCCESSFUL;
 	}
 
@@ -748,7 +770,7 @@ static iridium_error_code_t internal_transmit_message(Iridium* self,
  * 		   IRIDIUM_TRANSMIT_ERROR if it didn't send
  * 		   IRIDIUM_UART_ERROR if something went wrong trying to talk to the modem
  */
-iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_message)
+static iridium_error_code_t iridium_transmit_error_message(char* error_message)
 {
 	iridium_error_code_t return_code = IRIDIUM_SUCCESS;
 	uint16_t error_msg_str_length = strlen(error_message);
@@ -780,21 +802,21 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
 	memcpy(&(self->error_message_buffer[payload_iterator]), lon_ptr,
 				sizeof(self->current_lon));
 	payload_iterator += sizeof(self->current_lon);
-	timestamp = self->get_timestamp(self);
+	timestamp = self->get_timestamp();
 	memcpy(&(self->error_message_buffer[payload_iterator]), timestamp_ptr,
 			sizeof(float));
 
 	// reset the timer and clear the interrupt flag
-	self->reset_timer(self, self->global_config->iridium_max_transmit_time);
+	self->reset_timer(self->global_config->iridium_max_transmit_time);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
 	// Send the message that was just generated
 	while (!self->timer_timeout && !message_tx_success) {
-		return_code = internal_transmit_message(self, (uint8_t*)&(self->error_message_buffer[0]),
+		return_code = internal_transmit_message((uint8_t*)&(self->error_message_buffer[0]),
 				IRIDIUM_ERROR_MESSAGE_PAYLOAD_SIZE);
 		if (return_code == IRIDIUM_UART_ERROR) {
-			self->cycle_power(self);
-			self->reset_uart(self, IRIDIUM_DEFAULT_BAUD_RATE);
+			self->cycle_power();
+			self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
 		}
 		message_tx_success = return_code == IRIDIUM_SUCCESS;
 	}
@@ -818,11 +840,11 @@ iridium_error_code_t iridium_transmit_error_message(Iridium* self, char* error_m
  * @param self - Iridium struct
  * @return void
  */
-void iridium_cycle_power(Iridium* self)
+static void iridium_cycle_power(void)
 {
-	self->sleep(self, GPIO_PIN_RESET);
+	self->sleep(GPIO_PIN_RESET);
 	tx_thread_sleep((TX_TIMER_TICKS_PER_SECOND * 2) + 1);
-	self->sleep(self, GPIO_PIN_SET);
+	self->sleep(GPIO_PIN_SET);
 	tx_thread_sleep((TX_TIMER_TICKS_PER_SECOND * 2) + 1);
 }
 
@@ -832,7 +854,7 @@ void iridium_cycle_power(Iridium* self)
  * @param self - Iridium struct
  * @return timestamp as a float
  */
-float iridium_get_timestamp(Iridium* self)
+static float iridium_get_timestamp(void)
 {
 	uint32_t timestamp = 0;
 	bool is_leap_year = false;
@@ -922,7 +944,7 @@ float iridium_get_timestamp(Iridium* self)
  *
  * @return void
  */
-static void reset_struct_fields(Iridium* self)
+static void reset_struct_fields(void)
 {
 	self->current_lat = 0.0;
 	self->current_lon = 0.0;

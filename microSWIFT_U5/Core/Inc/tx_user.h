@@ -120,7 +120,7 @@
    enabled. If the application does not use preemption-threshold, it may be disabled to reduce
    code size and improve performance.  */
 
-#define TX_DISABLE_PREEMPTION_THRESHOLD
+/*#define TX_DISABLE_PREEMPTION_THRESHOLD*/
 
 /* Determine if global ThreadX variables should be cleared. If the compiler startup code clears
    the .bss section prior to ThreadX running, the define can be used to eliminate unnecessary

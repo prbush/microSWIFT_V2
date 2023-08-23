@@ -169,9 +169,6 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 	while (!self->timer_timeout) {
 		register_watchdog_refresh();
 		// Grab 5 UBX_NAV_PVT messages
-		self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
-		// Put a short delay between resetting UART and starting a DMA transfer
-		HAL_Delay(1);
 		HAL_UART_Receive_DMA(self->gnss_uart_handle, &(msg_buf[0]),
 				INITIAL_STAGES_BUFFER_SIZE);
 
@@ -180,9 +177,8 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 			// If we didn't receive the needed messaged in time, cycle the GNSS sensor
 			self->cycle_power(self);
 			HAL_UART_DMAStop(self->gnss_uart_handle);
-			// Insert a short, prime number delay to sync up UART reception
-//			HAL_Delay(13);
-			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
+			HAL_Delay(3);
+			self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 			continue;
 		}
 
@@ -195,6 +191,11 @@ gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*
 		{
 			return_code = GNSS_SUCCESS;
 			break;
+		} else {
+			// Short delay to help get the frame sync'd
+			HAL_UART_DMAStop(self->gnss_uart_handle);
+			HAL_Delay(3);
+			self->reset_uart(self, GNSS_DEFAULT_BAUD_RATE);
 		}
 	}
 
@@ -291,6 +292,8 @@ void gnss_process_message(GNSS* self)
 		// This allows us to make sure we're not in the sampling window if time has not been resolved
 		if (!self->is_clock_set) {
 			if (self->set_rtc(self, (uint8_t*)payload) != GNSS_SUCCESS){
+				buf_length -= buf_end - buf_start;
+				buf_start = buf_end;
 				continue;
 			}
 		}
