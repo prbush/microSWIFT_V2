@@ -809,8 +809,14 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin
-                          |IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+#ifdef ROCK_BLOCK_V3D
+  HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_SET);
+#else
+  HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
+#endif
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, UCPD_DBn_Pin|LED_BLUE_Pin, GPIO_PIN_RESET);
@@ -938,10 +944,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IMU_FET_Pin IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin
-                           IRIDIUM_OnOff_Pin */
-  GPIO_InitStruct.Pin = IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin
-                          |IRIDIUM_OnOff_Pin;
+  /*Configure GPIO pins : IMU_FET_Pin IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin */
+  GPIO_InitStruct.Pin = IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -952,6 +956,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : IRIDIUM_OnOff_Pin */
+  /*Configure GPIO pin : IRIDIUM_On_Off_Pin */
+  GPIO_InitStruct.Pin = IRIDIUM_OnOff_Pin;
+#ifdef ROCK_BLOCK_V3D
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+#else
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+#endif
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(IRIDIUM_OnOff_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : UCPD_DBn_Pin LED_BLUE_Pin */
   GPIO_InitStruct.Pin = UCPD_DBn_Pin|LED_BLUE_Pin;
@@ -965,7 +981,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
 
 /**
   * @brief  This function is executed in case of error occurrence.

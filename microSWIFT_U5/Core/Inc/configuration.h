@@ -13,14 +13,17 @@
 #include "stdint.h"
 
 // For testing and debugging with a very short sample window
-//#define DEBUGGING_FAST_CYCLE
+#define DEBUGGING_FAST_CYCLE
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
+
+// Define if the old type V3D RockBlock modem is used
+#define ROCK_BLOCK_V3D
 
 #ifdef DEBUGGING_FAST_CYCLE
 
 #define TOTAL_SAMPLES_PER_WINDOW 256
-#define IRIDIUM_MAX_TRANSMIT_TIME 1
+#define IRIDIUM_MAX_TRANSMIT_TIME 10
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 5
 
 #else
