@@ -1979,7 +1979,7 @@ static void restart_watchdog_hour_timer(TIM_HandleTypeDef* timer_handle)
 	timer_handle->Init.CounterMode = TIM_COUNTERMODE_UP;
 	timer_handle->Init.Period = 59999;
 	timer_handle->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	timer_handle->Init.RepetitionCounter = 60;
+	timer_handle->Init.RepetitionCounter = 60 - 1;
 	timer_handle->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 	if (HAL_TIM_Base_Init(timer_handle) != HAL_OK)
 	{

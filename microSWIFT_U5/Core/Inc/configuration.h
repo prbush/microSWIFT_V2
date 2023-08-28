@@ -13,7 +13,7 @@
 #include "stdint.h"
 
 // For testing and debugging with a very short sample window
-#define DEBUGGING_FAST_CYCLE
+//#define DEBUGGING_FAST_CYCLE
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
 
