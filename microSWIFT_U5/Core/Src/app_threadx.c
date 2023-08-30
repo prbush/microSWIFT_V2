@@ -1627,7 +1627,7 @@ static self_test_status_t initial_power_on_self_test(void)
 	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 	// Send the configuration commands to the GNSS unit.
 	fail_counter = 0;
-	while (fail_counter < MAX_SELF_TEST_RETRIES * 2) {
+	while (fail_counter < MAX_SELF_TEST_RETRIES) {
 
 		register_watchdog_refresh();
 
@@ -1642,7 +1642,7 @@ static self_test_status_t initial_power_on_self_test(void)
 		}
 	}
 
-	if (fail_counter == MAX_SELF_TEST_RETRIES * 2) {
+	if (fail_counter == MAX_SELF_TEST_RETRIES) {
 
 		return_code = SELF_TEST_CRITICAL_FAULT;
 		tx_event_flags_set(&error_flags, GNSS_ERROR, TX_OR);

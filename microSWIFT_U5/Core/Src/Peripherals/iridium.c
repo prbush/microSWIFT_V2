@@ -398,6 +398,7 @@ static void iridium_storage_queue_flush(void)
 		// Zero out the whole thing
 		for (int i = 0; i < MAX_NUM_MSGS_STORED; i++) {
 			self->storage_queue->msg_queue[i].valid = false;
+			memset(&(self->storage_queue->msg_queue[i].payload), 0, sizeof(sbd_message_type_52));
 		}
 		self->storage_queue->num_msgs_enqueued = 0;
 		// Set the magic number to indicate the queue has been initialized
@@ -531,11 +532,11 @@ static iridium_error_code_t iridium_transmit_message(void)
 
 		register_watchdog_refresh();
 
-		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+		all_messages_sent = false;
 
 		while (!self->timer_timeout && !all_messages_sent) {
 			queue_return_code = send_msg_from_queue();
-			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
+			all_messages_sent = (queue_return_code == IRIDIUM_STORAGE_QUEUE_EMPTY);
 		}
 
 		HAL_TIM_Base_Stop_IT(self->timer);
@@ -561,6 +562,8 @@ static iridium_error_code_t iridium_transmit_message(void)
 			message_tx_success = return_code == IRIDIUM_SUCCESS;
 		}
 
+		self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
+
 		// If we made it here, there's may still be time left, try sending a queued message
 		// First, make sure we actually have messages in the queue
 		all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
@@ -568,6 +571,11 @@ static iridium_error_code_t iridium_transmit_message(void)
 		while (!self->timer_timeout && !all_messages_sent) {
 			register_watchdog_refresh();
 			queue_return_code = send_msg_from_queue();
+
+			if (queue_return_code == IRIDIUM_UART_ERROR) {
+				self->cycle_power();
+				self->reset_uart(IRIDIUM_DEFAULT_BAUD_RATE);
+			}
 			all_messages_sent = self->storage_queue->num_msgs_enqueued == 0;
 		}
 
