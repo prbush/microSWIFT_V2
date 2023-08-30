@@ -17,7 +17,7 @@ static gnss_error_code_t gnss_sync_and_start_reception(gnss_error_code_t (*start
 		uint8_t* buffer, size_t msg_size);
 static gnss_error_code_t gnss_get_location(float* latitude, float* longitude);
 static gnss_error_code_t gnss_get_running_average_velocities(void);
-static void 			  gnss_process_message(void);
+static void 			 gnss_process_message(void);
 static gnss_error_code_t gnss_sleep(bool put_to_sleep);
 static void			  	 gnss_on_off(GPIO_PinState pin_state);
 static void			  	 gnss_cycle_power(void);

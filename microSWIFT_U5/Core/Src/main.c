@@ -812,11 +812,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-#ifdef ROCK_BLOCK_V3D
-  HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_SET);
-#else
   HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
-#endif
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, UCPD_DBn_Pin|LED_BLUE_Pin, GPIO_PIN_RESET);

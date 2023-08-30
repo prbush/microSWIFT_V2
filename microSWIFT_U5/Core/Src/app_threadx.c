@@ -995,6 +995,7 @@ void iridium_thread_entry(ULONG thread_input){
 	uint16_t sbd_size = 327;
 	real16_T voltage;
 	float sbd_timestamp = iridium->get_timestamp();
+	bool queue_empty = iridium->storage_queue->num_msgs_enqueued == 0;
 
 	register_watchdog_refresh();
 
@@ -1007,7 +1008,7 @@ void iridium_thread_entry(ULONG thread_input){
 	}
 
 	// If this message was skipped and there's nothing in the queue, exit and jump to end_of_cycle_thread
-	if (iridium->skip_current_message && (iridium->storage_queue->num_msgs_enqueued == 0)) {
+	if (iridium->skip_current_message && queue_empty) {
 		// Turn off the modem and RF switch
 		iridium->sleep(GPIO_PIN_RESET);
 		iridium->on_off(GPIO_PIN_RESET);
@@ -1641,7 +1642,7 @@ static self_test_status_t initial_power_on_self_test(void)
 		}
 	}
 
-	if (fail_counter == MAX_SELF_TEST_RETRIES) {
+	if (fail_counter == MAX_SELF_TEST_RETRIES * 2) {
 
 		return_code = SELF_TEST_CRITICAL_FAULT;
 		tx_event_flags_set(&error_flags, GNSS_ERROR, TX_OR);
