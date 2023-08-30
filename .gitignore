@@ -55,8 +55,5 @@ dkms.conf
 *.prefs
 *.list
 *.metadata
-**/g491_test_bed
-**/microSWIFT_U5/Debug
 **/microSWIFT_U5/Release
-**/test_bed
 **/test_bench/Debug
