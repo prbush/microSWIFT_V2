@@ -57,3 +57,4 @@ dkms.conf
 *.metadata
 **/microSWIFT_U5/Release
 **/test_bench/Debug
+*.cyclo
