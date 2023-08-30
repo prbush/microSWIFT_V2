@@ -58,3 +58,5 @@ dkms.conf
 **/microSWIFT_U5/Release
 **/test_bench/Debug
 *.cyclo
+*.proxy_cache
+*.launch
