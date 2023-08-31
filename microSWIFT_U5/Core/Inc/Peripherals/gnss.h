@@ -79,9 +79,9 @@ typedef enum gnss_error_code{
 #define GNSS_TIMER_INSTANCE TIM16
 // UBX message definitions
 #ifdef NO_GNSS_QC
-#define FULLY_RESOLVED_AND_VALID_TIME 0x1 // Only resolve to the day
+#define RESOLVED_TIME_BITS 0x1 // Only resolve to the day
 #else
-#define FULLY_RESOLVED_AND_VALID_TIME 0x7 // Resolve to the second
+#define RESOLVED_TIME_BITS 0x7 // Resolve to the second
 #endif
 #define UBX_NAV_PVT_YEAR_INDEX 4
 #define UBX_NAV_PVT_MONTH_INDEX 6

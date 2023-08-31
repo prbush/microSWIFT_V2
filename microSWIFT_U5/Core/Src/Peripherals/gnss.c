@@ -607,10 +607,21 @@ static gnss_error_code_t gnss_set_rtc(uint8_t* msg_payload)
 
 	time_flags &= LOWER_4_BITS_MASK;
 
-	if (time_flags != FULLY_RESOLVED_AND_VALID_TIME) {
+#ifdef NO_GNSS_QC
+
+	if (!(time_flags & RESOLVED_TIME_BITS)) {
 		return_code = GNSS_TIME_RESOLUTION_ERROR;
 		return return_code;
 	}
+
+#else
+
+	if (time_flags != RESOLVED_TIME_BITS) {
+		return_code = GNSS_TIME_RESOLUTION_ERROR;
+		return return_code;
+	}
+
+#endif
 
 	// Set the date
 	rtc_date.Date = day;
