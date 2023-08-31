@@ -11,8 +11,7 @@ C_SRCS += \
 ../Core/Src/Peripherals/imu.c \
 ../Core/Src/Peripherals/iridium.c \
 ../Core/Src/Peripherals/rf_switch.c \
-../Core/Src/Peripherals/u_ubx_protocol.c \
-../Core/Src/Peripherals/watchdog.c 
+../Core/Src/Peripherals/u_ubx_protocol.c 
 
 C_DEPS += \
 ./Core/Src/Peripherals/battery.d \
@@ -21,8 +20,7 @@ C_DEPS += \
 ./Core/Src/Peripherals/imu.d \
 ./Core/Src/Peripherals/iridium.d \
 ./Core/Src/Peripherals/rf_switch.d \
-./Core/Src/Peripherals/u_ubx_protocol.d \
-./Core/Src/Peripherals/watchdog.d 
+./Core/Src/Peripherals/u_ubx_protocol.d 
 
 OBJS += \
 ./Core/Src/Peripherals/battery.o \
@@ -31,8 +29,7 @@ OBJS += \
 ./Core/Src/Peripherals/imu.o \
 ./Core/Src/Peripherals/iridium.o \
 ./Core/Src/Peripherals/rf_switch.o \
-./Core/Src/Peripherals/u_ubx_protocol.o \
-./Core/Src/Peripherals/watchdog.o 
+./Core/Src/Peripherals/u_ubx_protocol.o 
 
 
 # Each subdirectory must supply rules for building sources it contributes
@@ -42,7 +39,7 @@ Core/Src/Peripherals/%.o Core/Src/Peripherals/%.su: ../Core/Src/Peripherals/%.c 
 clean: clean-Core-2f-Src-2f-Peripherals
 
 clean-Core-2f-Src-2f-Peripherals:
-	-$(RM) ./Core/Src/Peripherals/battery.d ./Core/Src/Peripherals/battery.o ./Core/Src/Peripherals/battery.su ./Core/Src/Peripherals/ct_sensor.d ./Core/Src/Peripherals/ct_sensor.o ./Core/Src/Peripherals/ct_sensor.su ./Core/Src/Peripherals/gnss.d ./Core/Src/Peripherals/gnss.o ./Core/Src/Peripherals/gnss.su ./Core/Src/Peripherals/imu.d ./Core/Src/Peripherals/imu.o ./Core/Src/Peripherals/imu.su ./Core/Src/Peripherals/iridium.d ./Core/Src/Peripherals/iridium.o ./Core/Src/Peripherals/iridium.su ./Core/Src/Peripherals/rf_switch.d ./Core/Src/Peripherals/rf_switch.o ./Core/Src/Peripherals/rf_switch.su ./Core/Src/Peripherals/u_ubx_protocol.d ./Core/Src/Peripherals/u_ubx_protocol.o ./Core/Src/Peripherals/u_ubx_protocol.su ./Core/Src/Peripherals/watchdog.d ./Core/Src/Peripherals/watchdog.o ./Core/Src/Peripherals/watchdog.su
+	-$(RM) ./Core/Src/Peripherals/battery.d ./Core/Src/Peripherals/battery.o ./Core/Src/Peripherals/battery.su ./Core/Src/Peripherals/ct_sensor.d ./Core/Src/Peripherals/ct_sensor.o ./Core/Src/Peripherals/ct_sensor.su ./Core/Src/Peripherals/gnss.d ./Core/Src/Peripherals/gnss.o ./Core/Src/Peripherals/gnss.su ./Core/Src/Peripherals/imu.d ./Core/Src/Peripherals/imu.o ./Core/Src/Peripherals/imu.su ./Core/Src/Peripherals/iridium.d ./Core/Src/Peripherals/iridium.o ./Core/Src/Peripherals/iridium.su ./Core/Src/Peripherals/rf_switch.d ./Core/Src/Peripherals/rf_switch.o ./Core/Src/Peripherals/rf_switch.su ./Core/Src/Peripherals/u_ubx_protocol.d ./Core/Src/Peripherals/u_ubx_protocol.o ./Core/Src/Peripherals/u_ubx_protocol.su
 
 .PHONY: clean-Core-2f-Src-2f-Peripherals
 

@@ -20,6 +20,9 @@
 // Define if the old type V3D RockBlock modem is used
 #define ROCK_BLOCK_V3D
 
+// If defined, no QC measures will be applied to GNSS samples
+#define NO_GNSS_QC
+
 #ifdef DEBUGGING_FAST_CYCLE
 
 #define TOTAL_SAMPLES_PER_WINDOW 4096
@@ -28,9 +31,9 @@
 
 #else
 // Number of samples in each sampling window
-#define TOTAL_SAMPLES_PER_WINDOW 4096
+#define TOTAL_SAMPLES_PER_WINDOW 8192
 // The max time in MINUTES to try to get an Iridium message off
-#define IRIDIUM_MAX_TRANSMIT_TIME 4
+#define IRIDIUM_MAX_TRANSMIT_TIME 10
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
@@ -47,7 +50,7 @@
 // If the IMU will be utilized or not
 #define IMU_ENABLED false
 // If there is a CT sensor present
-#define CT_ENABLED true
+#define CT_ENABLED false
 // Whether or not to use the Independent watchdog
 #define WATCHDOG_ENABLED true
 

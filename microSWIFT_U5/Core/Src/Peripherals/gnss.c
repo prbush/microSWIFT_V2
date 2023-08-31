@@ -255,9 +255,13 @@ static void gnss_process_message(void)
 	int32_t message_class = 0;
 	int32_t message_id = 0;
 	int32_t num_payload_bytes = 0;
-	int32_t lat, lon, sAcc, vnorth, veast, vdown;
+	int32_t lat, lon, vnorth, veast, vdown;
 	int16_t pDOP;
-	bool is_ubx_nav_pvt_msg, velocities_exceed_max, sAcc_exceeded_max, message_checksum_valid = false;
+	bool is_ubx_nav_pvt_msg, message_checksum_valid = false;
+#ifndef NO_GNSS_QC
+	bool velocities_exceed_max, sAcc_exceeded_max;
+	int32_t sAcc;
+#endif
 
 	// Make sure we don't overflow our arrays
 	if (self->total_samples >= self->global_config->samples_per_window) {
@@ -301,7 +305,6 @@ static void gnss_process_message(void)
 		lon 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LON_INDEX, AS_LITTLE_ENDIAN);
 		lat 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_LAT_INDEX, AS_LITTLE_ENDIAN);
 		pDOP 	= (int16_t) get_two_bytes(payload, UBX_NAV_PVT_PDOP_INDEX, AS_LITTLE_ENDIAN);
-		sAcc 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_SACC_INDEX, AS_LITTLE_ENDIAN);
 		vnorth 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_NORTH_INDEX, AS_LITTLE_ENDIAN);
 		veast 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_EAST_INDEX, AS_LITTLE_ENDIAN);
 		vdown 	= (int32_t) get_four_bytes(payload, UBX_NAV_PVT_V_DOWN_INDEX, AS_LITTLE_ENDIAN);
@@ -320,11 +323,21 @@ static void gnss_process_message(void)
 		self->current_latitude = lat;
 		self->current_longitude = lon;
 
+#ifdef NO_GNSS_QC
+
+		if (self->total_samples == 0) {
+			self->all_resolution_stages_complete = true;
+			self->sample_window_start_time = get_timestamp();
+		}
+
+#else
 		// vAcc was within acceptable range, still need to check
 		// individual velocities are less than MAX_POSSIBLE_VELOCITY
 		velocities_exceed_max = (vnorth > MAX_POSSIBLE_VELOCITY) ||
 								(veast > MAX_POSSIBLE_VELOCITY) ||
 								(vdown > MAX_POSSIBLE_VELOCITY);
+
+		sAcc = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_SACC_INDEX, AS_LITTLE_ENDIAN);
 
 		sAcc_exceeded_max = sAcc > MAX_ACCEPTABLE_SACC;
 
@@ -343,11 +356,13 @@ static void gnss_process_message(void)
 			continue;
 		}
 
+#endif
 		// All velocity values are good to go
 		self->v_north_sum += vnorth;
 		self->v_east_sum += veast;
 		self->v_down_sum += vdown;
 
+		// Assign to the velocity arrays
 		self->GNSS_N_Array[self->total_samples] = ((float)((float)vnorth)/MM_PER_METER);
 		self->GNSS_E_Array[self->total_samples] = ((float)((float)veast)/MM_PER_METER);
 		self->GNSS_D_Array[self->total_samples] = ((float)((float)vdown)/MM_PER_METER);
