@@ -5,7 +5,7 @@
  * File: NEDwaves_memlight_emxAPI.c
  *
  * MATLAB Coder version            : 5.4
- * C/C++ source code generated on  : 06-Jul-2023 15:08:49
+ * C/C++ source code generated on  : 02-Sep-2023 15:57:28
  */
 
 /* Include Files */
@@ -13,8 +13,8 @@
 #include "NEDWaves/NEDwaves_memlight_emxutil.h"
 #include "NEDWaves/NEDwaves_memlight_types.h"
 #include "NEDWaves/rt_nonfinite.h"
-#include <stdlib.h>
 #include "NEDWaves/mem_replacements.h"
+#include <stdlib.h>
 
 /* Function Definitions */
 /*
