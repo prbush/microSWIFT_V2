@@ -887,51 +887,51 @@ static float iridium_get_timestamp(void)
 	is_leap_year = rtc_date.Year % 4 == 0;
 
 	switch (rtc_date.Month) {
-		case RTC_MONTH_JANUARY:
+		case 1: // January
 			// No months to account for!!!
 			break;
 
-		case RTC_MONTH_FEBRUARY:
+		case 2: // February
 			julian_date_first_of_month = 32;
 			break;
 
-		case RTC_MONTH_MARCH:
+		case 3: // March
 			julian_date_first_of_month = (is_leap_year) ? 61 : 60;
 			break;
 
-		case RTC_MONTH_APRIL:
+		case 4: // April
 			julian_date_first_of_month = (is_leap_year) ? 92 : 91;
 			break;
 
-		case RTC_MONTH_MAY:
+		case 5: // May
 			julian_date_first_of_month = (is_leap_year) ? 122 : 121;
 			break;
 
-		case RTC_MONTH_JUNE:
+		case 6: // June
 			julian_date_first_of_month = (is_leap_year) ? 153 : 152;
 			break;
 
-		case RTC_MONTH_JULY:
+		case 7: // July
 			julian_date_first_of_month = (is_leap_year) ? 183 : 182;
 			break;
 
-		case RTC_MONTH_AUGUST:
+		case 8: // August
 			julian_date_first_of_month = (is_leap_year) ? 214 : 213;
 			break;
 
-		case RTC_MONTH_SEPTEMBER:
+		case 9: // September
 			julian_date_first_of_month = (is_leap_year) ? 245 : 244;
 			break;
 
-		case RTC_MONTH_OCTOBER:
+		case 10: // October
 			julian_date_first_of_month = (is_leap_year) ? 275 : 274;
 			break;
 
-		case RTC_MONTH_NOVEMBER:
+		case 11: // November
 			julian_date_first_of_month = (is_leap_year) ? 306 : 305;
 			break;
 
-		case RTC_MONTH_DECEMBER:
+		case 12: // December
 			julian_date_first_of_month = (is_leap_year) ? 336 : 335;
 			break;
 
