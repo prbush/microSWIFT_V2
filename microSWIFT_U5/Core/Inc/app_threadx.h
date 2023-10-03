@@ -44,6 +44,7 @@
 #include "Peripherals/rf_switch.h"
 #include "Peripherals/imu.h"
 #include "Peripherals/iridium.h"
+#include "flash_storage.h"
 #include "NEDWaves/mem_replacements.h"
 #include "configuration.h"
 #include "linked_list.h"

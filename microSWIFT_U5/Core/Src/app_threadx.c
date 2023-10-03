@@ -92,6 +92,7 @@ GNSS* gnss;
 Iridium* iridium;
 RF_Switch* rf_switch;
 Battery* battery;
+Flash_storage* flash_storage;
 // Handles for all the STM32 peripherals
 device_handles_t *device_handles;
 // The watchdog hour elapsed timer flag
@@ -312,6 +313,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
+	//
+	// The flash_storage struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &flash_storage, sizeof(Flash_storage), TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
 // Only if the IMU will be utilized
 #if IMU_ENABLED
 	//
@@ -478,6 +485,8 @@ void startup_thread_entry(ULONG thread_input){
 					device_handles->Iridium_tx_dma_handle, &thread_control_flags, &error_flags,
 					device_handles->hrtc, &sbd_message, iridium_error_message,
 					iridium_response_message, &sbd_message_queue);
+
+	flash_storage_init(flash_storage, &configuration);
 
 #if CT_ENABLED
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
