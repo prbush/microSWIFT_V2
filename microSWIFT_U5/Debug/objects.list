@@ -30,6 +30,7 @@
 "./Core/Src/Peripherals/u_ubx_protocol.o"
 "./Core/Src/app_threadx.o"
 "./Core/Src/byte_array.o"
+"./Core/Src/flash_storage.o"
 "./Core/Src/linked_list.o"
 "./Core/Src/main.o"
 "./Core/Src/stm32u5xx_hal_msp.o"
