@@ -76,11 +76,12 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 		float* east_array, float* down_array)
 {
 	flash_storage_error_code_t return_code = FLASH_STORAGE_FULL;
-	uint32_t number_of_pages_per_array =
-			(self->global_config->samples_per_window * sizeof(float)) / FLASH_PAGE_SIZE;
+
+	// TODO: do a check to see if there is space remaining for the storage window.
+	// If not, exit early.
 
 	// Write the North array
-
+	write_array(north_array, self->global_config->samples_per_window);
 	// Write the East Array
 
 	// Write the Down array
@@ -142,6 +143,8 @@ static flash_storage_error_code_t test_bookkeeping_page(void)
 static flash_storage_error_code_t write_array(float* input_array, uint32_t array_size)
 {
 	flash_storage_error_code_t return_code = FLASH_STORAGE_FULL;
+	uint32_t number_of_pages_per_array =
+			(self->global_config->samples_per_window * sizeof(float)) / FLASH_PAGE_SIZE;
 
 	flash_prologue();
 
