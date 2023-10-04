@@ -84,6 +84,8 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 
 	// The write_array function will ensure there is enough space prior to writing
 
+	// TODO: put a watchdog refresh in here
+
 	// Write the North array
 	return_code = write_array(north_array, self->global_config->samples_per_window);
 	if (return_code != FLASH_SUCCESS) {
@@ -207,8 +209,9 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 			return_code = FLASH_PROGRAM_ERROR;
 			break;
 		}
-
+		// current_address is raw uint32_t as an address
 		current_address += size_of_burst;
+		// input_array is a float pointer
 		input_array += size_of_burst / sizeof(float);
 	}
 
