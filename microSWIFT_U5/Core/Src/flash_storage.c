@@ -171,6 +171,8 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 	uint32_t end_address = current_address + (number_of_pages_per_array * FLASH_PAGE_SIZE);
 	float quad_word[4] = {0};
 
+	// TODO: test current_address to ensure there is space
+
 	flash_prologue();
 
 	while (current_address < end_address) {
@@ -197,7 +199,7 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 
 	if (return_code == FLASH_SUCCESS) {
 		self->bookkeeping.num_pages_written += number_of_pages_per_array;
-		// TODO: finish this up!!!!
+		self->bookkeeping.first_empty_page = end_address;
 	}
 
 	return return_code;
