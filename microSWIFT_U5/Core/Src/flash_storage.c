@@ -84,7 +84,7 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 
 	// The write_array function will ensure there is enough space prior to writing
 
-	// TODO: put a watchdog refresh in here
+	register_watchdog_refresh();
 
 	// Write the North array
 	return_code = write_array(north_array, self->global_config->samples_per_window);
@@ -93,6 +93,8 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 		return return_code;
 	}
 
+	register_watchdog_refresh();
+
 	// Write the East Array
 	return_code = write_array(east_array, self->global_config->samples_per_window);
 	if (return_code != FLASH_SUCCESS) {
@@ -100,12 +102,16 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 		return return_code;
 	}
 
+	register_watchdog_refresh();
+
 	// Write the Down array
 	return_code = write_array(down_array, self->global_config->samples_per_window);
 	if (return_code != FLASH_SUCCESS) {
 		self->flash_error_occured = true;
 		return return_code;
 	}
+
+	register_watchdog_refresh();
 
 	return return_code;
 }

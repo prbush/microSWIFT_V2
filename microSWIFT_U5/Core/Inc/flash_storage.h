@@ -11,6 +11,10 @@
 #include "stm32u5xx_hal.h"
 #include "configuration.h"
 
+#define ADDR_FLASH_PAGE_127   0x080FE000 /* Base @ of Page 127, 8 Kbytes */
+#define ADDR_FLASH_PAGE_128	  0x08100000 /* First page of bank 2 */
+#define FLASH_NON_INIT_VALUE  0xFFFFFFFF
+
 typedef enum flash_storage_error_code {
 	FLASH_SUCCESS = 0,
 	FLASH_ERASE_ERROR = -1,
@@ -40,8 +44,7 @@ typedef struct Flash_storage {
 void flash_storage_init(Flash_storage* flash_storage_struct_ptr,
 		microSWIFT_configuration* global_config);
 
-#define ADDR_FLASH_PAGE_127   0x080FE000 /* Base @ of Page 127, 8 Kbytes */
-#define ADDR_FLASH_PAGE_128	  0x08100000 /* First page of bank 2 */
-#define FLASH_NON_INIT_VALUE  0xFFFFFFFF
+// watchdog refresh function
+extern void 		 register_watchdog_refresh();
 
 #endif /* INC_FLASH_STORAGE_H_ */
