@@ -79,12 +79,32 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 
 	// TODO: do a check to see if there is space remaining for the storage window.
 	// If not, exit early.
+	// Simple solution
+	if (self->bookkeeping.num_pages_written == 128) {
+		return_code = FLASH_STORAGE_FULL;
+		return return_code;
+	}
 
 	// Write the North array
-	write_array(north_array, self->global_config->samples_per_window);
+	return_code = write_array(north_array, self->global_config->samples_per_window);
+	if (return_code != FLASH_SUCCESS) {
+		self->flash_error_occured = true;
+		return return_code;
+	}
+
 	// Write the East Array
+	return_code = write_array(east_array, self->global_config->samples_per_window);
+	if (return_code != FLASH_SUCCESS) {
+		self->flash_error_occured = true;
+		return return_code;
+	}
 
 	// Write the Down array
+	return_code = write_array(down_array, self->global_config->samples_per_window);
+	if (return_code != FLASH_SUCCESS) {
+		self->flash_error_occured = true;
+		return return_code;
+	}
 
 	return return_code;
 }
@@ -142,15 +162,43 @@ static flash_storage_error_code_t test_bookkeeping_page(void)
 
 static flash_storage_error_code_t write_array(float* input_array, uint32_t array_size)
 {
-	flash_storage_error_code_t return_code = FLASH_STORAGE_FULL;
+	flash_storage_error_code_t return_code = FLASH_SUCCESS;
 	uint32_t number_of_pages_per_array =
 			(self->global_config->samples_per_window * sizeof(float)) / FLASH_PAGE_SIZE;
+//	uint32_t start_address = self->bookkeeping->first_empty_page;
+//	uint32_t space_per_array = number_of_pages_per_array * FLASH_PAGE_SIZE;
+	uint32_t current_address = self->bookkeeping.first_empty_page;
+	uint32_t end_address = current_address + (number_of_pages_per_array * FLASH_PAGE_SIZE);
+	float quad_word[4] = {0};
 
 	flash_prologue();
 
+	while (current_address < end_address) {
+		quad_word[0] = *input_array;
+		input_array++;
+		quad_word[1] = *input_array;
+		input_array++;
+		quad_word[2] = *input_array;
+		input_array++;
+		quad_word[3] = *input_array;
+		input_array++;
 
+		if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_QUADWORD, current_address,
+				((uint32_t)quad_word)) != HAL_OK)
+		{
+			return_code = FLASH_PROGRAM_ERROR;
+			break;
+		}
+
+		current_address += 4 * sizeof(uint32_t);
+	}
 
 	flash_epilogue();
+
+	if (return_code == FLASH_SUCCESS) {
+		self->bookkeeping.num_pages_written += number_of_pages_per_array;
+		// TODO: finish this up!!!!
+	}
 
 	return return_code;
 }
