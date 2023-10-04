@@ -17,7 +17,8 @@ typedef enum flash_storage_error_code {
 	FLASH_PROGRAM_ERROR = -2,
 	FLASH_BOOKKEEPING_EMPTY = -3,
 	FLASH_BOOKKEEPING_NOT_EMPTY = -4,
-	FLASH_STORAGE_FULL = -5
+	FLASH_STORAGE_FULL = -5,
+	FLASH_UNKNOWN_ERROR = -6
 }flash_storage_error_code_t;
 
 typedef struct Flash_storage_bookkeeping {

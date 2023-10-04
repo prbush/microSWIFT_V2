@@ -77,13 +77,12 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 {
 	flash_storage_error_code_t return_code = FLASH_STORAGE_FULL;
 
-	// TODO: do a check to see if there is space remaining for the storage window.
-	// If not, exit early.
-	// Simple solution
-	if (self->bookkeeping.num_pages_written == 128) {
-		return_code = FLASH_STORAGE_FULL;
+	if (self->flash_error_occured) {
+		return_code = FLASH_UNKNOWN_ERROR;
 		return return_code;
 	}
+
+	// The write_array function will ensure there is enough space prior to writing
 
 	// Write the North array
 	return_code = write_array(north_array, self->global_config->samples_per_window);
@@ -151,7 +150,8 @@ static void flash_epilogue(void)
 static flash_storage_error_code_t test_bookkeeping_page(void)
 {
 	flash_storage_error_code_t return_code = FLASH_BOOKKEEPING_NOT_EMPTY;
-	Flash_storage_bookkeeping* bookkeeping_ptr = (Flash_storage_bookkeeping*)ADDR_FLASH_PAGE_127;
+	Flash_storage_bookkeeping* bookkeeping_ptr =
+			(Flash_storage_bookkeeping*)ADDR_FLASH_PAGE_127;
 
 	if (bookkeeping_ptr->flash_page_addr != ADDR_FLASH_PAGE_127) {
 		return_code = FLASH_BOOKKEEPING_EMPTY;
@@ -165,34 +165,51 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 	flash_storage_error_code_t return_code = FLASH_SUCCESS;
 	uint32_t number_of_pages_per_array =
 			(self->global_config->samples_per_window * sizeof(float)) / FLASH_PAGE_SIZE;
-//	uint32_t start_address = self->bookkeeping->first_empty_page;
-//	uint32_t space_per_array = number_of_pages_per_array * FLASH_PAGE_SIZE;
 	uint32_t current_address = self->bookkeeping.first_empty_page;
 	uint32_t end_address = current_address + (number_of_pages_per_array * FLASH_PAGE_SIZE);
-	float quad_word[4] = {0};
+//	float quad_word[4] = {0};
+	uint32_t size_of_burst = 8 * (4 * sizeof(uint32_t)); // 8 quadwords
 
-	// TODO: test current_address to ensure there is space
+	if ((FLASH_PAGE_NB - self->bookkeeping.num_pages_written) < number_of_pages_per_array) {
+		return_code = FLASH_STORAGE_FULL;
+		return return_code;
+	}
+
+	erase_init_struct.TypeErase   = FLASH_TYPEERASE_PAGES;
+	erase_init_struct.Banks       = FLASH_BANK_2;
+	erase_init_struct.Page        = get_flash_page(current_address);
+	erase_init_struct.NbPages     = number_of_pages_per_array;
 
 	flash_prologue();
 
-	while (current_address < end_address) {
-		quad_word[0] = *input_array;
-		input_array++;
-		quad_word[1] = *input_array;
-		input_array++;
-		quad_word[2] = *input_array;
-		input_array++;
-		quad_word[3] = *input_array;
-		input_array++;
+	// Erase the pages
+	if (HAL_FLASHEx_Erase(&erase_init_struct, &page_error) != HAL_OK) {
+		self->flash_error_occured = true;
+		flash_epilogue();
+		return_code = FLASH_ERASE_ERROR;
+		return return_code;
+	}
 
-		if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_QUADWORD, current_address,
-				((uint32_t)quad_word)) != HAL_OK)
+	// Write the data 1 quadword at a time
+	while (current_address < end_address) {
+//		quad_word[0] = *input_array;
+//		input_array++;
+//		quad_word[1] = *input_array;
+//		input_array++;
+//		quad_word[2] = *input_array;
+//		input_array++;
+//		quad_word[3] = *input_array;
+//		input_array++;
+
+		if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BURST, current_address,
+				((uint32_t)&input_array)) != HAL_OK)
 		{
 			return_code = FLASH_PROGRAM_ERROR;
 			break;
 		}
 
-		current_address += 4 * sizeof(uint32_t);
+		current_address += size_of_burst;
+		input_array += size_of_burst / sizeof(float);
 	}
 
 	flash_epilogue();
