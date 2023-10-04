@@ -33,12 +33,14 @@ typedef struct Flash_storage_bookkeeping {
 }Flash_storage_bookkeeping;
 
 typedef struct Flash_storage {
-	Flash_storage_bookkeeping 	bookkeeping;
+	Flash_storage_bookkeeping* 	bookkeeping;
 	bool 						flash_error_occured;
 	microSWIFT_configuration* 	global_config;
 
 	flash_storage_error_code_t 	(*write_sample_window)(float* north_array,
 			float* east_array, float* down_array);
+	flash_storage_error_code_t (*write_bookkeeping)(
+			Flash_storage_bookkeeping* bookkeeping_to_write);
 }Flash_storage;
 
 void flash_storage_init(Flash_storage* flash_storage_struct_ptr,

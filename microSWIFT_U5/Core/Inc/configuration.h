@@ -12,10 +12,25 @@
 #include "stdbool.h"
 #include "stdint.h"
 
+/*
+ * Debugging settings
+ */
+
 // For testing and debugging with a very short sample window
-//#define DEBUGGING_FAST_CYCLE
+#define DEBUGGING_FAST_CYCLE
+
 // If a 1 min sleep window is desired
-//#define SHORT_SLEEP
+#define SHORT_SLEEP
+
+// If true, will clear out flash memory on initial power up or hard reset.
+#define CLEAR_USER_FLASH false
+
+// If defined, Type 99 messages will be transmitted indicating status of flash operation
+#define VERBOSE_FLASH
+
+/*
+ * Configuration options
+ */
 
 // Define if the old type V3D RockBlock modem is used
 #define ROCK_BLOCK_V3D
@@ -25,7 +40,7 @@
 
 #ifdef DEBUGGING_FAST_CYCLE
 
-#define TOTAL_SAMPLES_PER_WINDOW 256
+#define TOTAL_SAMPLES_PER_WINDOW 2048
 #define IRIDIUM_MAX_TRANSMIT_TIME 1
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
 

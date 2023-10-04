@@ -933,6 +933,8 @@ void ct_thread_entry(ULONG thread_input){
   */
 void waves_thread_entry(ULONG thread_input){
 
+	flash_storage_error_code_t flash_return_code;
+
 	// Function return parameters
 	real16_T E[42];
 	real16_T Dp;
@@ -947,6 +949,33 @@ void waves_thread_entry(ULONG thread_input){
 	unsigned char check[42];
 
 	register_watchdog_refresh();
+
+	flash_return_code = flash_storage->write_sample_window(north->data, east->data, down->data);
+
+	switch (flash_return_code){
+	case FLASH_SUCCESS:
+		tx_event_flags_set(&error_flags, FLASH_OPERATION_SUCCESS, TX_OR);
+		break;
+
+	case FLASH_UNKNOWN_ERROR:
+		tx_event_flags_set(&error_flags, FLASH_OPERATION_UNKNOWN_ERROR, TX_OR);
+		break;
+
+	case FLASH_STORAGE_FULL:
+		tx_event_flags_set(&error_flags, FLASH_OPERATION_STORAGE_FULL, TX_OR);
+		break;
+
+	case FLASH_ERASE_ERROR:
+		tx_event_flags_set(&error_flags, FLASH_OPERATION_ERASE_ERROR, TX_OR);
+		break;
+
+	case FLASH_PROGRAM_ERROR:
+		tx_event_flags_set(&error_flags, FLASH_OPERATION_PROGRAM_ERROR, TX_OR);
+		break;
+
+	default:
+		break;
+	}
 
 	/* Call the entry-point 'NEDwaves_memlight'. */
 	NEDwaves_memlight(north, east, down, gnss->sample_window_freq, &Hs, &Tp, &Dp, E,
@@ -997,6 +1026,11 @@ void iridium_thread_entry(ULONG thread_input){
 	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR |
 			DMA_ERROR | UART_ERROR | RTC_ERROR | WATCHDOG_RESET | SOFTWARE_RESET |
 			GNSS_RESOLUTION_ERROR;
+#ifdef VERBOSE_FLASH
+	error_occured_flags |= (FLASH_OPERATION_SUCCESS | FLASH_OPERATION_UNKNOWN_ERROR |
+			FLASH_OPERATION_STORAGE_FULL | FLASH_OPERATION_ERASE_ERROR |
+			FLASH_OPERATION_PROGRAM_ERROR);
+#endif
 	UINT tx_return;
 	int fail_counter;
 	char ascii_7 = '7';
@@ -1665,8 +1699,12 @@ static self_test_status_t initial_power_on_self_test(void)
 	///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
 	// Only do this on initial power up, else leave it alone!
 	iridium->queue_flush();
+#ifdef DEBUGGING_FAST_CYCLE
+	iridium->charge_caps(30);
+#else
 	// Turn on the modem and charge up the caps
 	iridium->charge_caps(IRIDIUM_INITIAL_CAP_CHARGE_TIME);
+#endif
 
 	// Send over an ack message and make sure we get a response
 	fail_counter = 0;
@@ -1857,6 +1895,11 @@ static void send_error_message(ULONG error_flags)
 	const char* dma_error =  "DMA ERROR. ";
 	const char* uart_error = "UART ERROR. ";
 	const char* rtc_error = "RTC ERROR. ";
+	const char* flash_success = "WRITE TO FLASH SUCCESSFUL. ";
+	const char* flash_unknown_error = "UNKNOWN FLASH ERROR. ";
+	const char* flash_storage_full = "FLASH STORAGE FULL. ";
+	const char* flash_erase_error = "FLASH ERASE ERROR. ";
+	const char* flash_program_error = "FLASH PROGRAM ERROR. ";
 	char* string_ptr = &(error_message[0]);
 
 	if (error_flags & WATCHDOG_RESET) {
@@ -1958,6 +2001,56 @@ static void send_error_message(ULONG error_flags)
 		{
 			memcpy(string_ptr, rtc_error, strlen(rtc_error));
 			string_ptr += strlen(rtc_error);
+		}
+	}
+
+	if (error_flags & FLASH_OPERATION_SUCCESS)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(flash_success)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, flash_success, strlen(flash_success));
+			string_ptr += strlen(flash_success);
+		}
+	}
+
+	if (error_flags & FLASH_OPERATION_UNKNOWN_ERROR)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(flash_unknown_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, flash_unknown_error, strlen(flash_unknown_error));
+			string_ptr += strlen(flash_unknown_error);
+		}
+	}
+
+	if (error_flags & FLASH_OPERATION_STORAGE_FULL)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(flash_storage_full)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, flash_storage_full, strlen(flash_storage_full));
+			string_ptr += strlen(flash_storage_full);
+		}
+	}
+
+	if (error_flags & FLASH_OPERATION_ERASE_ERROR)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(flash_erase_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, flash_erase_error, strlen(flash_erase_error));
+			string_ptr += strlen(flash_erase_error);
+		}
+	}
+
+	if (error_flags & FLASH_OPERATION_PROGRAM_ERROR)
+	{
+		if ((string_ptr - &(error_message[0])) + strlen(flash_program_error)
+				<= ERROR_MESSAGE_MAX_LENGTH)
+		{
+			memcpy(string_ptr, flash_program_error, strlen(flash_program_error));
+			string_ptr += strlen(flash_program_error);
 		}
 	}
 
