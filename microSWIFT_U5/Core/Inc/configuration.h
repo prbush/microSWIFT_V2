@@ -23,7 +23,7 @@
 #define SHORT_SLEEP
 
 // If true, will clear out flash memory on initial power up or hard reset.
-#define CLEAR_USER_FLASH false
+#define CLEAR_USER_FLASH true
 
 // If defined, Type 99 messages will be transmitted indicating status of flash operation
 #define VERBOSE_FLASH

@@ -10,13 +10,12 @@
 static Flash_storage* self; // Private object pointer
 static FLASH_EraseInitTypeDef erase_init_struct;
 static uint32_t page_error;
+
 // Static object functions
 static flash_storage_error_code_t flash_storage_write_sample_window(float* north_array,
 		float* east_array, float* down_array);
 static flash_storage_error_code_t flash_storage_write_bookkeeping(
 		Flash_storage_bookkeeping* bookkeeping_to_write);
-
-
 
 // Helper functions
 static uint32_t get_flash_page(uint32_t addr);
@@ -24,6 +23,9 @@ static void flash_prologue(void);
 static void flash_epilogue(void);
 static flash_storage_error_code_t test_bookkeeping_page(void);
 static flash_storage_error_code_t write_array(float* input_array, uint32_t array_size);
+static flash_storage_error_code_t check_array(float* input_array, float* flash_array,
+		uint32_t array_size);
+
 
 
 void flash_storage_init(Flash_storage* flash_storage_struct_ptr,
@@ -129,6 +131,7 @@ static uint32_t get_flash_page(uint32_t addr)
 
 static void flash_prologue(void)
 {
+	HAL_ICACHE_Invalidate();
 	HAL_ICACHE_Disable();
 	HAL_FLASH_Unlock();
 }
@@ -137,6 +140,7 @@ static void flash_epilogue(void)
 {
 	HAL_FLASH_Unlock();
 	HAL_ICACHE_Enable();
+	HAL_ICACHE_Invalidate();
 }
 
 static flash_storage_error_code_t test_bookkeeping_page(void)
@@ -156,9 +160,11 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 {
 	flash_storage_error_code_t return_code = FLASH_SUCCESS;
 	Flash_storage_bookkeeping bookkeeping_temp;
+	float* input_array_ptr = input_array;
 	uint32_t number_of_pages_per_array =
 			(self->global_config->samples_per_window * sizeof(float)) / FLASH_PAGE_SIZE;
-	uint32_t current_address = self->bookkeeping->first_empty_page;
+	uint32_t start_address = self->bookkeeping->first_empty_page;
+	uint32_t current_address = start_address;
 	uint32_t end_address = current_address + (number_of_pages_per_array * FLASH_PAGE_SIZE);
 	uint32_t size_of_burst = 8 * (4 * sizeof(uint32_t)); // 8 quadwords
 
@@ -186,7 +192,7 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 	while (current_address < end_address) {
 
 		if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BURST, current_address,
-				((uint32_t)input_array)) != HAL_OK)
+				((uint32_t)input_array_ptr)) != HAL_OK)
 		{
 			return_code = FLASH_PROGRAM_ERROR;
 			break;
@@ -194,10 +200,18 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 		// current_address is raw uint32_t as an address
 		current_address += size_of_burst;
 		// input_array is a float pointer
-		input_array += size_of_burst / sizeof(float);
+		input_array_ptr += size_of_burst / sizeof(float);
 	}
 
 	flash_epilogue();
+
+	return_code = check_array(input_array, (float*)start_address,
+			self->global_config->samples_per_window);
+
+	if (return_code != FLASH_SUCCESS) {
+		self->flash_error_occured = true;
+		return return_code;
+	}
 
 	if (return_code == FLASH_SUCCESS) {
 
@@ -208,6 +222,24 @@ static flash_storage_error_code_t write_array(float* input_array, uint32_t array
 		bookkeeping_temp.first_empty_page = end_address;
 
 		return_code = self->write_bookkeeping(&bookkeeping_temp);
+	}
+
+//	return_code = check_array(input_array, (float*)start_address,
+//			self->global_config->samples_per_window);
+
+	return return_code;
+}
+
+static flash_storage_error_code_t check_array(float* input_array, float* flash_array,
+		uint32_t array_size)
+{
+	flash_storage_error_code_t return_code = FLASH_SUCCESS;
+
+	for (int i = 0; i < array_size; i++) {
+		if (flash_array[i] != input_array[i]) {
+			return_code = FLASH_CORRUPTION_ERROR;
+			return return_code;
+		}
 	}
 
 	return return_code;
