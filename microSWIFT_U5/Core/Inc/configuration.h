@@ -17,13 +17,13 @@
  */
 
 // For testing and debugging with a very short sample window
-#define DEBUGGING_FAST_CYCLE
+//#define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
-#define SHORT_SLEEP
+//#define SHORT_SLEEP
 
 // If true, will clear out flash memory on initial power up or hard reset.
-#define CLEAR_USER_FLASH true
+#define CLEAR_USER_FLASH false
 
 // If defined, Type 99 messages will be transmitted indicating status of flash operation
 #define VERBOSE_FLASH
@@ -48,7 +48,7 @@
 // Number of samples in each sampling window
 #define TOTAL_SAMPLES_PER_WINDOW 8192
 // The max time in MINUTES to try to get an Iridium message off
-#define IRIDIUM_MAX_TRANSMIT_TIME 10
+#define IRIDIUM_MAX_TRANSMIT_TIME 20
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
