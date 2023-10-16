@@ -204,13 +204,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	//
 	// Allocate stack for the waves thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE * 2, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	// Create the waves thread. MID priority, no preemption-threshold
 	ret = tx_thread_create(&waves_thread, "waves thread", waves_thread_entry, 0, pointer,
-			THREAD_EXTRA_LARGE_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_DONT_START);
+			THREAD_EXTRA_LARGE_STACK_SIZE * 2, MID, MID, TX_NO_TIME_SLICE, TX_DONT_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -752,6 +752,25 @@ void gnss_thread_entry(ULONG thread_input){
 			jump_to_end_of_window(SAMPLE_WINDOW_ERROR);
 		}
 	}
+
+	/* Testing new NED waves  */
+
+//	float* flash_ptr = (float*)0x08100000;
+//	uint32_t size_of_array = configuration.samples_per_window * sizeof(float);
+//
+//	memcpy(north->data, flash_ptr, size_of_array);
+//	flash_ptr += (size_of_array / sizeof(float));
+//	memcpy(east->data, flash_ptr, size_of_array);
+//	flash_ptr += (size_of_array / sizeof(float));
+//	memcpy(down->data, flash_ptr, size_of_array);
+//
+//	gnss->sample_window_freq = 4.0;
+
+	/* End testing new NED waves  */
+
+
+
+
 
 	register_watchdog_refresh();
 

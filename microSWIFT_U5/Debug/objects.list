@@ -20,6 +20,7 @@
 "./Core/Src/NEDWaves/rtGetNaN.o"
 "./Core/Src/NEDWaves/rt_nonfinite.o"
 "./Core/Src/NEDWaves/rtwhalf.o"
+"./Core/Src/NEDWaves/std.o"
 "./Core/Src/NEDWaves/var.o"
 "./Core/Src/Peripherals/battery.o"
 "./Core/Src/Peripherals/ct_sensor.o"

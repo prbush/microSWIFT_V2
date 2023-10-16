@@ -5,7 +5,7 @@
  * File: linspace.c
  *
  * MATLAB Coder version            : 5.4
- * C/C++ source code generated on  : 02-Sep-2023 15:57:28
+ * C/C++ source code generated on  : 10-Oct-2023 20:23:55
  */
 
 /* Include Files */
@@ -41,7 +41,7 @@ void linspace(double d1, double d2, double n, emxArray_real_T *y)
     y_data = y->data;
     if ((int)delta1 >= 1) {
       y_tmp_tmp = (int)delta1 - 1;
-      y_data[(int)floor(n) - 1] = d2;
+      y_data[(int)(floor(n) - 1)] = d2;
       if (y->size[1] >= 2) {
         y_data[0] = d1;
         if (y->size[1] >= 3) {

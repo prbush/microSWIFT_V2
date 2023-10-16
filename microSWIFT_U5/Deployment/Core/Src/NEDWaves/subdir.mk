@@ -26,6 +26,7 @@ C_SRCS += \
 ../Core/Src/NEDWaves/rtGetNaN.c \
 ../Core/Src/NEDWaves/rt_nonfinite.c \
 ../Core/Src/NEDWaves/rtwhalf.c \
+../Core/Src/NEDWaves/std.c \
 ../Core/Src/NEDWaves/var.c 
 
 C_DEPS += \
@@ -50,6 +51,7 @@ C_DEPS += \
 ./Core/Src/NEDWaves/rtGetNaN.d \
 ./Core/Src/NEDWaves/rt_nonfinite.d \
 ./Core/Src/NEDWaves/rtwhalf.d \
+./Core/Src/NEDWaves/std.d \
 ./Core/Src/NEDWaves/var.d 
 
 OBJS += \
@@ -74,6 +76,7 @@ OBJS += \
 ./Core/Src/NEDWaves/rtGetNaN.o \
 ./Core/Src/NEDWaves/rt_nonfinite.o \
 ./Core/Src/NEDWaves/rtwhalf.o \
+./Core/Src/NEDWaves/std.o \
 ./Core/Src/NEDWaves/var.o 
 
 
@@ -84,7 +87,7 @@ Core/Src/NEDWaves/%.o Core/Src/NEDWaves/%.su: ../Core/Src/NEDWaves/%.c Core/Src/
 clean: clean-Core-2f-Src-2f-NEDWaves
 
 clean-Core-2f-Src-2f-NEDWaves:
-	-$(RM) ./Core/Src/NEDWaves/FFTImplementationCallback.d ./Core/Src/NEDWaves/FFTImplementationCallback.o ./Core/Src/NEDWaves/FFTImplementationCallback.su ./Core/Src/NEDWaves/NEDwaves_memlight.d ./Core/Src/NEDWaves/NEDwaves_memlight.o ./Core/Src/NEDWaves/NEDwaves_memlight.su ./Core/Src/NEDWaves/NEDwaves_memlight_data.d ./Core/Src/NEDWaves/NEDwaves_memlight_data.o ./Core/Src/NEDWaves/NEDwaves_memlight_data.su ./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.d ./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.o ./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.su ./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.d ./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.o ./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.su ./Core/Src/NEDWaves/NEDwaves_memlight_initialize.d ./Core/Src/NEDWaves/NEDwaves_memlight_initialize.o ./Core/Src/NEDWaves/NEDwaves_memlight_initialize.su ./Core/Src/NEDWaves/NEDwaves_memlight_terminate.d ./Core/Src/NEDWaves/NEDwaves_memlight_terminate.o ./Core/Src/NEDWaves/NEDwaves_memlight_terminate.su ./Core/Src/NEDWaves/bsearch.d ./Core/Src/NEDWaves/bsearch.o ./Core/Src/NEDWaves/bsearch.su ./Core/Src/NEDWaves/combineVectorElements.d ./Core/Src/NEDWaves/combineVectorElements.o ./Core/Src/NEDWaves/combineVectorElements.su ./Core/Src/NEDWaves/div.d ./Core/Src/NEDWaves/div.o ./Core/Src/NEDWaves/div.su ./Core/Src/NEDWaves/fft.d ./Core/Src/NEDWaves/fft.o ./Core/Src/NEDWaves/fft.su ./Core/Src/NEDWaves/interp1.d ./Core/Src/NEDWaves/interp1.o ./Core/Src/NEDWaves/interp1.su ./Core/Src/NEDWaves/linspace.d ./Core/Src/NEDWaves/linspace.o ./Core/Src/NEDWaves/linspace.su ./Core/Src/NEDWaves/mean.d ./Core/Src/NEDWaves/mean.o ./Core/Src/NEDWaves/mean.su ./Core/Src/NEDWaves/mem_replacements.d ./Core/Src/NEDWaves/mem_replacements.o ./Core/Src/NEDWaves/mem_replacements.su ./Core/Src/NEDWaves/minOrMax.d ./Core/Src/NEDWaves/minOrMax.o ./Core/Src/NEDWaves/minOrMax.su ./Core/Src/NEDWaves/nullAssignment.d ./Core/Src/NEDWaves/nullAssignment.o ./Core/Src/NEDWaves/nullAssignment.su ./Core/Src/NEDWaves/rtGetInf.d ./Core/Src/NEDWaves/rtGetInf.o ./Core/Src/NEDWaves/rtGetInf.su ./Core/Src/NEDWaves/rtGetNaN.d ./Core/Src/NEDWaves/rtGetNaN.o ./Core/Src/NEDWaves/rtGetNaN.su ./Core/Src/NEDWaves/rt_nonfinite.d ./Core/Src/NEDWaves/rt_nonfinite.o ./Core/Src/NEDWaves/rt_nonfinite.su ./Core/Src/NEDWaves/rtwhalf.d ./Core/Src/NEDWaves/rtwhalf.o ./Core/Src/NEDWaves/rtwhalf.su ./Core/Src/NEDWaves/var.d ./Core/Src/NEDWaves/var.o ./Core/Src/NEDWaves/var.su
+	-$(RM) ./Core/Src/NEDWaves/FFTImplementationCallback.d ./Core/Src/NEDWaves/FFTImplementationCallback.o ./Core/Src/NEDWaves/FFTImplementationCallback.su ./Core/Src/NEDWaves/NEDwaves_memlight.d ./Core/Src/NEDWaves/NEDwaves_memlight.o ./Core/Src/NEDWaves/NEDwaves_memlight.su ./Core/Src/NEDWaves/NEDwaves_memlight_data.d ./Core/Src/NEDWaves/NEDwaves_memlight_data.o ./Core/Src/NEDWaves/NEDwaves_memlight_data.su ./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.d ./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.o ./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.su ./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.d ./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.o ./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.su ./Core/Src/NEDWaves/NEDwaves_memlight_initialize.d ./Core/Src/NEDWaves/NEDwaves_memlight_initialize.o ./Core/Src/NEDWaves/NEDwaves_memlight_initialize.su ./Core/Src/NEDWaves/NEDwaves_memlight_terminate.d ./Core/Src/NEDWaves/NEDwaves_memlight_terminate.o ./Core/Src/NEDWaves/NEDwaves_memlight_terminate.su ./Core/Src/NEDWaves/bsearch.d ./Core/Src/NEDWaves/bsearch.o ./Core/Src/NEDWaves/bsearch.su ./Core/Src/NEDWaves/combineVectorElements.d ./Core/Src/NEDWaves/combineVectorElements.o ./Core/Src/NEDWaves/combineVectorElements.su ./Core/Src/NEDWaves/div.d ./Core/Src/NEDWaves/div.o ./Core/Src/NEDWaves/div.su ./Core/Src/NEDWaves/fft.d ./Core/Src/NEDWaves/fft.o ./Core/Src/NEDWaves/fft.su ./Core/Src/NEDWaves/interp1.d ./Core/Src/NEDWaves/interp1.o ./Core/Src/NEDWaves/interp1.su ./Core/Src/NEDWaves/linspace.d ./Core/Src/NEDWaves/linspace.o ./Core/Src/NEDWaves/linspace.su ./Core/Src/NEDWaves/mean.d ./Core/Src/NEDWaves/mean.o ./Core/Src/NEDWaves/mean.su ./Core/Src/NEDWaves/mem_replacements.d ./Core/Src/NEDWaves/mem_replacements.o ./Core/Src/NEDWaves/mem_replacements.su ./Core/Src/NEDWaves/minOrMax.d ./Core/Src/NEDWaves/minOrMax.o ./Core/Src/NEDWaves/minOrMax.su ./Core/Src/NEDWaves/nullAssignment.d ./Core/Src/NEDWaves/nullAssignment.o ./Core/Src/NEDWaves/nullAssignment.su ./Core/Src/NEDWaves/rtGetInf.d ./Core/Src/NEDWaves/rtGetInf.o ./Core/Src/NEDWaves/rtGetInf.su ./Core/Src/NEDWaves/rtGetNaN.d ./Core/Src/NEDWaves/rtGetNaN.o ./Core/Src/NEDWaves/rtGetNaN.su ./Core/Src/NEDWaves/rt_nonfinite.d ./Core/Src/NEDWaves/rt_nonfinite.o ./Core/Src/NEDWaves/rt_nonfinite.su ./Core/Src/NEDWaves/rtwhalf.d ./Core/Src/NEDWaves/rtwhalf.o ./Core/Src/NEDWaves/rtwhalf.su ./Core/Src/NEDWaves/std.d ./Core/Src/NEDWaves/std.o ./Core/Src/NEDWaves/std.su ./Core/Src/NEDWaves/var.d ./Core/Src/NEDWaves/var.o ./Core/Src/NEDWaves/var.su
 
 .PHONY: clean-Core-2f-Src-2f-NEDWaves
 

@@ -51,6 +51,20 @@ void flash_storage_init(Flash_storage* flash_storage_struct_ptr,
 		bookkeeping_temp.num_pages_written = 0;
 		bookkeeping_temp.first_empty_page = ADDR_FLASH_PAGE_128;
 
+		erase_init_struct.TypeErase   = FLASH_TYPEERASE_PAGES;
+		erase_init_struct.Banks       = FLASH_BANK_2;
+		erase_init_struct.Page        = get_flash_page(bookkeeping_temp.first_empty_page);
+		erase_init_struct.NbPages     = FLASH_PAGE_NB;
+
+		flash_prologue();
+
+		// Erase the pages
+		if (HAL_FLASHEx_Erase(&erase_init_struct, &page_error) != HAL_OK) {
+			self->flash_error_occured = true;
+			flash_epilogue();
+			return;
+		}
+
 		if (self->write_bookkeeping(&bookkeeping_temp) != FLASH_SUCCESS) {
 			self->flash_error_occured = true;
 			return;

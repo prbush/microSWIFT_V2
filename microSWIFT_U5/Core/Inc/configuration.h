@@ -17,7 +17,7 @@
  */
 
 // For testing and debugging with a very short sample window
-//#define DEBUGGING_FAST_CYCLE
+#define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
@@ -36,7 +36,7 @@
 #define ROCK_BLOCK_V3D
 
 // If defined, no QC measures will be applied to GNSS samples
-//#define NO_GNSS_QC
+#define NO_GNSS_QC
 
 #ifdef DEBUGGING_FAST_CYCLE
 
