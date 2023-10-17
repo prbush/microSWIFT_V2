@@ -137,6 +137,7 @@ typedef enum self_test_status{
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
+#define THREAD_XXL_STACK_SIZE 8192
 #define THREAD_EXTRA_LARGE_STACK_SIZE 4096
 #define THREAD_LARGE_STACK_SIZE 2048
 #define THREAD_MEDIUM_STACK_SIZE 1024

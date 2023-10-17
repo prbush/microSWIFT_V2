@@ -5,14 +5,14 @@
  * File: rt_nonfinite.h
  *
  * MATLAB Coder version            : 5.4
- * C/C++ source code generated on  : 10-Oct-2023 20:23:55
+ * C/C++ source code generated on  : 16-Oct-2023 17:01:43
  */
 
 #ifndef RT_NONFINITE_H
 #define RT_NONFINITE_H
 
 /* Include Files */
-#include "rtwtypes.h"
+#include "NEDWaves/rtwtypes.h"
 
 #ifdef __cplusplus
 extern "C" {

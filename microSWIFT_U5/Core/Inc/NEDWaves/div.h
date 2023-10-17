@@ -5,15 +5,15 @@
  * File: div.h
  *
  * MATLAB Coder version            : 5.4
- * C/C++ source code generated on  : 10-Oct-2023 20:23:55
+ * C/C++ source code generated on  : 16-Oct-2023 17:01:43
  */
 
 #ifndef DIV_H
 #define DIV_H
 
 /* Include Files */
-#include "NEDwaves_memlight_types.h"
-#include "rtwtypes.h"
+#include "NEDWaves/NEDwaves_memlight_types.h"
+#include "NEDWaves/rtwtypes.h"
 #include <stddef.h>
 #include <stdlib.h>
 

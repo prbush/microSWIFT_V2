@@ -12,8 +12,8 @@
 #define INTERP1_H
 
 /* Include Files */
-#include "NEDwaves_memlight_types.h"
-#include "rtwtypes.h"
+#include "NEDWaves/NEDwaves_memlight_types.h"
+#include "NEDWaves/rtwtypes.h"
 #include <stddef.h>
 #include <stdlib.h>
 
