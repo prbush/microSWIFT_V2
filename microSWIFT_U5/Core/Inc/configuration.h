@@ -35,9 +35,6 @@
 // Define if the old type V3D RockBlock modem is used
 #define ROCK_BLOCK_V3D
 
-// If defined, no QC measures will be applied to GNSS samples
-#define NO_GNSS_QC
-
 #ifdef DEBUGGING_FAST_CYCLE
 
 #define TOTAL_SAMPLES_PER_WINDOW 8192

@@ -258,10 +258,7 @@ static void gnss_process_message(void)
 	int32_t lat, lon, vnorth, veast, vdown;
 	int16_t pDOP;
 	bool is_ubx_nav_pvt_msg, message_checksum_valid = false;
-#ifndef NO_GNSS_QC
-	bool velocities_exceed_max, sAcc_exceeded_max;
-	int32_t sAcc;
-#endif
+	bool velocities_non_zero;
 
 	// Make sure we don't overflow our arrays
 	if (self->total_samples >= self->global_config->samples_per_window) {
@@ -323,40 +320,16 @@ static void gnss_process_message(void)
 		self->current_latitude = lat;
 		self->current_longitude = lon;
 
-#ifdef NO_GNSS_QC
-
-		if (self->total_samples == 0) {
-			self->all_resolution_stages_complete = true;
-			self->sample_window_start_time = get_timestamp();
-		}
-
-#else
 		// vAcc was within acceptable range, still need to check
 		// individual velocities are less than MAX_POSSIBLE_VELOCITY
-		velocities_exceed_max = (vnorth > MAX_POSSIBLE_VELOCITY) ||
-								(veast > MAX_POSSIBLE_VELOCITY) ||
-								(vdown > MAX_POSSIBLE_VELOCITY);
-
-		sAcc = (int32_t) get_four_bytes(payload, UBX_NAV_PVT_SACC_INDEX, AS_LITTLE_ENDIAN);
-
-		sAcc_exceeded_max = sAcc > MAX_ACCEPTABLE_SACC;
+		velocities_non_zero = (vnorth != 0) && (veast != 0) && (vdown != 0);
 
 		// Did we have at least 1 good sample?
-		if ((self->total_samples == 0) && (!velocities_exceed_max) && (!sAcc_exceeded_max)) {
+		if ((self->total_samples == 0) && velocities_non_zero) {
 			self->all_resolution_stages_complete = true;
 			self->sample_window_start_time = get_timestamp();
 		}
 
-		// Check if the velocity values are any good
-		if (sAcc_exceeded_max | velocities_exceed_max) {
-			// This message was not within acceptable parameters,
-			self->get_running_average_velocities();
-			buf_length -= buf_end - buf_start;
-			buf_start = buf_end;
-			continue;
-		}
-
-#endif
 		// All velocity values are good to go
 		self->v_north_sum += vnorth;
 		self->v_east_sum += veast;
@@ -607,21 +580,10 @@ static gnss_error_code_t gnss_set_rtc(uint8_t* msg_payload)
 
 	time_flags &= LOWER_4_BITS_MASK;
 
-#ifdef NO_GNSS_QC
-
 	if (!(time_flags & RESOLVED_TIME_BITS)) {
 		return_code = GNSS_TIME_RESOLUTION_ERROR;
 		return return_code;
 	}
-
-#else
-
-	if (time_flags != RESOLVED_TIME_BITS) {
-		return_code = GNSS_TIME_RESOLUTION_ERROR;
-		return return_code;
-	}
-
-#endif
 
 	// Set the date
 	rtc_date.Date = day;

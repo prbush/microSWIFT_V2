@@ -78,11 +78,7 @@ typedef enum gnss_error_code{
 #define LAT_LON_CONVERSION_FACTOR 10000000 // format as 1E-7
 #define GNSS_TIMER_INSTANCE TIM16
 // UBX message definitions
-#ifdef NO_GNSS_QC
-#define RESOLVED_TIME_BITS 0x1 // Only resolve to the day
-#else
-#define RESOLVED_TIME_BITS 0x7 // Resolve to the second
-#endif
+#define RESOLVED_TIME_BITS ((1 << 0) | (1 << 2)) // Only resolve to the time of day
 #define UBX_NAV_PVT_YEAR_INDEX 4
 #define UBX_NAV_PVT_MONTH_INDEX 6
 #define UBX_NAV_PVT_DAY_INDEX 7
