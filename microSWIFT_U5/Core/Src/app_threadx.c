@@ -753,25 +753,6 @@ void gnss_thread_entry(ULONG thread_input){
 		}
 	}
 
-	/* Testing new NED waves  */
-
-//	float* flash_ptr = (float*)0x08100000;
-//	uint32_t size_of_array = configuration.samples_per_window * sizeof(float);
-//
-//	memcpy(north->data, flash_ptr, size_of_array);
-//	flash_ptr += (size_of_array / sizeof(float));
-//	memcpy(east->data, flash_ptr, size_of_array);
-//	flash_ptr += (size_of_array / sizeof(float));
-//	memcpy(down->data, flash_ptr, size_of_array);
-//
-//	gnss->sample_window_freq = 4.0;
-
-	/* End testing new NED waves  */
-
-
-
-
-
 	register_watchdog_refresh();
 
 	// Stop the timer

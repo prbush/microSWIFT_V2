@@ -266,7 +266,8 @@ static void gnss_process_message(void)
 		self->sample_window_stop_time = get_timestamp();
 		self->all_samples_processed = true;
 		self->sample_window_freq = (double)(((double)self->global_config->samples_per_window) /
-				(((double)(self->sample_window_stop_time - self->sample_window_start_time))));
+				(((double)(((double)self->sample_window_stop_time) -
+						((double)self->sample_window_start_time)))));
 
 		return;
 	}
@@ -323,6 +324,13 @@ static void gnss_process_message(void)
 		// vAcc was within acceptable range, still need to check
 		// individual velocities are less than MAX_POSSIBLE_VELOCITY
 		velocities_non_zero = (vnorth != 0) && (veast != 0) && (vdown != 0);
+
+		// First sample has not yet resolved velocities
+		if (((self->total_samples == 0) && !velocities_non_zero)) {
+			buf_length -= buf_end - buf_start;
+			buf_start = buf_end;
+			continue;
+		}
 
 		// Did we have at least 1 good sample?
 		if ((self->total_samples == 0) && velocities_non_zero) {

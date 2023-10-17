@@ -47,7 +47,11 @@ void flash_storage_init(Flash_storage* flash_storage_struct_ptr,
 	if ((test_bookkeeping_page() == FLASH_BOOKKEEPING_EMPTY) || CLEAR_USER_FLASH) {
 
 		bookkeeping_temp.flash_page_addr = ADDR_FLASH_PAGE_127;
-		bookkeeping_temp.cycle_count = 0;
+		if (self->bookkeeping->cycle_count == FLASH_NON_INIT_VALUE) {
+			bookkeeping_temp.cycle_count = 0;
+		} else {
+			bookkeeping_temp.cycle_count = self->bookkeeping->cycle_count + 1;
+		}
 		bookkeeping_temp.num_pages_written = 0;
 		bookkeeping_temp.first_empty_page = ADDR_FLASH_PAGE_128;
 
