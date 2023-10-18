@@ -946,8 +946,11 @@ void ct_thread_entry(ULONG thread_input){
   * @retval void
   */
 void waves_thread_entry(ULONG thread_input){
+
 #if FLASH_STORAGE_ENABLED
+
 	flash_storage_error_code_t flash_return_code;
+
 #endif
 
 	// Function return parameters
