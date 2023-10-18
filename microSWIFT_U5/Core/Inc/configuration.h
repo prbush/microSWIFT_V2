@@ -22,12 +22,6 @@
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
 
-// If true, will clear out flash memory on initial power up or hard reset.
-#define CLEAR_USER_FLASH false
-
-// If defined, Type 99 messages will be transmitted indicating status of flash operation
-#define VERBOSE_FLASH
-
 /*
  * Configuration options
  */
@@ -45,7 +39,7 @@
 // Number of samples in each sampling window
 #define TOTAL_SAMPLES_PER_WINDOW 8192
 // The max time in MINUTES to try to get an Iridium message off
-#define IRIDIUM_MAX_TRANSMIT_TIME 20
+#define IRIDIUM_MAX_TRANSMIT_TIME 10
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
@@ -54,7 +48,6 @@
 // Sampling rate in Hz for the GNSS sensor
 // !! Must be either 4 or 5
 #define GNSS_SAMPLING_RATE 4
-
 // Determine whether or not the GNSS sensor should be set to high performance mode
 #define GNSS_HIGH_PERFORMANCE_MODE_ENABLED false
 // The number of samples for the CT sensor to take. Result will be averaged
@@ -63,6 +56,12 @@
 #define IMU_ENABLED false
 // If there is a CT sensor present
 #define CT_ENABLED false
+// If we are saving raw data to flash
+#define FLASH_STORAGE_ENABLED false
+// If true, will clear out flash memory on initial power up or hard reset.
+#define CLEAR_USER_FLASH false
+// If true, Type 99 messages will be transmitted indicating status of flash operation
+#define VERBOSE_FLASH false
 // Whether or not to use the Independent watchdog
 #define WATCHDOG_ENABLED true
 

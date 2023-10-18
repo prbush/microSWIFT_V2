@@ -92,27 +92,34 @@ GNSS* gnss;
 Iridium* iridium;
 RF_Switch* rf_switch;
 Battery* battery;
-Flash_storage* flash_storage;
 // Handles for all the STM32 peripherals
 device_handles_t *device_handles;
 // The watchdog hour elapsed timer flag
 bool watchdog_hour_timer_elapsed = false;
 // Only included if we will be using the IMU
 #if IMU_ENABLED
+
 int16_t* IMU_N_Array;
 int16_t* IMU_E_Array;
 int16_t* IMU_D_Array;
+
 #endif
 // Only included if there is a CT sensor
 #if CT_ENABLED
+
 TX_THREAD ct_thread;
 CT* ct;
 CHAR* ct_data;
 ct_samples* samples_buf;
+
+#endif
+// Only if we are saving raw data to flash
+#if FLASH_STORAGE_ENABLED
+
+Flash_storage* flash_storage;
+
 #endif
 
-
-#define WAVES_MEM_POOL_SIZE 650000
 __ALIGN_BEGIN UCHAR waves_byte_pool_buffer[WAVES_MEM_POOL_SIZE] __ALIGN_END;
 TX_BYTE_POOL waves_byte_pool;
 /* USER CODE END PV */
@@ -210,13 +217,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 	// Create the waves thread. MID priority, no preemption-threshold
 	ret = tx_thread_create(&waves_thread, "waves thread", waves_thread_entry, 0, pointer,
-			THREAD_EXTRA_LARGE_STACK_SIZE * 2, MID, MID, TX_NO_TIME_SLICE, TX_DONT_START);
+			THREAD_XXL_STACK_SIZE, MID, MID, TX_NO_TIME_SLICE, TX_DONT_START);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
 	//
 	// Allocate stack for the Iridium thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_XXL_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
 	}
@@ -313,12 +320,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
-	//
-	// The flash_storage struct
-	ret = tx_byte_allocate(byte_pool, (VOID**) &flash_storage, sizeof(Flash_storage), TX_NO_WAIT);
-	if (ret != TX_SUCCESS){
-		return ret;
-	}
+
 // Only if the IMU will be utilized
 #if IMU_ENABLED
 	//
@@ -378,6 +380,15 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 			TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 	  return ret;
+	}
+#endif
+// Only if we are saving raw data to flash
+#if FLASH_STORAGE_ENABLED
+	//
+	// The flash_storage struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &flash_storage, sizeof(Flash_storage), TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
 	}
 #endif
 
@@ -486,12 +497,15 @@ void startup_thread_entry(ULONG thread_input){
 					device_handles->hrtc, &sbd_message, iridium_error_message,
 					iridium_response_message, &sbd_message_queue);
 
+#if FLASH_STORAGE_ENABLED
 	flash_storage_init(flash_storage, &configuration);
+#endif
 
 #if CT_ENABLED
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
 					&thread_control_flags, &error_flags, ct_data, samples_buf);
 #endif
+
 	rf_switch_init(rf_switch);
 
 	battery_init(battery, device_handles->battery_adc, &thread_control_flags, &error_flags);
@@ -932,8 +946,9 @@ void ct_thread_entry(ULONG thread_input){
   * @retval void
   */
 void waves_thread_entry(ULONG thread_input){
-
+#if FLASH_STORAGE_ENABLED
 	flash_storage_error_code_t flash_return_code;
+#endif
 
 	// Function return parameters
 	real16_T E[42];
@@ -950,6 +965,9 @@ void waves_thread_entry(ULONG thread_input){
 
 	register_watchdog_refresh();
 
+
+#if FLASH_STORAGE_ENABLED
+	// Save the raw data before running NEDWaves_memlight
 	flash_return_code = flash_storage->write_sample_window(north->data, east->data, down->data);
 
 	switch (flash_return_code){
@@ -976,6 +994,8 @@ void waves_thread_entry(ULONG thread_input){
 	default:
 		break;
 	}
+
+#endif
 
 	/* Call the entry-point 'NEDwaves_memlight'. */
 	NEDwaves_memlight(north, east, down, gnss->sample_window_freq, &Hs, &Tp, &Dp, E,
@@ -1026,11 +1046,15 @@ void iridium_thread_entry(ULONG thread_input){
 	ULONG error_occured_flags = GNSS_ERROR | MODEM_ERROR | MEMORY_ALLOC_ERROR |
 			DMA_ERROR | UART_ERROR | RTC_ERROR | WATCHDOG_RESET | SOFTWARE_RESET |
 			GNSS_RESOLUTION_ERROR;
-#ifdef VERBOSE_FLASH
+
+#if VERBOSE_FLASH
+
 	error_occured_flags |= (FLASH_OPERATION_SUCCESS | FLASH_OPERATION_UNKNOWN_ERROR |
 			FLASH_OPERATION_STORAGE_FULL | FLASH_OPERATION_ERASE_ERROR |
 			FLASH_OPERATION_PROGRAM_ERROR);
+
 #endif
+
 	UINT tx_return;
 	int fail_counter;
 	char ascii_7 = '7';
@@ -1658,9 +1682,13 @@ static self_test_status_t initial_power_on_self_test(void)
 	self_test_status_t return_code;
 	gnss_error_code_t gnss_return_code;
 	iridium_error_code_t iridium_return_code;
+
 #if CT_ENABLED
+
 	ct_error_code_t ct_return_code;
+
 #endif
+
 	int fail_counter;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
@@ -1699,11 +1727,16 @@ static self_test_status_t initial_power_on_self_test(void)
 	///////////////////////IRIDIUM STARTUP SEQUENCE ///////////////////////////////////////////////
 	// Only do this on initial power up, else leave it alone!
 	iridium->queue_flush();
+
 #ifdef DEBUGGING_FAST_CYCLE
+
 	iridium->charge_caps(30);
+
 #else
+
 	// Turn on the modem and charge up the caps
 	iridium->charge_caps(IRIDIUM_INITIAL_CAP_CHARGE_TIME);
+
 #endif
 
 	// Send over an ack message and make sure we get a response
@@ -1805,8 +1838,11 @@ static self_test_status_t initial_power_on_self_test(void)
 	// Regardless of if the self-test passed, we'll still set it as ready and try again
 	// in the sample window
 	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
+
 #else
+
 	return_code = SELF_TEST_PASSED;
+
 #endif
 
 	return return_code;

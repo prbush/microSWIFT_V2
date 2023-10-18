@@ -44,7 +44,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-#define WAVES_MEM_POOL_SIZE 650000
+
 /* USER CODE END PV */
 
 #if (USE_STATIC_ALLOCATION == 1)
