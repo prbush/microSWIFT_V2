@@ -80,12 +80,21 @@ static flash_storage_error_code_t flash_storage_write_sample_window(float* north
 		float* east_array, float* down_array)
 {
 	flash_storage_error_code_t return_code = FLASH_STORAGE_FULL;
+	uint32_t number_of_pages_required;
 
 	if (self->flash_error_occured) {
 		return_code = FLASH_UNKNOWN_ERROR;
 		return return_code;
 	}
 
+	// Check that we have enough space available
+	number_of_pages_required = (self->global_config->samples_per_window * sizeof(float) *
+			NUM_SAMPLE_ARRAYS) / FLASH_PAGE_SIZE;
+
+	if ((FLASH_PAGE_NB - self->bookkeeping->num_pages_written) < number_of_pages_required) {
+		return_code = FLASH_STORAGE_FULL;
+		return return_code;
+	}
 	// The write_array function will ensure there is enough space prior to writing
 
 	register_watchdog_refresh();

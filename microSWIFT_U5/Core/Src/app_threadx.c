@@ -415,6 +415,7 @@ void MX_ThreadX_Init(device_handles_t *handles)
   configuration.gnss_sampling_rate = GNSS_SAMPLING_RATE;
   configuration.gnss_high_performance_mode = GNSS_HIGH_PERFORMANCE_MODE_ENABLED;
   configuration.total_ct_samples = TOTAL_CT_SAMPLES;
+  configuration.windows_per_hour = SAMPLE_WINDOWS_PER_HOUR;
 
   /* USER CODE END  Before_Kernel_Start */
 
@@ -1204,7 +1205,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_TimeTypeDef initial_rtc_time;
 	RTC_TimeTypeDef rtc_time;
 	RTC_DateTypeDef rtc_date;
-	uint32_t wake_up_minute;
+	int32_t wake_up_minute;
 	UINT tx_return;
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
@@ -1255,7 +1256,25 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
 			(initial_rtc_time.Minutes + 1);
 #else
-	wake_up_minute = 0;
+
+	// Handle depending on how many sample windows we're doing per hour
+	// Handle the simple case first
+	if (configuration.samples_per_window == 1) {
+		wake_up_minute = 0;
+	} else {
+		wake_up_minute = 60 / configuration.samples_per_window;
+
+		// Keep adding the quantity determined above until the result is positive
+		while ((wake_up_minute - initial_rtc_time.Minutes) <= 0) {
+			wake_up_minute += wake_up_minute;
+		}
+
+		// Make sure it's a valid minute!!
+		wake_up_minute %= 60;
+	}
+
+
+
 #endif
 
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);

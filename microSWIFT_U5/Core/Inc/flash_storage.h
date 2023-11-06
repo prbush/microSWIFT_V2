@@ -14,6 +14,7 @@
 #define ADDR_FLASH_PAGE_127   0x080FE000 /* Base @ of Page 127, 8 Kbytes */
 #define ADDR_FLASH_PAGE_128	  0x08100000 /* First page of bank 2 */
 #define FLASH_NON_INIT_VALUE  0xFFFFFFFF
+#define NUM_SAMPLE_ARRAYS 	  3
 
 typedef enum flash_storage_error_code {
 	FLASH_SUCCESS = 0,

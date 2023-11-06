@@ -34,6 +34,7 @@
 #define TOTAL_SAMPLES_PER_WINDOW 1024
 #define IRIDIUM_MAX_TRANSMIT_TIME 10
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
+#define SAMPLE_WINDOWS_PER_HOUR 1
 
 #else
 // Number of samples in each sampling window
@@ -43,6 +44,9 @@
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
+// Are we doing 1 or two sample windows per hour
+// !! Must be a number such that SAMPLE_WINDOWS_PER_HOUR % 60 == 0
+#define SAMPLE_WINDOWS_PER_HOUR 2
 #endif
 
 // Sampling rate in Hz for the GNSS sensor
@@ -71,6 +75,7 @@ typedef struct microSWIFT_configuration{
 	uint32_t gnss_max_acquisition_wait_time;
 	uint32_t gnss_sampling_rate;
 	uint32_t total_ct_samples;
+	uint32_t windows_per_hour;
 	bool 	 gnss_high_performance_mode;
 } microSWIFT_configuration;
 
