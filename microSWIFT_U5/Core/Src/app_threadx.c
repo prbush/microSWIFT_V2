@@ -87,6 +87,8 @@ uint8_t* iridium_response_message;
 uint8_t* iridium_error_message;
 // Messages that failed to send are stored here
 extern Iridium_message_storage sbd_message_queue;
+// Count the sample windows --> stored in NO_INIT RAM
+extern uint32_t sample_window_counter;
 // Structs
 GNSS* gnss;
 Iridium* iridium;
@@ -411,9 +413,9 @@ void MX_ThreadX_Init(device_handles_t *handles)
   device_handles = handles;
   configuration.samples_per_window = TOTAL_SAMPLES_PER_WINDOW;
   configuration.iridium_max_transmit_time = IRIDIUM_MAX_TRANSMIT_TIME;
-  configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
   configuration.gnss_sampling_rate = GNSS_SAMPLING_RATE;
   configuration.gnss_high_performance_mode = GNSS_HIGH_PERFORMANCE_MODE_ENABLED;
+  configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
   configuration.total_ct_samples = TOTAL_CT_SAMPLES;
   configuration.windows_per_hour = SAMPLE_WINDOWS_PER_HOUR;
 
@@ -515,6 +517,9 @@ void startup_thread_entry(ULONG thread_input){
 			&actual_flags, TX_NO_WAIT);
 	// If this is a subsequent window, just setup the GNSS, skip the rest
 	if (tx_return == TX_SUCCESS) {
+
+		// Increment the sample window counter
+		sample_window_counter++;
 
 		register_watchdog_refresh();
 
@@ -659,6 +664,35 @@ void gnss_thread_entry(ULONG thread_input){
 			(float)configuration.gnss_sampling_rate) + 1);
 	uint16_t sample_window_timeout = ((configuration.samples_per_window / configuration.gnss_sampling_rate)
 			/ 60) + 2;
+	int32_t gnss_max_acq_time;
+
+	// Calculate the max acq time if we're running multiple windows per hour
+	if (configuration.samples_per_window > 1) {
+
+		// If its the first sample widnow after a power on, give more time, else
+		// calculate the amount of time
+		if (sample_window_counter == 0) {
+
+			gnss_max_acq_time = configuration.gnss_max_acquisition_wait_time;
+
+		} else {
+			// Calculate how much time we have to get a fix before we're overlapping
+			// with the next window
+			gnss_max_acq_time = (60 / configuration.samples_per_window) -
+				configuration.iridium_max_transmit_time - sample_window_timeout;
+		}
+	} else {
+
+		// Only 1 sample window per hour
+		gnss_max_acq_time = configuration.gnss_max_acquisition_wait_time;
+
+	}
+
+	// Ensure we have valid settings such that gnss_max_acq_time if a positive value
+	while (1 >= gnss_max_acq_time) {
+		// The watchdog will initiate a restart after it's window runs out
+		led_sequence(SELF_TEST_CRITICAL_FAULT);
+	}
 
 	register_watchdog_refresh();
 
@@ -1712,6 +1746,9 @@ static self_test_status_t initial_power_on_self_test(void)
 #endif
 
 	int fail_counter;
+
+	// Initialize the sample window counter to 0
+	sample_window_counter = 0;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	/////////////////////////// GNSS STARTUP SEQUENCE /////////////////////////////////////////////
