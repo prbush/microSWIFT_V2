@@ -667,7 +667,7 @@ void gnss_thread_entry(ULONG thread_input){
 	int32_t gnss_max_acq_time;
 
 	// Calculate the max acq time if we're running multiple windows per hour
-	if (configuration.samples_per_window > 1) {
+	if (configuration.windows_per_hour > 1) {
 
 		// If its the first sample widnow after a power on, give more time, else
 		// calculate the amount of time
@@ -678,7 +678,7 @@ void gnss_thread_entry(ULONG thread_input){
 		} else {
 			// Calculate how much time we have to get a fix before we're overlapping
 			// with the next window
-			gnss_max_acq_time = (60 / configuration.samples_per_window) -
+			gnss_max_acq_time = (60 / configuration.windows_per_hour) -
 				configuration.iridium_max_transmit_time - sample_window_timeout;
 		}
 	} else {
@@ -1293,14 +1293,14 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	// Handle depending on how many sample windows we're doing per hour
 	// Handle the simple case first
-	if (configuration.samples_per_window == 1) {
+	if (configuration.windows_per_hour == 1) {
 		wake_up_minute = 0;
 	} else {
-		wake_up_minute = 60 / configuration.samples_per_window;
+		wake_up_minute = 60 / configuration.windows_per_hour;
 
 		// Keep adding the quantity determined above until the result is positive
 		while ((wake_up_minute - initial_rtc_time.Minutes) <= 0) {
-			wake_up_minute += wake_up_minute;
+			wake_up_minute += (60 / configuration.windows_per_hour);
 		}
 
 		// Make sure it's a valid minute!!
