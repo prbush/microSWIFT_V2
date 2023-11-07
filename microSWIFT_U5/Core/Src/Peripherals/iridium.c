@@ -42,7 +42,7 @@ static const char* enable_ring_indications = "AT+SBDMTA=1\r";
 static const char* store_config = "AT&W0\r";
 static const char* select_power_up_profile = "AT&Y0\r";
 static const char* clear_MO = "AT+SBDD0\r";
-static const char* send_sbd = "AT+SBDI\r";
+static const char* send_sbd = "AT+SBDIX\r";
 
 /**
  * Initialize the CT struct
@@ -511,16 +511,9 @@ static iridium_error_code_t iridium_transmit_message(void)
 	iridium_error_code_t queue_return_code __attribute__((unused));
 	bool message_tx_success = false;
 	bool all_messages_sent = false;
-	uint32_t timer_minutes;
+	uint32_t timer_minutes = self->global_config->iridium_max_transmit_time;
 
 	register_watchdog_refresh();
-
-	// Give a little extra time if the storage queue is filling up
-	if (self->storage_queue->num_msgs_enqueued > 10) {
-		timer_minutes = self->global_config->iridium_max_transmit_time + 5;
-	} else {
-		timer_minutes = self->global_config->iridium_max_transmit_time;
-	}
 
 	// reset the timer and clear the interrupt flag
 	self->timer_timeout = false;
@@ -619,10 +612,11 @@ static iridium_error_code_t internal_transmit_message(uint8_t* payload,
 	iridium_error_code_t return_code = IRIDIUM_TRANSMIT_TIMEOUT;
 	ULONG actual_flags;
 	char* needle;
+	char* sbdix_search_term = "+SBDIX: ";
 	char payload_size_str[4];
 	char load_sbd[15] = "AT+SBDWB=";
 	char SBDWB_response_code;
-	int SBDI_response_code;
+	int SBDIX_response_code;
 	int fail_counter;
 	int tx_response_time;
 	bool checksum_match;
@@ -631,7 +625,7 @@ static iridium_error_code_t internal_transmit_message(uint8_t* payload,
 	// Assemble the load_sbd string
 	itoa(payload_size, payload_size_str, 10);
 	strcat(load_sbd, payload_size_str);
-	load_sbd[12] = '\r';
+	strcat(load_sbd, "\r");
 
 	while (!self->timer_timeout) {
 		register_watchdog_refresh();
@@ -729,7 +723,7 @@ static iridium_error_code_t internal_transmit_message(uint8_t* payload,
 		register_watchdog_refresh();
 		// We will only grab the response up to and including MO status
 		HAL_UART_Receive_DMA(self->iridium_uart_handle,
-				&(self->response_buffer[0]), SBDI_RESPONSE_SIZE);
+				&(self->response_buffer[0]), SBDIX_RESPONSE_SIZE);
 		// Since it takes longer than the maximum watchdog refresh interval, we'll check once a second to see
 		// if we have received the response from the modem, refreshing the watchdog along the way
 		while (!message_response_received && (tx_response_time < 45)) {
@@ -741,9 +735,12 @@ static iridium_error_code_t internal_transmit_message(uint8_t* payload,
 
 		register_watchdog_refresh();
 		// Grab the MO status
-		SBDI_response_code = atoi((char*)&(self->response_buffer[SBDI_RESPONSE_CODE_INDEX]));
+		needle = strstr((char*)&(self->response_buffer[0]), sbdix_search_term);
+		needle += strlen(sbdix_search_term);
+		SBDIX_response_code = atoi(needle);
 
-		if (SBDI_response_code == 1) {
+		if (SBDIX_response_code <= 4) {
+			// Success case
 			send_basic_command_message(clear_MO, SBDD_RESPONSE_SIZE, TX_TIMER_TICKS_PER_SECOND * 10);
 			register_watchdog_refresh();
 			return IRIDIUM_SUCCESS;

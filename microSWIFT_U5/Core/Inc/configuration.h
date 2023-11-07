@@ -35,7 +35,7 @@
 #define TOTAL_SAMPLES_PER_WINDOW 1024
 #define IRIDIUM_MAX_TRANSMIT_TIME 10
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
-#define SAMPLE_WINDOWS_PER_HOUR 1
+#define SAMPLE_WINDOWS_PER_HOUR 2
 
 #else
 // Number of samples in each sampling window
