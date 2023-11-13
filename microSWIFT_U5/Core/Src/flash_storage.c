@@ -6,6 +6,7 @@
  */
 
 #include "flash_storage.h"
+
 // Static variables
 static Flash_storage* self; // Private object pointer
 static FLASH_EraseInitTypeDef erase_init_struct;
@@ -42,9 +43,10 @@ void flash_storage_init(Flash_storage* flash_storage_struct_ptr,
 
 
 	/*	Must check if the flash page allocated for bookkeeping has
-		any data written to it. If not, initialize everything. Otherwise
-		leave it alone. */
-	if ((test_bookkeeping_page() == FLASH_BOOKKEEPING_EMPTY) || CLEAR_USER_FLASH) {
+		any data written to it. Also have the option to use the reset pin
+		to trigger clearing out flash. */
+	if ((test_bookkeeping_page() == FLASH_BOOKKEEPING_EMPTY) || CLEAR_USER_FLASH ||
+			(global_config->reset_reason == RCC_RESET_FLAG_PIN)) {
 
 		bookkeeping_temp.flash_page_addr = ADDR_FLASH_PAGE_127;
 		if (self->bookkeeping->cycle_count == FLASH_NON_INIT_VALUE) {
@@ -72,6 +74,16 @@ void flash_storage_init(Flash_storage* flash_storage_struct_ptr,
 		if (self->write_bookkeeping(&bookkeeping_temp) != FLASH_SUCCESS) {
 			self->flash_error_occured = true;
 			return;
+		}
+
+		// Flash some lights to indicate that clearing flash was successful
+		for (int i = 0; i < 5; i++){
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
 		}
 	}
 }

@@ -93,6 +93,7 @@ typedef struct microSWIFT_configuration{
 	uint32_t gnss_sampling_rate;
 	uint32_t total_ct_samples;
 	uint32_t windows_per_hour;
+	uint32_t reset_reason;
 	bool 	 gnss_high_performance_mode;
 } microSWIFT_configuration;
 
