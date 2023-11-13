@@ -81,7 +81,7 @@
 #define CLEAR_USER_FLASH false
 
 // If true, Type 99 messages will be transmitted indicating status of flash operation
-#define VERBOSE_FLASH true
+#define VERBOSE_FLASH false
 
 // Whether or not to use the Independent watchdog
 #define WATCHDOG_ENABLED true
