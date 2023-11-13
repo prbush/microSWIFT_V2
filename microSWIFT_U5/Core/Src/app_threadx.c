@@ -418,6 +418,7 @@ void MX_ThreadX_Init(device_handles_t *handles)
   configuration.gnss_max_acquisition_wait_time = GNSS_MAX_ACQUISITION_WAIT_TIME;
   configuration.total_ct_samples = TOTAL_CT_SAMPLES;
   configuration.windows_per_hour = SAMPLE_WINDOWS_PER_HOUR;
+  configuration.reset_reason = handles->reset_reason;
 
   /* USER CODE END  Before_Kernel_Start */
 
@@ -502,6 +503,7 @@ void startup_thread_entry(ULONG thread_input){
 
 #if FLASH_STORAGE_ENABLED
 	flash_storage_init(flash_storage, &configuration);
+	register_watchdog_refresh();
 #endif
 
 #if CT_ENABLED

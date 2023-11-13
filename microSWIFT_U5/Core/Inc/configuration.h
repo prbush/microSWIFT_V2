@@ -35,7 +35,7 @@
 #define TOTAL_SAMPLES_PER_WINDOW 1024
 #define IRIDIUM_MAX_TRANSMIT_TIME 10
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
-#define SAMPLE_WINDOWS_PER_HOUR 2
+#define SAMPLE_WINDOWS_PER_HOUR 1
 
 #else
 // Number of samples in each sampling window
@@ -81,7 +81,7 @@
 #define CLEAR_USER_FLASH false
 
 // If true, Type 99 messages will be transmitted indicating status of flash operation
-#define VERBOSE_FLASH true
+#define VERBOSE_FLASH false
 
 // Whether or not to use the Independent watchdog
 #define WATCHDOG_ENABLED true
@@ -93,6 +93,7 @@ typedef struct microSWIFT_configuration{
 	uint32_t gnss_sampling_rate;
 	uint32_t total_ct_samples;
 	uint32_t windows_per_hour;
+	uint32_t reset_reason;
 	bool 	 gnss_high_performance_mode;
 } microSWIFT_configuration;
 

@@ -10,6 +10,8 @@
 
 #include "stm32u5xx_hal.h"
 #include "configuration.h"
+#include "tx_api.h"
+#include "tx_user.h"
 
 #define ADDR_FLASH_PAGE_127   0x080FE000 /* Base @ of Page 127, 8 Kbytes */
 #define ADDR_FLASH_PAGE_128	  0x08100000 /* First page of bank 2 */
