@@ -1239,9 +1239,10 @@ void iridium_thread_entry(ULONG thread_input){
 void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_AlarmTypeDef alarm = {0};
 	RTC_TimeTypeDef initial_rtc_time;
+	RTC_DateTypeDef initial_rtc_date;
 	RTC_TimeTypeDef rtc_time;
 	RTC_DateTypeDef rtc_date;
-	int32_t wake_up_minute;
+	int32_t wake_up_hour;
 	UINT tx_return;
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
@@ -1286,7 +1287,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	HAL_RTC_GetTime(device_handles->hrtc, &initial_rtc_time, RTC_FORMAT_BIN);
 	// Must call GetDate to keep the RTC happy, even if you don't use it
-	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(device_handles->hrtc, &initial_rtc_date, RTC_FORMAT_BIN);
 
 #ifdef SHORT_SLEEP
 	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
@@ -1295,27 +1296,44 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	// Handle depending on how many sample windows we're doing per hour
 	// Handle the simple case first
-	if (configuration.windows_per_hour == 1) {
-		wake_up_minute = 0;
+//	if (configuration.windows_per_hour == 1) {
+//		wake_up_minute = 0;
+//	} else {
+//		wake_up_minute = 60 / configuration.windows_per_hour;
+//
+//		// Keep adding the quantity determined above until the result is positive
+//		while ((wake_up_minute - initial_rtc_time.Minutes) <= 0) {
+//			wake_up_minute += (60 / configuration.windows_per_hour);
+//		}
+//
+//		// Make sure it's a valid minute!!
+//		wake_up_minute %= 60;
+//	}
+
+	if (initial_rtc_time.Hours < 6) {
+
+		wake_up_hour = 6;
+
+	} else if (initial_rtc_time.Hours < 12) {
+
+		wake_up_hour = 12;
+
+	} else if (initial_rtc_time.Hours < 18) {
+
+		wake_up_hour = 18;
+
 	} else {
-		wake_up_minute = 60 / configuration.windows_per_hour;
 
-		// Keep adding the quantity determined above until the result is positive
-		while ((wake_up_minute - initial_rtc_time.Minutes) <= 0) {
-			wake_up_minute += (60 / configuration.windows_per_hour);
-		}
+		wake_up_hour = 0;
 
-		// Make sure it's a valid minute!!
-		wake_up_minute %= 60;
 	}
-
 
 
 #endif
 
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
-	while (rtc_time.Minutes != wake_up_minute) {
+	while (rtc_time.Hours != wake_up_hour) {
 
 		// Get the date and time
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
@@ -1324,7 +1342,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		// We should be restarting the window at the top of the hour. If the initial time and just
 		// checked time differ in hours, then we should start a new window. This should never occur,
 		// but just as a second safety
-		if (initial_rtc_time.Hours != rtc_time.Hours){
+		if (initial_rtc_date.Date != rtc_date.Date){
 			SystemClock_Config();
 			register_watchdog_refresh();
 			HAL_ResumeTick();
