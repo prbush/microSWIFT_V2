@@ -1289,8 +1289,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	// Must call GetDate to keep the RTC happy, even if you don't use it
 	HAL_RTC_GetDate(device_handles->hrtc, &initial_rtc_date, RTC_FORMAT_BIN);
 
-	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
-	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+	memcpy(&rtc_time, &initial_rtc_time, sizeof(RTC_TimeTypeDef));
+	memcpy(&rtc_date, &initial_rtc_date, sizeof(RTC_DateTypeDef));
 
 #ifdef SHORT_SLEEP
 	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
