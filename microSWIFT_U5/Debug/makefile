@@ -1,6 +1,6 @@
 ################################################################################
 # Automatically-generated file. Do not edit!
-# Toolchain: GNU Tools for STM32 (10.3-2021.10)
+# Toolchain: GNU Tools for STM32 (11.3.rel1)
 ################################################################################
 
 -include ../makefile.init
@@ -80,8 +80,8 @@ all: main-build
 main-build: microSWIFT_U5.elf secondary-outputs
 
 # Tool invocations
-microSWIFT_U5.elf microSWIFT_U5.map: $(OBJS) $(USER_OBJS) D:\microSWIFT\microSWIFT_V2\microSWIFT_U5\STM32U575ZITXQ_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-g++ -o "microSWIFT_U5.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m33 -T"D:\microSWIFT\microSWIFT_V2\microSWIFT_U5\STM32U575ZITXQ_FLASH.ld" --specs=nosys.specs -Wl,-Map="microSWIFT_U5.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -lstdc++ -lsupc++ -Wl,--end-group
+microSWIFT_U5.elf microSWIFT_U5.map: $(OBJS) $(USER_OBJS) /Users/phil_mac/microSWIFT/microSWIFT_V2/microSWIFT_U5/STM32U575ZITXQ_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-g++ -o "microSWIFT_U5.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m33 -T"/Users/phil_mac/microSWIFT/microSWIFT_V2/microSWIFT_U5/STM32U575ZITXQ_FLASH.ld" --specs=nosys.specs -Wl,-Map="microSWIFT_U5.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -lstdc++ -lsupc++ -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

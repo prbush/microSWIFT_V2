@@ -1238,11 +1238,11 @@ void iridium_thread_entry(ULONG thread_input){
   */
 void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_AlarmTypeDef alarm = {0};
-	RTC_TimeTypeDef initial_rtc_time;
-	RTC_DateTypeDef initial_rtc_date;
-	RTC_TimeTypeDef rtc_time;
-	RTC_DateTypeDef rtc_date;
-	int32_t wake_up_hour;
+	RTC_TimeTypeDef initial_rtc_time = {0};
+	RTC_DateTypeDef initial_rtc_date = {0};
+	RTC_TimeTypeDef rtc_time = {0};
+	RTC_DateTypeDef rtc_date = {0};
+	int32_t wake_up_hour = {0};
 	UINT tx_return;
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
@@ -1288,6 +1288,9 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_RTC_GetTime(device_handles->hrtc, &initial_rtc_time, RTC_FORMAT_BIN);
 	// Must call GetDate to keep the RTC happy, even if you don't use it
 	HAL_RTC_GetDate(device_handles->hrtc, &initial_rtc_date, RTC_FORMAT_BIN);
+
+	HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 #ifdef SHORT_SLEEP
 	wake_up_minute = initial_rtc_time.Minutes >= 59 ? (initial_rtc_time.Minutes + 1) - 60 :
