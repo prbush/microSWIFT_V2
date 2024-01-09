@@ -1242,7 +1242,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_DateTypeDef initial_rtc_date = {0};
 	RTC_TimeTypeDef rtc_time = {0};
 	RTC_DateTypeDef rtc_date = {0};
-	int32_t wake_up_hour = {0};
+	int32_t wake_up_hour = 0;
 	UINT tx_return;
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
