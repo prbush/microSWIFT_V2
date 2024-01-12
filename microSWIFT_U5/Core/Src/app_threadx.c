@@ -404,8 +404,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   * @param  None
   * @retval None
   */
-void MX_ThreadX_Init(void)
-{
   /* USER CODE BEGIN  Before_Kernel_Start */
 void MX_ThreadX_Init(device_handles_t *handles)
 {
@@ -1278,7 +1276,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	HAL_NVIC_ClearPendingIRQ(LPUART1_IRQn);
 
 	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
+	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
 	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 
 //	// Only used for low power modes lower than stop2.
@@ -1398,7 +1396,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	// Disable the RTC Alarm and clear flags
 	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_A);
 	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
+	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
 	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 
 #if CT_ENABLED
@@ -1523,7 +1521,7 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 	// Low overhead ISR does not require save/restore context
 	// Clear the alarm flag, flash an LED in debug mode
 	HAL_PWR_EnableBkUpAccess();
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
+	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
 	// Clear the Wake-up timer flag too (Errata 2.2.4)
 	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
 
