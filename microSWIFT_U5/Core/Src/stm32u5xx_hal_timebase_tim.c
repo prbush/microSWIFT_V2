@@ -54,6 +54,7 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 
   /* Compute TIM4 clock */
   uwTimclock = HAL_RCC_GetPCLK1Freq();
+
   /* Compute the prescaler value to have TIM4 counter clock equal to 1MHz */
   uwPrescalerValue = (uint32_t) ((uwTimclock / 1000000U) - 1U);
 
@@ -61,6 +62,7 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
   htim4.Instance = TIM4;
 
   /* Initialize TIMx peripheral as follow:
+
   + Period = [(TIM4CLK/1000) - 1]. to have a (1/1000) s time base.
   + Prescaler = (uwTimclock/1000000 - 1) to have a 1MHz counter clock.
   + ClockDivision = 0
@@ -90,6 +92,7 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
       }
     }
   }
+
   /* Enable the TIM4 global Interrupt */
   HAL_NVIC_EnableIRQ(TIM4_IRQn);
 

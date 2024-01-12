@@ -35,17 +35,17 @@
 ENTRY(Reset_Handler)
 
 /* Highest address of the user mode stack */
-_estack = ORIGIN(RAM) + LENGTH(RAM);	/* end of "RAM" Ram type memory */
+_estack = ORIGIN(RAM) + LENGTH(RAM);  /* end of "RAM" Ram type memory */
 
-_Min_Heap_Size = 0x200 ;	/* required amount of heap  */
-_Min_Stack_Size = 0x400 ;	/* required amount of stack */
+_Min_Heap_Size = 0x200 ;  /* required amount of heap  */
+_Min_Stack_Size = 0x400 ; /* required amount of stack */
 
 /* Memories definition */
 MEMORY
 {
-  RAM	(xrw)	: ORIGIN = 0x20000000,	LENGTH = 713K
+  RAM (xrw) : ORIGIN = 0x20000000,  LENGTH = 713K
   NOINIT (xrw)  : ORIGIN = 0x200B2400,  LENGTH = 55K
-  SRAM4	(xrw)	: ORIGIN = 0x28000000,	LENGTH = 16K
+  SRAM4 (xrw) : ORIGIN = 0x28000000,  LENGTH = 16K
 }
 
 /* Sections */
@@ -157,7 +157,7 @@ SECTIONS
   /* No init section, used for Iridium message storage queue */
   .noinit (NOLOAD):
   {
-  	KEEP(*(.noinit_section))
+    KEEP(*(.noinit_section))
   } > NOINIT
 
   /* Remove information from the compiler libraries */

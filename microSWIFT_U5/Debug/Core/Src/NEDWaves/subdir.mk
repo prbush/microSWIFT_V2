@@ -28,30 +28,6 @@ C_SRCS += \
 ../Core/Src/NEDWaves/std.c \
 ../Core/Src/NEDWaves/var.c 
 
-C_DEPS += \
-./Core/Src/NEDWaves/FFTImplementationCallback.d \
-./Core/Src/NEDWaves/NEDwaves_memlight.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_data.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_initialize.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_terminate.d \
-./Core/Src/NEDWaves/bsearch.d \
-./Core/Src/NEDWaves/colon.d \
-./Core/Src/NEDWaves/combineVectorElements.d \
-./Core/Src/NEDWaves/div.d \
-./Core/Src/NEDWaves/fft.d \
-./Core/Src/NEDWaves/mean.d \
-./Core/Src/NEDWaves/mem_replacements.d \
-./Core/Src/NEDWaves/minOrMax.d \
-./Core/Src/NEDWaves/nullAssignment.d \
-./Core/Src/NEDWaves/rtGetInf.d \
-./Core/Src/NEDWaves/rtGetNaN.d \
-./Core/Src/NEDWaves/rt_nonfinite.d \
-./Core/Src/NEDWaves/rtwhalf.d \
-./Core/Src/NEDWaves/std.d \
-./Core/Src/NEDWaves/var.d 
-
 OBJS += \
 ./Core/Src/NEDWaves/FFTImplementationCallback.o \
 ./Core/Src/NEDWaves/NEDwaves_memlight.o \
@@ -75,6 +51,30 @@ OBJS += \
 ./Core/Src/NEDWaves/rtwhalf.o \
 ./Core/Src/NEDWaves/std.o \
 ./Core/Src/NEDWaves/var.o 
+
+C_DEPS += \
+./Core/Src/NEDWaves/FFTImplementationCallback.d \
+./Core/Src/NEDWaves/NEDwaves_memlight.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_data.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_initialize.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_terminate.d \
+./Core/Src/NEDWaves/bsearch.d \
+./Core/Src/NEDWaves/colon.d \
+./Core/Src/NEDWaves/combineVectorElements.d \
+./Core/Src/NEDWaves/div.d \
+./Core/Src/NEDWaves/fft.d \
+./Core/Src/NEDWaves/mean.d \
+./Core/Src/NEDWaves/mem_replacements.d \
+./Core/Src/NEDWaves/minOrMax.d \
+./Core/Src/NEDWaves/nullAssignment.d \
+./Core/Src/NEDWaves/rtGetInf.d \
+./Core/Src/NEDWaves/rtGetNaN.d \
+./Core/Src/NEDWaves/rt_nonfinite.d \
+./Core/Src/NEDWaves/rtwhalf.d \
+./Core/Src/NEDWaves/std.d \
+./Core/Src/NEDWaves/var.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

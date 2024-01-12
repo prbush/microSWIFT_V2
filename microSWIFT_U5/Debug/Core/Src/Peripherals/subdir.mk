@@ -13,15 +13,6 @@ C_SRCS += \
 ../Core/Src/Peripherals/rf_switch.c \
 ../Core/Src/Peripherals/u_ubx_protocol.c 
 
-C_DEPS += \
-./Core/Src/Peripherals/battery.d \
-./Core/Src/Peripherals/ct_sensor.d \
-./Core/Src/Peripherals/gnss.d \
-./Core/Src/Peripherals/imu.d \
-./Core/Src/Peripherals/iridium.d \
-./Core/Src/Peripherals/rf_switch.d \
-./Core/Src/Peripherals/u_ubx_protocol.d 
-
 OBJS += \
 ./Core/Src/Peripherals/battery.o \
 ./Core/Src/Peripherals/ct_sensor.o \
@@ -30,6 +21,15 @@ OBJS += \
 ./Core/Src/Peripherals/iridium.o \
 ./Core/Src/Peripherals/rf_switch.o \
 ./Core/Src/Peripherals/u_ubx_protocol.o 
+
+C_DEPS += \
+./Core/Src/Peripherals/battery.d \
+./Core/Src/Peripherals/ct_sensor.d \
+./Core/Src/Peripherals/gnss.d \
+./Core/Src/Peripherals/imu.d \
+./Core/Src/Peripherals/iridium.d \
+./Core/Src/Peripherals/rf_switch.d \
+./Core/Src/Peripherals/u_ubx_protocol.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

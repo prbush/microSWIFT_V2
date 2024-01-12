@@ -8,6 +8,8 @@ S_UPPER_SRCS += \
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_restore.S \
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_save.S \
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_control.S \
+../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_disable.S \
+../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_restore.S \
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_schedule.S \
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.S \
 ../Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.S \
@@ -17,6 +19,8 @@ OBJS += \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_restore.o \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_save.o \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_control.o \
+./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_disable.o \
+./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_restore.o \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_schedule.o \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.o \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.o \
@@ -26,6 +30,8 @@ S_UPPER_DEPS += \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_restore.d \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_save.d \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_control.d \
+./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_disable.d \
+./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_restore.d \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_schedule.d \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.d \
 ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.d \
@@ -39,7 +45,7 @@ Middlewares/ST/threadx/ports/cortex_m33/gnu/src/%.o: ../Middlewares/ST/threadx/p
 clean: clean-Middlewares-2f-ST-2f-threadx-2f-ports-2f-cortex_m33-2f-gnu-2f-src
 
 clean-Middlewares-2f-ST-2f-threadx-2f-ports-2f-cortex_m33-2f-gnu-2f-src:
-	-$(RM) ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_restore.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_restore.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_save.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_save.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_control.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_control.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_schedule.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_schedule.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_timer_interrupt.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_timer_interrupt.o
+	-$(RM) ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_restore.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_restore.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_save.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_context_save.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_control.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_control.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_disable.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_disable.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_restore.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_interrupt_restore.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_schedule.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_schedule.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_stack_build.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_thread_system_return.o ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_timer_interrupt.d ./Middlewares/ST/threadx/ports/cortex_m33/gnu/src/tx_timer_interrupt.o
 
 .PHONY: clean-Middlewares-2f-ST-2f-threadx-2f-ports-2f-cortex_m33-2f-gnu-2f-src
 

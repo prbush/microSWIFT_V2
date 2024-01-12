@@ -7,11 +7,11 @@
 C_SRCS += \
 ../AZURE_RTOS/App/app_azure_rtos.c 
 
-C_DEPS += \
-./AZURE_RTOS/App/app_azure_rtos.d 
-
 OBJS += \
 ./AZURE_RTOS/App/app_azure_rtos.o 
+
+C_DEPS += \
+./AZURE_RTOS/App/app_azure_rtos.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

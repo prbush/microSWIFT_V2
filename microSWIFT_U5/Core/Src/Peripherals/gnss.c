@@ -621,6 +621,14 @@ static gnss_error_code_t gnss_set_rtc(uint8_t* msg_payload)
 	self->is_clock_set = true;
 	self->rtc_error = false;
 
+	// Testing
+	// Get the date and time
+	RTC_TimeTypeDef test_rtc_time = {0};
+	RTC_DateTypeDef test_rtc_date = {0};
+	HAL_RTC_GetTime(self->rtc_handle, &test_rtc_time, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(self->rtc_handle, &test_rtc_date, RTC_FORMAT_BIN);
+
+
 	return return_code;
 }
 

@@ -70,7 +70,6 @@ typedef enum iridium_error_code{
 #define ONE_SECOND 1000
 #define ASCII_ZERO 48
 #define ASCII_FIVE 53
-#define IRIDIUM_MAX_TRANSMIT_PERIOD 6 - 1
 #define MAX_NUM_MSGS_STORED 24 * 7
 #define ERROR_MESSAGE_MAX_LENGTH 320
 #define IRIDIUM_TIMER_INSTANCE TIM17

@@ -79,8 +79,6 @@ void Error_Handler(void);
 
 /* Private defines -----------------------------------------------------------*/
 #define ADC_MICROVOLTS_PER_BIT 3292
-#define USER_BUTTON_Pin GPIO_PIN_13
-#define USER_BUTTON_GPIO_Port GPIOC
 #define EXT_LED_RED_Pin GPIO_PIN_0
 #define EXT_LED_RED_GPIO_Port GPIOF
 #define EXT_LED_GREEN_Pin GPIO_PIN_1

@@ -20,19 +20,6 @@ C_SRCS += \
 S_UPPER_SRCS += \
 ../Core/Src/tx_initialize_low_level.S 
 
-C_DEPS += \
-./Core/Src/app_threadx.d \
-./Core/Src/byte_array.d \
-./Core/Src/flash_storage.d \
-./Core/Src/linked_list.d \
-./Core/Src/main.d \
-./Core/Src/stm32u5xx_hal_msp.d \
-./Core/Src/stm32u5xx_hal_timebase_tim.d \
-./Core/Src/stm32u5xx_it.d \
-./Core/Src/syscalls.d \
-./Core/Src/sysmem.d \
-./Core/Src/system_stm32u5xx.d 
-
 OBJS += \
 ./Core/Src/app_threadx.o \
 ./Core/Src/byte_array.o \
@@ -49,6 +36,19 @@ OBJS += \
 
 S_UPPER_DEPS += \
 ./Core/Src/tx_initialize_low_level.d 
+
+C_DEPS += \
+./Core/Src/app_threadx.d \
+./Core/Src/byte_array.d \
+./Core/Src/flash_storage.d \
+./Core/Src/linked_list.d \
+./Core/Src/main.d \
+./Core/Src/stm32u5xx_hal_msp.d \
+./Core/Src/stm32u5xx_hal_timebase_tim.d \
+./Core/Src/stm32u5xx_it.d \
+./Core/Src/syscalls.d \
+./Core/Src/sysmem.d \
+./Core/Src/system_stm32u5xx.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

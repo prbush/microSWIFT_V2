@@ -164,9 +164,7 @@ void ct_thread_entry(ULONG thread_input);
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
-  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
-
-   /* USER CODE BEGIN App_ThreadX_MEM_POOL */
+  /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
 	CHAR *pointer = TX_NULL;
 	byte_pool = memory_ptr;
@@ -395,7 +393,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 #endif
 
   /* USER CODE END App_ThreadX_MEM_POOL */
-
   /* USER CODE BEGIN App_ThreadX_Init */
   /* USER CODE END App_ThreadX_Init */
 
@@ -407,6 +404,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   * @param  None
   * @retval None
   */
+void MX_ThreadX_Init(void)
+{
   /* USER CODE BEGIN  Before_Kernel_Start */
 void MX_ThreadX_Init(device_handles_t *handles)
 {
@@ -1362,7 +1361,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 		alarm.Alarm = RTC_ALARM_A;
 		alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
 		alarm.AlarmTime = rtc_time;
-		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 35) ? ((rtc_time.Seconds + 25) - 60) : (rtc_time.Seconds + 25);
+//		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 35) ? ((rtc_time.Seconds + 25) - 60) : (rtc_time.Seconds + 25);
+		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 55) ? ((rtc_time.Seconds + 5) - 60) : (rtc_time.Seconds + 5);
 		alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
 		alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 
