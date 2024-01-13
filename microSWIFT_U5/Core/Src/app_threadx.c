@@ -162,6 +162,7 @@ void ct_thread_entry(ULONG thread_input);
 #endif
 /* USER CODE END PFP */
 
+
 /**
   * @brief  Application ThreadX Initialization.
   * @param memory_ptr: memory pointer
@@ -405,7 +406,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   return ret;
 }
 
-  /**
+
+/**
   * @brief  MX_ThreadX_Init
   * @param  None
   * @retval None
@@ -434,6 +436,7 @@ void MX_ThreadX_Init(device_handles_t *handles)
 
 /* USER CODE BEGIN 1 */
 
+
 /**
   * @brief  Watchdog thread entry
   *         This thread will wait for the watchdog semaphore to be put before refreshing
@@ -447,6 +450,7 @@ void watchdog_thread_entry(ULONG thread_input){
 		HAL_IWDG_Refresh(device_handles->watchdog_handle);
 	}
 }
+
 
 /**
   * @brief  Startup thread entry
@@ -655,6 +659,7 @@ void startup_thread_entry(ULONG thread_input){
 	// We're done, terminate this thread
 	tx_thread_terminate(&startup_thread);
 }
+
 
 /**
   * @brief  gnss_thread_entry
@@ -868,6 +873,7 @@ void gnss_thread_entry(ULONG thread_input){
 	tx_thread_terminate(&gnss_thread);
 }
 
+
 #if IMU_ENABLED
 /**
   * @brief  imu_thread_entry
@@ -886,6 +892,7 @@ void imu_thread_entry(ULONG thread_input){
 	tx_event_flags_set(&thread_flags, IMU_DONE, TX_OR);
 }
 #endif
+
 
 #if CT_ENABLED
 /**
@@ -994,6 +1001,7 @@ void ct_thread_entry(ULONG thread_input){
 }
 #endif
 
+
 /**
   * @brief  waves_thread_entry
   *         This thread will run the GPSWaves algorithm.
@@ -1091,6 +1099,7 @@ void waves_thread_entry(ULONG thread_input){
 
 	tx_thread_terminate(&waves_thread);
 }
+
 
 /**
   * @brief  iridium_thread_entry
@@ -1247,6 +1256,7 @@ void iridium_thread_entry(ULONG thread_input){
 	tx_thread_terminate(&iridium_thread);
 }
 
+
 /**
   * @brief  teardown_thread_entry
   *         This thread will execute when either an error flag is set or all
@@ -1262,7 +1272,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_DateTypeDef rtc_date = {0};
 	int32_t wake_up_hour = 0;
 	UINT tx_return;
-	static bool red_led = true;
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
 	tx_thread_sleep(1);
@@ -1284,7 +1293,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			(initial_rtc_time.Minutes + 1);
 #else
 
-	wake_up_hour = (initial_rtc_time.Hours < 6)  ? 6 :
+	wake_up_hour = (initial_rtc_time.Hours < 6)  ? 6  :
 								 (initial_rtc_time.Hours < 12) ? 12 :
 								 (initial_rtc_time.Hours < 18) ? 18 :
 								                                 0;
@@ -1298,6 +1307,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	while (rtc_time.Hours != wake_up_hour) {
 
 #ifdef DEBUGGING_SLEEP_LED
+		static bool red_led = true;
 
 		if (red_led) {
 			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
@@ -1309,7 +1319,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 #endif
 
-		// Get the date and time
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
@@ -1364,6 +1373,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 	}
 }
 
+
 /**
   * @brief  UART ISR callback
   *
@@ -1398,6 +1408,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+
+/**
+  * @brief Tx Transfer completed callback.
+  * @param huart UART handle.
+  * @retval None
+  */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == gnss->gnss_uart_handle->Instance) {
@@ -1406,6 +1422,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 		tx_event_flags_set(&thread_control_flags, IRIDIUM_TX_COMPLETE, TX_OR);
 	}
 }
+
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -1433,6 +1450,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 }
 
+
 /**
   * @brief  Independent watchdog early wakeup callback
   *
@@ -1443,6 +1461,7 @@ void HAL_IWDG_EarlyWakeupCallback(IWDG_HandleTypeDef *hiwdg)
 {
 	shut_it_all_down();
 }
+
 
 /**
   * @brief  ADC conversion complete callback
@@ -1474,6 +1493,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 
 }
 
+
 /**
   * @brief  ADC error callback
   *
@@ -1485,6 +1505,7 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 	// Set the ADC conversion error flag and move on
 	tx_event_flags_set(&error_flags, ADC_CONVERSION_ERROR, TX_OR);
 }
+
 
 /**
   * @brief  Low Power Timer compare match call back.
@@ -1499,6 +1520,13 @@ void HAL_LPTIM_CompareMatchCallback(LPTIM_HandleTypeDef *hlptim)
 	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
 }
 
+
+/**
+  * @brief  Prepare for sleep loop after sampling window.
+  *
+  * @param  None
+  * @retval None
+  */
 static void end_of_cycle_sleep_prep(void)
 {
 	// See errata regarding ICACHE access on wakeup, section 2.2.11
@@ -1508,12 +1536,26 @@ static void end_of_cycle_sleep_prep(void)
 	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
 }
 
+
+/**
+  * @brief  Exit sleep loop.
+  *
+  * @param  None
+  * @retval None
+  */
 static void end_of_cycle_sleep_complete(void)
 {
 	HAL_ICACHE_Enable();
 	HAL_LPTIM_TimeOut_Stop_IT(device_handles->wakeup_timer);
 }
 
+
+/**
+  * @brief  Enter Stop 2 mode
+  *
+  * @param  None
+  * @retval None
+  */
 static void enter_stop_2_mode(void)
 {
 	register_watchdog_refresh();
@@ -1522,9 +1564,18 @@ static void enter_stop_2_mode(void)
 	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
 }
 
+
+/**
+  * @brief  Exit Stop 2 mode
+  *
+  * @param  None
+  * @retval None
+  */
 static void exit_stop_2_mode(void)
 {
+#ifdef TEST_IWDG_IN_STOP_MODE
 //	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 35);
+#endif
 	register_watchdog_refresh();
 	SystemClock_Config();
 	HAL_ResumeTick();
@@ -1536,6 +1587,7 @@ static void exit_stop_2_mode(void)
 
 	HAL_PWREx_ConfigSupply(PWR_SMPS_SUPPLY);
 }
+
 
 /**
   * @brief  Static function to flash a sequence of onboard LEDs to indicate
@@ -1596,6 +1648,7 @@ static void led_sequence(led_sequence_t sequence)
 	}
 }
 
+
 /**
   * @brief  callback function to start GNSS UART DMA reception. Passed to GNSS->self_test
   *
@@ -1655,6 +1708,7 @@ gnss_error_code_t start_GNSS_UART_DMA(GNSS* gnss_struct_ptr, uint8_t* buffer, si
 	return return_code;
 }
 
+
 /**
   * @brief  Power down all peripheral FETs and set RF switch to GNSS input
   *
@@ -1690,6 +1744,7 @@ void shut_it_all_down(void)
 void register_watchdog_refresh(void)
 {
 #if WATCHDOG_ENABLED
+	// In case somehow an interrupt was set but did not result in a reset
 	uint32_t iwdg_active_interrupt = HAL_NVIC_GetActive(IWDG_IRQn);
 	uint32_t iwdg_pending_interrupt = HAL_NVIC_GetPendingIRQ(IWDG_IRQn);
 	if (iwdg_active_interrupt | iwdg_pending_interrupt) {
@@ -1705,8 +1760,6 @@ void register_watchdog_refresh(void)
 	}
 #endif
 }
-
-
 
 
 /**
@@ -1892,6 +1945,7 @@ static self_test_status_t initial_power_on_self_test(void)
 	return return_code;
 }
 
+
 /**
   * @brief  Break out of the GNSS thread and jump to end_of_cycle_thread
   *
@@ -1930,6 +1984,7 @@ static void jump_to_end_of_window(ULONG error_bits_to_set)
 	tx_thread_terminate(&gnss_thread);
 }
 
+
 #if CT_ENABLED
 /**
   * @brief  Break out of the CT thread and jump to Waves thread
@@ -1953,6 +2008,7 @@ static void jump_to_waves(void)
 	tx_thread_terminate(&ct_thread);
 }
 #endif
+
 
 /**
   * @brief  If an error was detected along the way, send an error (Type 99) message.
@@ -2143,6 +2199,15 @@ static void send_error_message(ULONG error_flags)
 	}
 }
 
+
+/**
+  * @brief  Set the watchdog refresh timer. Watchdog will only be refreshed if this timer has not expired.
+  *
+  * @param  timer_handle - Timer handle
+  * @param	num_hours    - Number of hours to set the timer duration to.
+  *
+  * @retval void
+  */
 static void restart_watchdog_refresh_timer(TIM_HandleTypeDef* timer_handle, uint32_t num_hours)
 {
 
@@ -2154,9 +2219,6 @@ static void restart_watchdog_refresh_timer(TIM_HandleTypeDef* timer_handle, uint
 	TIM_ClockConfigTypeDef sClockSourceConfig = {0};
 	TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-	/* USER CODE BEGIN TIM15_Init 1 */
-
-	/* USER CODE END TIM15_Init 1 */
 	timer_handle->Instance = TIM15;
 	timer_handle->Init.Prescaler = 12000;
 	timer_handle->Init.CounterMode = TIM_COUNTERMODE_UP;
