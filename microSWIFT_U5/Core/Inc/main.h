@@ -53,6 +53,7 @@ typedef struct {
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
 	TIM_HandleTypeDef* iridium_timer;
 	TIM_HandleTypeDef* gnss_timer;
+	LPTIM_HandleTypeDef* wakeup_timer;
 	IWDG_HandleTypeDef* watchdog_handle;
 	TIM_HandleTypeDef* watchdog_hour_timer;
 	ADC_HandleTypeDef* battery_adc;

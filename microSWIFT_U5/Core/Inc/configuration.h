@@ -39,10 +39,10 @@
 
 #else
 // Number of samples in each sampling window
-#define TOTAL_SAMPLES_PER_WINDOW 1024
+#define TOTAL_SAMPLES_PER_WINDOW 4096
 
 // The max time in MINUTES to try to get an Iridium message off
-#define IRIDIUM_MAX_TRANSMIT_TIME 1
+#define IRIDIUM_MAX_TRANSMIT_TIME 15
 
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0

@@ -58,6 +58,7 @@ extern void shut_it_all_down(void);
 /* External variables --------------------------------------------------------*/
 extern ADC_HandleTypeDef hadc4;
 extern IWDG_HandleTypeDef hiwdg;
+extern LPTIM_HandleTypeDef hlptim1;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel4;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel1;
@@ -321,6 +322,20 @@ void LPUART1_IRQHandler(void)
   /* USER CODE BEGIN LPUART1_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END LPUART1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles LPTIM1 global interrupt.
+  */
+void LPTIM1_IRQHandler(void)
+{
+  /* USER CODE BEGIN LPTIM1_IRQn 0 */
+	_tx_thread_context_save();
+  /* USER CODE END LPTIM1_IRQn 0 */
+  HAL_LPTIM_IRQHandler(&hlptim1);
+  /* USER CODE BEGIN LPTIM1_IRQn 1 */
+  _tx_thread_context_restore();
+  /* USER CODE END LPTIM1_IRQn 1 */
 }
 
 /**

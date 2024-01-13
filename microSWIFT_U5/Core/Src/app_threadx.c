@@ -604,10 +604,13 @@ void startup_thread_entry(ULONG thread_input){
 	else
 	{
 		register_watchdog_refresh();
+
+		rf_switch->power_on();
+		rf_switch->set_gnss_port();
+
 		// Flash some lights to let the user know its on and working
 		led_sequence(INITIAL_LED_SEQUENCE);
 
-		rf_switch->power_on();
 
 		register_watchdog_refresh();
 
@@ -1335,21 +1338,21 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 		// Set the alarm to wake up the processor in 25 seconds
 		// Alternate between Alarm A and B (Errata 2.18.2)
-		alarm.Alarm = (alarm_flag) ? RTC_ALARM_A : RTC_ALARM_B;
-		alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
-		alarm.AlarmTime = rtc_time;
-		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 30) ? ((rtc_time.Seconds + 30) - 60) : (rtc_time.Seconds + 30);
-		alarm.AlarmTime.SubSeconds = 0;
-		alarm.AlarmTime.SecondFraction = 0;
-		alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
-		alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
-
-		// If something goes wrong setting the alarm, force an RTC reset and go to the next window.
-		// With luck, the RTC will get set again on the next window and everything will be cool.
-		if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN) != HAL_OK) {
-			shut_it_all_down();
-			HAL_NVIC_SystemReset();
-		}
+//		alarm.Alarm = (alarm_flag) ? RTC_ALARM_A : RTC_ALARM_B;
+//		alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
+//		alarm.AlarmTime = rtc_time;
+//		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 30) ? ((rtc_time.Seconds + 30) - 60) : (rtc_time.Seconds + 30);
+//		alarm.AlarmTime.SubSeconds = 0;
+//		alarm.AlarmTime.SecondFraction = 0;
+//		alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
+//		alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+//
+//		// If something goes wrong setting the alarm, force an RTC reset and go to the next window.
+//		// With luck, the RTC will get set again on the next window and everything will be cool.
+//		if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN) != HAL_OK) {
+//			shut_it_all_down();
+//			HAL_NVIC_SystemReset();
+//		}
 
 		enter_stop_2_mode();
 
@@ -1460,41 +1463,43 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 }
 
-/**
-  * @brief  RTC alarm interrupt callback
-  *
-  * @param  hrtc : RTC handle
-  * @retval None
-  */
-void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
-{
-	// Low overhead ISR does not require save/restore context
-	// Clear the alarm flag, flash an LED in debug mode
-//	HAL_PWR_EnableBkUpAccess();
-	// Alternate between Alarm A and B (Errata 2.18.2)
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
-	// Clear the Wake-up timer flag too (Errata 2.2.4)
-	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
 
-	alarm_flag = !alarm_flag;
 
-//	HAL_PWR_DisableBkUpAccess();
-}
-
-void HAL_RTC_AlarmBEventCallback(RTC_HandleTypeDef *hrtc)
-{
-	// Low overhead ISR does not require save/restore context
-	// Clear the alarm flag, flash an LED in debug mode
-//	HAL_PWR_EnableBkUpAccess();
-	// Alternate between Alarm A and B (Errata 2.18.2)
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
-	// Clear the Wake-up timer flag too (Errata 2.2.4)
-	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-
-	alarm_flag = !alarm_flag;
-
-//	HAL_PWR_DisableBkUpAccess();
-}
+///**
+//  * @brief  RTC alarm interrupt callback
+//  *
+//  * @param  hrtc : RTC handle
+//  * @retval None
+//  */
+//void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
+//{
+//	// Low overhead ISR does not require save/restore context
+//	// Clear the alarm flag, flash an LED in debug mode
+////	HAL_PWR_EnableBkUpAccess();
+//	// Alternate between Alarm A and B (Errata 2.18.2)
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+//	// Clear the Wake-up timer flag too (Errata 2.2.4)
+//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+//
+//	alarm_flag = !alarm_flag;
+//
+////	HAL_PWR_DisableBkUpAccess();
+//}
+//
+//void HAL_RTC_AlarmBEventCallback(RTC_HandleTypeDef *hrtc)
+//{
+//	// Low overhead ISR does not require save/restore context
+//	// Clear the alarm flag, flash an LED in debug mode
+////	HAL_PWR_EnableBkUpAccess();
+//	// Alternate between Alarm A and B (Errata 2.18.2)
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
+//	// Clear the Wake-up timer flag too (Errata 2.2.4)
+//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+//
+//	alarm_flag = !alarm_flag;
+//
+////	HAL_PWR_DisableBkUpAccess();
+//}
 
 /**
   * @brief  Independent watchdog early wakeup callback
@@ -1549,6 +1554,13 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 	tx_event_flags_set(&error_flags, ADC_CONVERSION_ERROR, TX_OR);
 }
 
+void HAL_LPTIM_CompareMatchCallback(LPTIM_HandleTypeDef *hlptim)
+{
+	__HAL_LPTIM_RESET_COUNTER(hlptim);
+	__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC1);
+	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
+}
+
 static void end_of_cycle_sleep_prep(void)
 {
 	//	Clear any pending interrupts, See Errata section 2.2.4
@@ -1557,28 +1569,39 @@ static void end_of_cycle_sleep_prep(void)
 		HAL_NVIC_ClearPendingIRQ(i);
 	}
 
-	HAL_NVIC_EnableIRQ(RTC_IRQn);
-	HAL_NVIC_EnableIRQ(RTC_S_IRQn);
 	HAL_NVIC_EnableIRQ(IWDG_IRQn);
-
-	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
+	HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
+//
+//	HAL_NVIC_EnableIRQ(RTC_IRQn);
+//	HAL_NVIC_EnableIRQ(RTC_S_IRQn);
+//	HAL_NVIC_EnableIRQ(IWDG_IRQn);
+//
+//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
 
 	// See errata regarding ICACHE access on wakeup, section 2.2.11
 	HAL_ICACHE_Disable();
 	HAL_ICACHE_Invalidate();
+
+	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
 }
 
 static void end_of_cycle_sleep_complete(void)
 {
 	HAL_ICACHE_Enable();
-	// Disable the RTC Alarm and clear flags
-	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_A);
-	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_B);
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
-	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
-	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
+	HAL_LPTIM_TimeOut_Stop_IT(device_handles->wakeup_timer);
+
+//	// Disable the RTC Alarm and clear flags
+//	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_A);
+//	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_B);
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
+//	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
+//
+	for (int i = 0; i < 126; i++) {
+		HAL_NVIC_ClearPendingIRQ(i);
+	}
 
 	HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
 	HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);

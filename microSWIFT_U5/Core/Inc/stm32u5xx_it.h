@@ -62,6 +62,7 @@ void TIM4_IRQHandler(void);
 void UART4_IRQHandler(void);
 void UART5_IRQHandler(void);
 void LPUART1_IRQHandler(void);
+void LPTIM1_IRQHandler(void);
 void TIM15_IRQHandler(void);
 void TIM16_IRQHandler(void);
 void TIM17_IRQHandler(void);
