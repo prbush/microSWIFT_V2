@@ -14,7 +14,7 @@
 
 /*
  * Debugging settings
- */
+ *********************/
 
 // For testing and debugging with a very short sample window
 //#define DEBUGGING_FAST_CYCLE
@@ -22,9 +22,16 @@
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
 
+// Flash the red led when in sleep mode
+#define DEBUGGING_SLEEP_LED
+
+
+// Skip to end of cycle after setting the RTC
+#define DEBUGGING_FASTTRACK_TO_SLEEP
+
 /*
  * Configuration options
- */
+ ************************/
 
 // Define if the old type V3D RockBlock modem is used
 #define ROCK_BLOCK_V3D
@@ -53,8 +60,6 @@
 // Are we doing 1 or two sample windows per hour
 // !! Must be a number such that SAMPLE_WINDOWS_PER_HOUR % 60 == 0
 #define SAMPLE_WINDOWS_PER_HOUR 1
-
-
 
 #endif // DEBUGGING_FAST_CYCLE
 

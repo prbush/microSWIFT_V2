@@ -736,12 +736,6 @@ void gnss_thread_entry(ULONG thread_input){
 
 	while (!(gnss->all_resolution_stages_complete || gnss->timer_timeout)) {
 
-		// Testing
-		if (gnss->is_clock_set) {
-			gnss->timer_timeout = true;
-		}
-		// End testing
-
 		register_watchdog_refresh();
 		tx_return = tx_event_flags_get(&thread_control_flags, ((GNSS_MSG_RECEIVED | GNSS_MSG_INCOMPLETE)),
 				TX_OR_CLEAR, &actual_flags, timer_ticks_to_get_message);
@@ -763,6 +757,14 @@ void gnss_thread_entry(ULONG thread_input){
 			jump_to_end_of_window(MEMORY_CORRUPTION_ERROR);
 		}
 
+#ifdef DEBUGGING_FASTTRACK_TO_SLEEP
+
+		if (gnss->is_clock_set) {
+			register_watchdog_refresh();
+		  jump_to_end_of_window(GNSS_RESOLUTION_ERROR);
+		}
+
+#endif
 
 	}
 
@@ -1256,7 +1258,6 @@ void iridium_thread_entry(ULONG thread_input){
   * @retval void
   */
 void end_of_cycle_thread_entry(ULONG thread_input){
-	RTC_AlarmTypeDef alarm = {0};
 	RTC_TimeTypeDef initial_rtc_time = {0};
 	RTC_DateTypeDef initial_rtc_date = {0};
 	RTC_TimeTypeDef rtc_time = {0};
@@ -1274,10 +1275,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	shut_it_all_down();
 	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 
-	end_of_cycle_sleep_prep();
-
 	HAL_RTC_GetTime(device_handles->hrtc, &initial_rtc_time, RTC_FORMAT_BIN);
-	// Must call GetDate to keep the RTC happy, even if you don't use it
 	HAL_RTC_GetDate(device_handles->hrtc, &initial_rtc_date, RTC_FORMAT_BIN);
 
 	memcpy(&rtc_time, &initial_rtc_time, sizeof(RTC_TimeTypeDef));
@@ -1288,33 +1286,21 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			(initial_rtc_time.Minutes + 1);
 #else
 
-
-	if (initial_rtc_time.Hours < 6) {
-
-		wake_up_hour = 6;
-
-	} else if (initial_rtc_time.Hours < 12) {
-
-		wake_up_hour = 12;
-
-	} else if (initial_rtc_time.Hours < 18) {
-
-		wake_up_hour = 18;
-
-	} else {
-
-		wake_up_hour = 0;
-
-	}
-
+	wake_up_hour = (initial_rtc_time.Hours < 6)  ? 6 :
+								 (initial_rtc_time.Hours < 12) ? 12 :
+								 (initial_rtc_time.Hours < 18) ? 18 :
+								                                 0;
 
 #endif
 
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
+	end_of_cycle_sleep_prep();
+
 	while (rtc_time.Hours != wake_up_hour) {
 
-		// Testing
+#ifdef DEBUGGING_SLEEP_LED
+
 		if (red_led) {
 			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
 			red_led = !red_led;
@@ -1322,37 +1308,17 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
 			red_led = !red_led;
 		}
-		// End testing
+
+#endif
 
 		// Get the date and time
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
-		// We should be restarting the window at the top of the hour. If the initial time and just
-		// checked time differ in hours, then we should start a new window. This should never occur,
-		// but just as a second safety
 		if (initial_rtc_date.Date != rtc_date.Date){
 			exit_stop_2_mode();
 			break;
 		}
-
-		// Set the alarm to wake up the processor in 25 seconds
-		// Alternate between Alarm A and B (Errata 2.18.2)
-//		alarm.Alarm = (alarm_flag) ? RTC_ALARM_A : RTC_ALARM_B;
-//		alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
-//		alarm.AlarmTime = rtc_time;
-//		alarm.AlarmTime.Seconds = (rtc_time.Seconds >= 30) ? ((rtc_time.Seconds + 30) - 60) : (rtc_time.Seconds + 30);
-//		alarm.AlarmTime.SubSeconds = 0;
-//		alarm.AlarmTime.SecondFraction = 0;
-//		alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
-//		alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
-//
-//		// If something goes wrong setting the alarm, force an RTC reset and go to the next window.
-//		// With luck, the RTC will get set again on the next window and everything will be cool.
-//		if (HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN) != HAL_OK) {
-//			shut_it_all_down();
-//			HAL_NVIC_SystemReset();
-//		}
 
 		enter_stop_2_mode();
 
@@ -1361,6 +1327,12 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	}
 
 	register_watchdog_refresh();
+
+#ifdef DEBUGGING_SLEEP_LED
+
+	HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+
+#endif
 
 	end_of_cycle_sleep_complete();
 
@@ -1463,44 +1435,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 }
 
-
-
-///**
-//  * @brief  RTC alarm interrupt callback
-//  *
-//  * @param  hrtc : RTC handle
-//  * @retval None
-//  */
-//void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
-//{
-//	// Low overhead ISR does not require save/restore context
-//	// Clear the alarm flag, flash an LED in debug mode
-////	HAL_PWR_EnableBkUpAccess();
-//	// Alternate between Alarm A and B (Errata 2.18.2)
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
-//	// Clear the Wake-up timer flag too (Errata 2.2.4)
-//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-//
-//	alarm_flag = !alarm_flag;
-//
-////	HAL_PWR_DisableBkUpAccess();
-//}
-//
-//void HAL_RTC_AlarmBEventCallback(RTC_HandleTypeDef *hrtc)
-//{
-//	// Low overhead ISR does not require save/restore context
-//	// Clear the alarm flag, flash an LED in debug mode
-////	HAL_PWR_EnableBkUpAccess();
-//	// Alternate between Alarm A and B (Errata 2.18.2)
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
-//	// Clear the Wake-up timer flag too (Errata 2.2.4)
-//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-//
-//	alarm_flag = !alarm_flag;
-//
-////	HAL_PWR_DisableBkUpAccess();
-//}
-
 /**
   * @brief  Independent watchdog early wakeup callback
   *
@@ -1554,23 +1488,30 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 	tx_event_flags_set(&error_flags, ADC_CONVERSION_ERROR, TX_OR);
 }
 
+/**
+  * @brief  Low Power Timer compare match call back.
+  *
+  * @param  hlptim : LPTIM handle
+  * @retval None
+  */
 void HAL_LPTIM_CompareMatchCallback(LPTIM_HandleTypeDef *hlptim)
 {
 	__HAL_LPTIM_RESET_COUNTER(hlptim);
 	__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC1);
-	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
+//	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
+	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168 * 2);
 }
 
 static void end_of_cycle_sleep_prep(void)
 {
 	//	Clear any pending interrupts, See Errata section 2.2.4
-	for (int i = 0; i < 126; i++) {
-		HAL_NVIC_DisableIRQ(i);
-		HAL_NVIC_ClearPendingIRQ(i);
-	}
-
-	HAL_NVIC_EnableIRQ(IWDG_IRQn);
-	HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
+//	for (int i = 0; i < 126; i++) {
+//		HAL_NVIC_DisableIRQ(i);
+//		HAL_NVIC_ClearPendingIRQ(i);
+//	}
+//
+//	HAL_NVIC_EnableIRQ(IWDG_IRQn);
+//	HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
 //
 //	HAL_NVIC_EnableIRQ(RTC_IRQn);
 //	HAL_NVIC_EnableIRQ(RTC_S_IRQn);
@@ -1599,17 +1540,17 @@ static void end_of_cycle_sleep_complete(void)
 //	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
 //	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 //
-	for (int i = 0; i < 126; i++) {
-		HAL_NVIC_ClearPendingIRQ(i);
-	}
-
-	HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
-	HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
-	HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
-	HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
-	HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
-	HAL_NVIC_EnableIRQ(UART5_IRQn);
-	HAL_NVIC_EnableIRQ(LPUART1_IRQn);
+//	for (int i = 0; i < 126; i++) {
+//		HAL_NVIC_ClearPendingIRQ(i);
+//	}
+//
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
+//	HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
+//	HAL_NVIC_EnableIRQ(UART5_IRQn);
+//	HAL_NVIC_EnableIRQ(LPUART1_IRQn);
 }
 
 static void enter_stop_2_mode(void)
@@ -1622,7 +1563,7 @@ static void enter_stop_2_mode(void)
 
 static void exit_stop_2_mode(void)
 {
-//	register_watchdog_refresh();
+	register_watchdog_refresh();
 	SystemClock_Config();
 	HAL_ResumeTick();
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
