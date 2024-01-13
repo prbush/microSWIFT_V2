@@ -27,7 +27,7 @@
 
 
 // Skip to end of cycle after setting the RTC
-#define DEBUGGING_FASTTRACK_TO_SLEEP
+//#define DEBUGGING_FASTTRACK_TO_SLEEP
 
 /*
  * Configuration options

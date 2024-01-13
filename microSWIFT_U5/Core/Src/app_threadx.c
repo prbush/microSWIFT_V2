@@ -1498,29 +1498,11 @@ void HAL_LPTIM_CompareMatchCallback(LPTIM_HandleTypeDef *hlptim)
 {
 	__HAL_LPTIM_RESET_COUNTER(hlptim);
 	__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC1);
-//	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
-	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168 * 2);
+	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
 }
 
 static void end_of_cycle_sleep_prep(void)
 {
-	//	Clear any pending interrupts, See Errata section 2.2.4
-//	for (int i = 0; i < 126; i++) {
-//		HAL_NVIC_DisableIRQ(i);
-//		HAL_NVIC_ClearPendingIRQ(i);
-//	}
-//
-//	HAL_NVIC_EnableIRQ(IWDG_IRQn);
-//	HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
-//
-//	HAL_NVIC_EnableIRQ(RTC_IRQn);
-//	HAL_NVIC_EnableIRQ(RTC_S_IRQn);
-//	HAL_NVIC_EnableIRQ(IWDG_IRQn);
-//
-//	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
-
 	// See errata regarding ICACHE access on wakeup, section 2.2.11
 	HAL_ICACHE_Disable();
 	HAL_ICACHE_Invalidate();
@@ -1532,25 +1514,6 @@ static void end_of_cycle_sleep_complete(void)
 {
 	HAL_ICACHE_Enable();
 	HAL_LPTIM_TimeOut_Stop_IT(device_handles->wakeup_timer);
-
-//	// Disable the RTC Alarm and clear flags
-//	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_A);
-//	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_B);
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
-//	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
-//	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
-//
-//	for (int i = 0; i < 126; i++) {
-//		HAL_NVIC_ClearPendingIRQ(i);
-//	}
-//
-//	HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
-//	HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
-//	HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
-//	HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
-//	HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
-//	HAL_NVIC_EnableIRQ(UART5_IRQn);
-//	HAL_NVIC_EnableIRQ(LPUART1_IRQn);
 }
 
 static void enter_stop_2_mode(void)
