@@ -114,6 +114,7 @@ int main(void)
   HAL_Delay(100);
   __HAL_RCC_BACKUPRESET_RELEASE();
   HAL_Delay(100);
+  HAL_PWR_DisableBkUpAccess();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -226,6 +227,8 @@ void SystemClock_Config(void)
   */
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
+  HAL_Delay(100);
+  HAL_PWR_DisableBkUpAccess();
 
   /** Initializes the CPU, AHB and APB buses clocks
   */

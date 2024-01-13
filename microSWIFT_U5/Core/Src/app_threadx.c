@@ -97,7 +97,7 @@ Battery* battery;
 // Handles for all the STM32 peripherals
 device_handles_t *device_handles;
 // The watchdog hour elapsed timer flag
-bool watchdog_hour_timer_elapsed = false;
+bool watchdog_refresh_timer_elapsed = false;
 // Chose whether to use alarm A or B
 bool alarm_flag = true;
 // Only included if we will be using the IMU
@@ -136,7 +136,7 @@ static self_test_status_t initial_power_on_self_test(void);
 static void led_sequence(uint8_t sequence);
 static void jump_to_end_of_window(ULONG error_bits_to_set);
 static void send_error_message(ULONG error_flags);
-static void restart_watchdog_hour_timer(TIM_HandleTypeDef* timer_handle);
+static void restart_watchdog_refresh_timer(TIM_HandleTypeDef* timer_handle, uint32_t num_hours);
 static void end_of_cycle_sleep_prep(void);
 static void end_of_cycle_sleep_complete(void);
 static void enter_stop_2_mode(void);
@@ -468,9 +468,7 @@ void startup_thread_entry(ULONG thread_input){
 		HAL_NVIC_ClearPendingIRQ(UART4_IRQn);
 	}
 
-	// In no case should there be an hour between sampling windows, so this timer will prevent from refreshing the watchdog in
-	// the event it has been an hour since the timer was last set
-	restart_watchdog_hour_timer(device_handles->watchdog_hour_timer);
+	restart_watchdog_refresh_timer(device_handles->watchdog_hour_timer, 6);
 
 	register_watchdog_refresh();
 
@@ -1431,7 +1429,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		gnss->timer_timeout = true;
 	}
 	else if (htim->Instance == TIM15) {
-		watchdog_hour_timer_elapsed = true;
+		watchdog_refresh_timer_elapsed = true;
 	}
 }
 
@@ -1526,6 +1524,7 @@ static void enter_stop_2_mode(void)
 
 static void exit_stop_2_mode(void)
 {
+//	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 35);
 	register_watchdog_refresh();
 	SystemClock_Config();
 	HAL_ResumeTick();
@@ -1691,7 +1690,14 @@ void shut_it_all_down(void)
 void register_watchdog_refresh(void)
 {
 #if WATCHDOG_ENABLED
-	if (!watchdog_hour_timer_elapsed) {
+	uint32_t iwdg_active_interrupt = HAL_NVIC_GetActive(IWDG_IRQn);
+	uint32_t iwdg_pending_interrupt = HAL_NVIC_GetPendingIRQ(IWDG_IRQn);
+	if (iwdg_active_interrupt | iwdg_pending_interrupt) {
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
+	if (!watchdog_refresh_timer_elapsed) {
 		tx_semaphore_put(&watchdog_semaphore);
 	} else {
 		// Drain the watchdog refresh semaphore
@@ -2137,7 +2143,7 @@ static void send_error_message(ULONG error_flags)
 	}
 }
 
-static void restart_watchdog_hour_timer(TIM_HandleTypeDef* timer_handle)
+static void restart_watchdog_refresh_timer(TIM_HandleTypeDef* timer_handle, uint32_t num_hours)
 {
 
 	if (HAL_TIM_Base_Stop_IT(timer_handle) != HAL_OK) {
@@ -2156,7 +2162,7 @@ static void restart_watchdog_hour_timer(TIM_HandleTypeDef* timer_handle)
 	timer_handle->Init.CounterMode = TIM_COUNTERMODE_UP;
 	timer_handle->Init.Period = 59999;
 	timer_handle->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	timer_handle->Init.RepetitionCounter = 60 - 1;
+	timer_handle->Init.RepetitionCounter = (num_hours * 60) - 1;
 	timer_handle->Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 	if (HAL_TIM_Base_Init(timer_handle) != HAL_OK)
 	{
@@ -2182,7 +2188,7 @@ static void restart_watchdog_hour_timer(TIM_HandleTypeDef* timer_handle)
 		HAL_NVIC_SystemReset();
 	}
 
-	watchdog_hour_timer_elapsed = false;
+	watchdog_refresh_timer_elapsed = false;
 }
 
 /* USER CODE END 1 */
