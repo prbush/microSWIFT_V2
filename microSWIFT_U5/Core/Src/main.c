@@ -108,7 +108,9 @@ int main(void)
   // Force the reset of the RTC and clear anything in the backup domain
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_BACKUPRESET_FORCE();
+  HAL_Delay(100);
   __HAL_RCC_BACKUPRESET_RELEASE();
+  HAL_Delay(100);
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -622,7 +624,7 @@ static void MX_RTC_Init(void)
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
-  hrtc.Init.BinMode = RTC_BINARY_MIX;
+  hrtc.Init.BinMode = RTC_BINARY_ONLY;
   hrtc.Init.BinMixBcdU = RTC_BINARY_MIX_BCDU_0;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {

@@ -13,15 +13,6 @@ C_SRCS += \
 ../Core/Src/Peripherals/rf_switch.c \
 ../Core/Src/Peripherals/u_ubx_protocol.c 
 
-C_DEPS += \
-./Core/Src/Peripherals/battery.d \
-./Core/Src/Peripherals/ct_sensor.d \
-./Core/Src/Peripherals/gnss.d \
-./Core/Src/Peripherals/imu.d \
-./Core/Src/Peripherals/iridium.d \
-./Core/Src/Peripherals/rf_switch.d \
-./Core/Src/Peripherals/u_ubx_protocol.d 
-
 OBJS += \
 ./Core/Src/Peripherals/battery.o \
 ./Core/Src/Peripherals/ct_sensor.o \
@@ -31,10 +22,19 @@ OBJS += \
 ./Core/Src/Peripherals/rf_switch.o \
 ./Core/Src/Peripherals/u_ubx_protocol.o 
 
+C_DEPS += \
+./Core/Src/Peripherals/battery.d \
+./Core/Src/Peripherals/ct_sensor.d \
+./Core/Src/Peripherals/gnss.d \
+./Core/Src/Peripherals/imu.d \
+./Core/Src/Peripherals/iridium.d \
+./Core/Src/Peripherals/rf_switch.d \
+./Core/Src/Peripherals/u_ubx_protocol.d 
+
 
 # Each subdirectory must supply rules for building sources it contributes
 Core/Src/Peripherals/%.o Core/Src/Peripherals/%.su Core/Src/Peripherals/%.cyclo: ../Core/Src/Peripherals/%.c Core/Src/Peripherals/subdir.mk
-	arm-none-eabi-gcc "$<" -mcpu=cortex-m33 -std=gnu11 -DDEBUG -DUSE_HAL_DRIVER -DSTM32U575xx -DTX_INCLUDE_USER_DEFINE_FILE -DTX_SINGLE_MODE_NON_SECURE=1 -c -I../Core/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32U5xx/Include -I../Drivers/CMSIS/Include -I../AZURE_RTOS/App -I../Middlewares/ST/threadx/common/inc -I../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -o "$@"
+	arm-none-eabi-gcc "$<" -mcpu=cortex-m33 -std=gnu11 -DUSE_HAL_DRIVER -DSTM32U575xx -DTX_INCLUDE_USER_DEFINE_FILE -DTX_SINGLE_MODE_NON_SECURE=1 -c -I../Core/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32U5xx/Include -I../Drivers/CMSIS/Include -I../AZURE_RTOS/App -I../Middlewares/ST/threadx/common/inc -I../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -o "$@"
 
 clean: clean-Core-2f-Src-2f-Peripherals
 

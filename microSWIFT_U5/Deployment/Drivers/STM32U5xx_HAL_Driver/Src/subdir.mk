@@ -31,33 +31,6 @@ C_SRCS += \
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart.c \
 ../Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart_ex.c 
 
-C_DEPS += \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_adc.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_adc_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_cortex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_dma.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_dma_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_exti.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_flash.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_flash_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_gpio.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_gtzc.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_i2c.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_i2c_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_icache.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_iwdg.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pwr.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pwr_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rcc.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rcc_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rtc.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rtc_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim_ex.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart.d \
-./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart_ex.d 
-
 OBJS += \
 ./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal.o \
 ./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_adc.o \
@@ -85,10 +58,37 @@ OBJS += \
 ./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart.o \
 ./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart_ex.o 
 
+C_DEPS += \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_adc.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_adc_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_cortex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_dma.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_dma_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_exti.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_flash.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_flash_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_gpio.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_gtzc.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_i2c.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_i2c_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_icache.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_iwdg.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pwr.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pwr_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rcc.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rcc_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rtc.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rtc_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim_ex.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart.d \
+./Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart_ex.d 
+
 
 # Each subdirectory must supply rules for building sources it contributes
 Drivers/STM32U5xx_HAL_Driver/Src/%.o Drivers/STM32U5xx_HAL_Driver/Src/%.su Drivers/STM32U5xx_HAL_Driver/Src/%.cyclo: ../Drivers/STM32U5xx_HAL_Driver/Src/%.c Drivers/STM32U5xx_HAL_Driver/Src/subdir.mk
-	arm-none-eabi-gcc "$<" -mcpu=cortex-m33 -std=gnu11 -DDEBUG -DUSE_HAL_DRIVER -DSTM32U575xx -DTX_INCLUDE_USER_DEFINE_FILE -DTX_SINGLE_MODE_NON_SECURE=1 -c -I../Core/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32U5xx/Include -I../Drivers/CMSIS/Include -I../AZURE_RTOS/App -I../Middlewares/ST/threadx/common/inc -I../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -o "$@"
+	arm-none-eabi-gcc "$<" -mcpu=cortex-m33 -std=gnu11 -DUSE_HAL_DRIVER -DSTM32U575xx -DTX_INCLUDE_USER_DEFINE_FILE -DTX_SINGLE_MODE_NON_SECURE=1 -c -I../Core/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32U5xx/Include -I../Drivers/CMSIS/Include -I../AZURE_RTOS/App -I../Middlewares/ST/threadx/common/inc -I../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -o "$@"
 
 clean: clean-Drivers-2f-STM32U5xx_HAL_Driver-2f-Src
 

@@ -28,30 +28,6 @@ C_SRCS += \
 ../Core/Src/NEDWaves/std.c \
 ../Core/Src/NEDWaves/var.c 
 
-C_DEPS += \
-./Core/Src/NEDWaves/FFTImplementationCallback.d \
-./Core/Src/NEDWaves/NEDwaves_memlight.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_data.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_initialize.d \
-./Core/Src/NEDWaves/NEDwaves_memlight_terminate.d \
-./Core/Src/NEDWaves/bsearch.d \
-./Core/Src/NEDWaves/colon.d \
-./Core/Src/NEDWaves/combineVectorElements.d \
-./Core/Src/NEDWaves/div.d \
-./Core/Src/NEDWaves/fft.d \
-./Core/Src/NEDWaves/mean.d \
-./Core/Src/NEDWaves/mem_replacements.d \
-./Core/Src/NEDWaves/minOrMax.d \
-./Core/Src/NEDWaves/nullAssignment.d \
-./Core/Src/NEDWaves/rtGetInf.d \
-./Core/Src/NEDWaves/rtGetNaN.d \
-./Core/Src/NEDWaves/rt_nonfinite.d \
-./Core/Src/NEDWaves/rtwhalf.d \
-./Core/Src/NEDWaves/std.d \
-./Core/Src/NEDWaves/var.d 
-
 OBJS += \
 ./Core/Src/NEDWaves/FFTImplementationCallback.o \
 ./Core/Src/NEDWaves/NEDwaves_memlight.o \
@@ -76,10 +52,34 @@ OBJS += \
 ./Core/Src/NEDWaves/std.o \
 ./Core/Src/NEDWaves/var.o 
 
+C_DEPS += \
+./Core/Src/NEDWaves/FFTImplementationCallback.d \
+./Core/Src/NEDWaves/NEDwaves_memlight.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_data.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_emxAPI.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_emxutil.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_initialize.d \
+./Core/Src/NEDWaves/NEDwaves_memlight_terminate.d \
+./Core/Src/NEDWaves/bsearch.d \
+./Core/Src/NEDWaves/colon.d \
+./Core/Src/NEDWaves/combineVectorElements.d \
+./Core/Src/NEDWaves/div.d \
+./Core/Src/NEDWaves/fft.d \
+./Core/Src/NEDWaves/mean.d \
+./Core/Src/NEDWaves/mem_replacements.d \
+./Core/Src/NEDWaves/minOrMax.d \
+./Core/Src/NEDWaves/nullAssignment.d \
+./Core/Src/NEDWaves/rtGetInf.d \
+./Core/Src/NEDWaves/rtGetNaN.d \
+./Core/Src/NEDWaves/rt_nonfinite.d \
+./Core/Src/NEDWaves/rtwhalf.d \
+./Core/Src/NEDWaves/std.d \
+./Core/Src/NEDWaves/var.d 
+
 
 # Each subdirectory must supply rules for building sources it contributes
 Core/Src/NEDWaves/%.o Core/Src/NEDWaves/%.su Core/Src/NEDWaves/%.cyclo: ../Core/Src/NEDWaves/%.c Core/Src/NEDWaves/subdir.mk
-	arm-none-eabi-gcc "$<" -mcpu=cortex-m33 -std=gnu11 -DDEBUG -DUSE_HAL_DRIVER -DSTM32U575xx -DTX_INCLUDE_USER_DEFINE_FILE -DTX_SINGLE_MODE_NON_SECURE=1 -c -I../Core/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32U5xx/Include -I../Drivers/CMSIS/Include -I../AZURE_RTOS/App -I../Middlewares/ST/threadx/common/inc -I../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -o "$@"
+	arm-none-eabi-gcc "$<" -mcpu=cortex-m33 -std=gnu11 -DUSE_HAL_DRIVER -DSTM32U575xx -DTX_INCLUDE_USER_DEFINE_FILE -DTX_SINGLE_MODE_NON_SECURE=1 -c -I../Core/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc -I../Drivers/STM32U5xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32U5xx/Include -I../Drivers/CMSIS/Include -I../AZURE_RTOS/App -I../Middlewares/ST/threadx/common/inc -I../Middlewares/ST/threadx/ports/cortex_m33/gnu/inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -o "$@"
 
 clean: clean-Core-2f-Src-2f-NEDWaves
 
