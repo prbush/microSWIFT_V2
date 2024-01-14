@@ -124,6 +124,10 @@ Flash_storage* flash_storage;
 
 #endif
 
+#ifdef DEBUGGING_SLEEP_LED
+	bool red_led = true;
+#endif
+
 __ALIGN_BEGIN UCHAR waves_byte_pool_buffer[WAVES_MEM_POOL_SIZE] __ALIGN_END;
 TX_BYTE_POOL waves_byte_pool;
 /* USER CODE END PV */
@@ -1306,19 +1310,6 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	while (rtc_time.Hours != wake_up_hour) {
 
-#ifdef DEBUGGING_SLEEP_LED
-		static bool red_led = true;
-
-		if (red_led) {
-			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
-			red_led = !red_led;
-		} else {
-			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
-			red_led = !red_led;
-		}
-
-#endif
-
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
@@ -1508,16 +1499,25 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 
 
 /**
-  * @brief  Low Power Timer compare match call back.
-  *
-  * @param  hlptim : LPTIM handle
+  * @brief  Autoreload match callback in non-blocking mode.
+  * @param  hlptim LPTIM handle
   * @retval None
   */
-void HAL_LPTIM_CompareMatchCallback(LPTIM_HandleTypeDef *hlptim)
+void HAL_LPTIM_AutoReloadMatchCallback(LPTIM_HandleTypeDef *hlptim)
 {
-	__HAL_LPTIM_RESET_COUNTER(hlptim);
-	__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC1);
-	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
+#ifdef DEBUGGING_SLEEP_LED
+
+		if (red_led) {
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
+			red_led = !red_led;
+		} else {
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+			red_led = !red_led;
+		}
+
+#endif
+		__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC1);
+		__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC2);
 }
 
 
@@ -1532,8 +1532,13 @@ static void end_of_cycle_sleep_prep(void)
 	// See errata regarding ICACHE access on wakeup, section 2.2.11
 	HAL_ICACHE_Disable();
 	HAL_ICACHE_Invalidate();
-
-	HAL_LPTIM_TimeOut_Start_IT(device_handles->wakeup_timer, 7168);
+	HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
+	HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+//	HAL_PWREx_EnableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
+	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
+	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
+	HAL_LPTIM_Counter_Start_IT(device_handles->wakeup_timer);
 }
 
 
@@ -1546,7 +1551,7 @@ static void end_of_cycle_sleep_prep(void)
 static void end_of_cycle_sleep_complete(void)
 {
 	HAL_ICACHE_Enable();
-	HAL_LPTIM_TimeOut_Stop_IT(device_handles->wakeup_timer);
+	HAL_LPTIM_Counter_Stop_IT(device_handles->wakeup_timer);
 }
 
 
@@ -1559,6 +1564,7 @@ static void end_of_cycle_sleep_complete(void)
 static void enter_stop_2_mode(void)
 {
 	register_watchdog_refresh();
+//	tx_thread_sleep(1);
 	HAL_SuspendTick();
 
 	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
@@ -1576,16 +1582,19 @@ static void exit_stop_2_mode(void)
 #ifdef TEST_IWDG_IN_STOP_MODE
 //	tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND * 35);
 #endif
-	register_watchdog_refresh();
 	SystemClock_Config();
 	HAL_ResumeTick();
+	register_watchdog_refresh();
+//	tx_thread_sleep(1);
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+//	HAL_PWREx_EnableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
-	HAL_PWREx_ConfigSupply(PWR_SMPS_SUPPLY);
+//	HAL_PWREx_ConfigSupply(PWR_SMPS_SUPPLY);
+//	__HAL_RCC_LPTIM1_CLKAM_ENABLE();
 }
 
 

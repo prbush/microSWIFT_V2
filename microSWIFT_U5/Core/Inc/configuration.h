@@ -23,7 +23,7 @@
 //#define SHORT_SLEEP
 
 // Flash the red led when in sleep mode
-//#define DEBUGGING_SLEEP_LED
+#define DEBUGGING_SLEEP_LED
 
 // Skip to end of cycle after setting the RTC
 //#define DEBUGGING_FASTTRACK_TO_SLEEP
