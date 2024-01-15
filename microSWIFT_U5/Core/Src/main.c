@@ -710,7 +710,7 @@ static void MX_RTC_Init(void)
 	  Error_Handler();
   }
   HAL_NVIC_SetPriority(RTC_IRQn, 1, 1);
-//  __HAL_RCC_RTCAPB_CLKAM_ENABLE();
+  __HAL_RCC_RTCAPB_CLKAM_ENABLE();
   /* USER CODE END RTC_Init 2 */
 
 }

@@ -1275,6 +1275,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_TimeTypeDef rtc_time = {0};
 	RTC_DateTypeDef rtc_date = {0};
 	int32_t wake_up_hour = 0;
+	bool new_day = false;
 	UINT tx_return;
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
@@ -1297,10 +1298,27 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			(initial_rtc_time.Minutes + 1);
 #else
 
-	wake_up_hour = (initial_rtc_time.Hours < 6)  ? 6  :
-								 (initial_rtc_time.Hours < 12) ? 12 :
-								 (initial_rtc_time.Hours < 18) ? 18 :
-								                                 0;
+	if (initial_rtc_time.Hours < 6) {
+		wake_up_hour = 6;
+	} else if (initial_rtc_time.Hours < 12) {
+		wake_up_hour = 12;
+	} else if (initial_rtc_time.Hours < 18) {
+		wake_up_hour = 18;
+	} else {
+		wake_up_hour = 0;
+	}
+
+//	/*
+//	 * TESTING
+//	 */
+//	if (initial_rtc_time.Hours == 23) {
+//		wake_up_hour = 0;
+//	} else {
+//		wake_up_hour = initial_rtc_time.Hours + 1;
+//	}
+//	/*
+//	 * END TESTING
+//	 */
 
 #endif
 
@@ -1308,13 +1326,14 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	end_of_cycle_sleep_prep();
 
-	while (rtc_time.Hours != wake_up_hour) {
+	while ((rtc_time.Hours != wake_up_hour) && !new_day) {
 
 		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
 		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
 
 		if (initial_rtc_date.Date != rtc_date.Date){
 			exit_stop_2_mode();
+			new_day = true;
 			break;
 		}
 
