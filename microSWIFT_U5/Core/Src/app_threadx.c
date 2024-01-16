@@ -1563,17 +1563,17 @@ static void end_of_cycle_sleep_prep(uint32_t initial_hour)
 		wake_up_hour = 0;
 	}
 
-	/*
-	 * TESTING
-	 */
-	if (initial_hour == 23) {
-		wake_up_hour = 0;
-	} else {
-		wake_up_hour = initial_hour + 1;
-	}
-	/*
-	 * END TESTING
-	 */
+//	/*
+//	 * TESTING
+//	 */
+//	if (initial_hour == 23) {
+//		wake_up_hour = 0;
+//	} else {
+//		wake_up_hour = initial_hour + 1;
+//	}
+//	/*
+//	 * END TESTING
+//	 */
 
 	alarm.Alarm = RTC_ALARM_A;
 	alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
