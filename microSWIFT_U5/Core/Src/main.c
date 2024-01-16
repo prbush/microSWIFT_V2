@@ -82,8 +82,6 @@ static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_IWDG_Init(void);
 static void MX_TIM16_Init(void);
-static void MX_TIM15_Init(void);
-static void MX_LPTIM1_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
 /* USER CODE END PFP */
@@ -153,6 +151,31 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
+
+  // Set the option bytes to turn off IWDG in Low Power modes
+  /* Unlock Flash Control register and Option Bytes */
+//  HAL_FLASH_Unlock();
+//  HAL_FLASH_OB_Unlock();
+//  FLASH_OBProgramInitTypeDef OptionsBytesInit;
+//
+//  /* First step: Choose option byte type. */
+//  OptionsBytesInit.OptionType = OPTIONBYTE_USER;
+//
+//  /* Second step: Configure option byte parameters values.
+//     NOTE: These parameters depend on chosen Option Type */
+//  OptionsBytesInit.USERType   = OB_USER_IWDG_STOP | OB_USER_IWDG_STDBY | OB_USER_IWDG_SW;
+//  OptionsBytesInit.USERConfig = OB_IWDG_STOP_FREEZE | OB_IWDG_STDBY_FREEZE | OB_IWDG_HW;
+//
+//  /* Program Option Bytes */
+//  HAL_FLASHEx_OBProgram(&OptionsBytesInit);
+//
+//  /* Launch Option Bytes Loading */
+//  HAL_FLASH_OB_Launch();
+//
+//  HAL_FLASH_OB_Lock();
+//  HAL_FLASH_Lock();
+
+
   MX_GPIO_Init();
   MX_GPDMA1_Init();
   MX_RTC_Init();
@@ -164,8 +187,6 @@ int main(void)
   MX_LPUART1_UART_Init();
   MX_IWDG_Init();
   MX_TIM16_Init();
-  MX_TIM15_Init();
-  MX_LPTIM1_Init();
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -183,9 +204,9 @@ int main(void)
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
   handles.gnss_timer = &htim16;
-  handles.wakeup_timer = &hlptim1;
+//  handles.wakeup_timer = &hlptim1;
   handles.watchdog_handle = &hiwdg;
-  handles.watchdog_hour_timer = &htim15;
+//  handles.watchdog_hour_timer = &htim15;
   handles.battery_adc = &hadc4;
   handles.reset_reason = reset_reason;
 
@@ -224,7 +245,7 @@ void SystemClock_Config(void)
 
   /** Configure LSE Drive Capability
   */
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_MEDIUMHIGH);
 
 
   /** Initializes the CPU, AHB and APB buses clocks
@@ -457,40 +478,6 @@ static void MX_IWDG_Init(void)
 }
 
 /**
-  * @brief LPTIM1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_LPTIM1_Init(void)
-{
-
-  /* USER CODE BEGIN LPTIM1_Init 0 */
-  /* USER CODE END LPTIM1_Init 0 */
-
-  /* USER CODE BEGIN LPTIM1_Init 1 */
-	// Settings for 28 second interval
-  /* USER CODE END LPTIM1_Init 1 */
-  hlptim1.Instance = LPTIM1;
-  hlptim1.Init.Clock.Source = LPTIM_CLOCKSOURCE_APBCLOCK_LPOSC;
-  hlptim1.Init.Clock.Prescaler = LPTIM_PRESCALER_DIV128;
-  hlptim1.Init.Trigger.Source = LPTIM_TRIGSOURCE_SOFTWARE;
-  hlptim1.Init.Period = 7168;
-  hlptim1.Init.UpdateMode = LPTIM_UPDATE_IMMEDIATE;
-  hlptim1.Init.CounterSource = LPTIM_COUNTERSOURCE_INTERNAL;
-  hlptim1.Init.Input1Source = LPTIM_INPUT1SOURCE_GPIO;
-  hlptim1.Init.Input2Source = LPTIM_INPUT2SOURCE_GPIO;
-  hlptim1.Init.RepetitionCounter = 0;
-  if (HAL_LPTIM_Init(&hlptim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN LPTIM1_Init 2 */
-  __HAL_RCC_LPTIM1_CLKAM_ENABLE();
-  /* USER CODE END LPTIM1_Init 2 */
-
-}
-
-/**
   * @brief LPUART1 Initialization Function
   * @param None
   * @retval None
@@ -710,54 +697,9 @@ static void MX_RTC_Init(void)
 	  Error_Handler();
   }
   HAL_NVIC_SetPriority(RTC_IRQn, 1, 1);
+
   __HAL_RCC_RTCAPB_CLKAM_ENABLE();
   /* USER CODE END RTC_Init 2 */
-
-}
-
-/**
-  * @brief TIM15 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM15_Init(void)
-{
-
-  /* USER CODE BEGIN TIM15_Init 0 */
-
-  /* USER CODE END TIM15_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM15_Init 1 */
-
-  /* USER CODE END TIM15_Init 1 */
-  htim15.Instance = TIM15;
-  htim15.Init.Prescaler = 12000;
-  htim15.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim15.Init.Period = 59999;
-  htim15.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim15.Init.RepetitionCounter = 60;
-  htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim15) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim15, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim15, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM15_Init 2 */
-  HAL_TIM_Base_Start_IT(&htim15);
-  /* USER CODE END TIM15_Init 2 */
 
 }
 

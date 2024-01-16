@@ -173,6 +173,7 @@
 									<listOptionValue builtIn="false" value="STM32U575xx"/>
 									<listOptionValue builtIn="false" value="TX_INCLUDE_USER_DEFINE_FILE"/>
 									<listOptionValue builtIn="false" value="TX_SINGLE_MODE_NON_SECURE=1"/>
+									<listOptionValue builtIn="false" value="NOT_DEBUG"/>
 								</option>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths.755108214" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="../Core/Inc"/>

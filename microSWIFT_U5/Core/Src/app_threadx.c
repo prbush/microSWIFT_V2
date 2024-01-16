@@ -141,9 +141,9 @@ static void led_sequence(uint8_t sequence);
 static void jump_to_end_of_window(ULONG error_bits_to_set);
 static void send_error_message(ULONG error_flags);
 static void restart_watchdog_refresh_timer(TIM_HandleTypeDef* timer_handle, uint32_t num_hours);
-static void end_of_cycle_sleep_prep(void);
+static void end_of_cycle_sleep_prep(uint32_t initial_hour);
 static void end_of_cycle_sleep_complete(void);
-static void enter_stop_2_mode(void);
+static void enter_stop_2_mode(uint8_t STOPEntry);
 static void exit_stop_2_mode(void);
 #if CT_ENABLED
 static void jump_to_waves(void);
@@ -476,7 +476,7 @@ void startup_thread_entry(ULONG thread_input){
 		HAL_NVIC_ClearPendingIRQ(UART4_IRQn);
 	}
 
-	restart_watchdog_refresh_timer(device_handles->watchdog_hour_timer, 6);
+//	restart_watchdog_refresh_timer(device_handles->watchdog_hour_timer, 6);
 
 	register_watchdog_refresh();
 
@@ -766,10 +766,10 @@ void gnss_thread_entry(ULONG thread_input){
 
 #ifdef DEBUGGING_FASTTRACK_TO_SLEEP
 
-		if (gnss->is_clock_set) {
+//		if (gnss->is_clock_set) {
 			register_watchdog_refresh();
 		  jump_to_end_of_window(GNSS_RESOLUTION_ERROR);
-		}
+//		}
 
 #endif
 
@@ -1274,8 +1274,8 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 	RTC_DateTypeDef initial_rtc_date = {0};
 	RTC_TimeTypeDef rtc_time = {0};
 	RTC_DateTypeDef rtc_date = {0};
-	int32_t wake_up_hour = 0;
-	bool new_day = false;
+//	int32_t wake_up_hour = 0;
+//	bool new_day = false;
 	UINT tx_return;
 
 	// Must put this thread to sleep for a short while to allow other threads to terminate
@@ -1298,58 +1298,51 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 			(initial_rtc_time.Minutes + 1);
 #else
 
-	if (initial_rtc_time.Hours < 6) {
-		wake_up_hour = 6;
-	} else if (initial_rtc_time.Hours < 12) {
-		wake_up_hour = 12;
-	} else if (initial_rtc_time.Hours < 18) {
-		wake_up_hour = 18;
-	} else {
-		wake_up_hour = 0;
-	}
-
-//	/*
-//	 * TESTING
-//	 */
-//	if (initial_rtc_time.Hours == 23) {
-//		wake_up_hour = 0;
-//	} else {
-//		wake_up_hour = initial_rtc_time.Hours + 1;
-//	}
-//	/*
-//	 * END TESTING
-//	 */
-
 #endif
 
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
-	end_of_cycle_sleep_prep();
+	end_of_cycle_sleep_prep(initial_rtc_time.Hours);
 
-	while ((rtc_time.Hours != wake_up_hour) && !new_day) {
+//	while ((rtc_time.Hours != wake_up_hour) && !new_day) {
+//#ifdef DEBUGGING_SLEEP_LED
+//
+//		if (red_led) {
+//			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
+//			red_led = !red_led;
+//		} else {
+//			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+//			red_led = !red_led;
+//		}
+//
+//#endif
+//
+//		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
+//		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+//
+//		if (initial_rtc_date.Date != rtc_date.Date){
+//			exit_stop_2_mode();
+//			new_day = true;
+//			break;
+//		}
+//
+//		enter_stop_2_mode();
+//
+//		exit_stop_2_mode();
+//
+//	}
 
-		HAL_RTC_GetTime(device_handles->hrtc, &rtc_time, RTC_FORMAT_BIN);
-		HAL_RTC_GetDate(device_handles->hrtc, &rtc_date, RTC_FORMAT_BIN);
+	enter_stop_2_mode(PWR_STOPENTRY_WFI);
 
-		if (initial_rtc_date.Date != rtc_date.Date){
-			exit_stop_2_mode();
-			new_day = true;
-			break;
-		}
-
-		enter_stop_2_mode();
-
-		exit_stop_2_mode();
-
-	}
+	exit_stop_2_mode();
 
 	register_watchdog_refresh();
 
-#ifdef DEBUGGING_SLEEP_LED
-
-	HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
-
-#endif
+//#ifdef DEBUGGING_SLEEP_LED
+//
+//	HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+//
+//#endif
 
 	end_of_cycle_sleep_complete();
 
@@ -1524,19 +1517,20 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
   */
 void HAL_LPTIM_AutoReloadMatchCallback(LPTIM_HandleTypeDef *hlptim)
 {
-#ifdef DEBUGGING_SLEEP_LED
-
-		if (red_led) {
-			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
-			red_led = !red_led;
-		} else {
-			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
-			red_led = !red_led;
-		}
-
-#endif
 		__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC1);
 		__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC2);
+}
+
+/**
+  * @brief  Alarm A secure secure callback.
+  * @param  hrtc RTC handle
+  * @retval None
+  */
+void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
+{
+	HAL_PWR_EnableBkUpAccess();
+	__HAL_RTC_CLEAR_FLAG(hrtc, RTC_CLEAR_ALRAF);
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
 }
 
 
@@ -1546,18 +1540,68 @@ void HAL_LPTIM_AutoReloadMatchCallback(LPTIM_HandleTypeDef *hlptim)
   * @param  None
   * @retval None
   */
-static void end_of_cycle_sleep_prep(void)
+static void end_of_cycle_sleep_prep(uint32_t initial_hour)
 {
+	RTC_AlarmTypeDef alarm = {0};
+	uint32_t wake_up_hour;
 	// See errata regarding ICACHE access on wakeup, section 2.2.11
-	HAL_ICACHE_Disable();
-	HAL_ICACHE_Invalidate();
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
 //	HAL_PWREx_EnableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
-	HAL_LPTIM_Counter_Start_IT(device_handles->wakeup_timer);
+//	HAL_LPTIM_Counter_Start_IT(device_handles->wakeup_timer);
+
+	if (initial_hour < 6) {
+		wake_up_hour = 6;
+	} else if (initial_hour < 12) {
+		wake_up_hour = 12;
+	} else if (initial_hour < 18) {
+		wake_up_hour = 18;
+	} else {
+		wake_up_hour = 0;
+	}
+
+	/*
+	 * TESTING
+	 */
+	if (initial_hour == 23) {
+		wake_up_hour = 0;
+	} else {
+		wake_up_hour = initial_hour + 1;
+	}
+	/*
+	 * END TESTING
+	 */
+
+	alarm.Alarm = RTC_ALARM_A;
+	alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
+	alarm.AlarmTime.Hours = wake_up_hour;
+	alarm.AlarmTime.Seconds = 0;
+	alarm.AlarmTime.SubSeconds = 0;
+	alarm.AlarmTime.SecondFraction = 0;
+	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_MINUTES;
+	/*
+	 * TESTING
+	 */
+	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS;
+	/*
+	 * END TESTING
+	 */
+	alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+
+	HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN);
+
+	for (int i = 0; i < 126; i++) {
+		HAL_NVIC_DisableIRQ(i);
+		HAL_NVIC_ClearPendingIRQ(i);
+	}
+
+	HAL_NVIC_EnableIRQ(RTC_IRQn);
+
+	HAL_ICACHE_Disable();
+	HAL_ICACHE_Invalidate();
 }
 
 
@@ -1570,7 +1614,23 @@ static void end_of_cycle_sleep_prep(void)
 static void end_of_cycle_sleep_complete(void)
 {
 	HAL_ICACHE_Enable();
-	HAL_LPTIM_Counter_Stop_IT(device_handles->wakeup_timer);
+//	HAL_LPTIM_Counter_Stop_IT(device_handles->wakeup_timer);
+	// Disable the RTC Alarm and clear flags
+	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_A);
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+	(SET_BIT(RTC->SCR, RTC_SCR_CALRAF));
+	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
+
+#if CT_ENABLED
+	HAL_NVIC_EnableIRQ(UART4_IRQn);
+#endif
+	HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+	HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
+	HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
+	HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
+	HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
+	HAL_NVIC_EnableIRQ(UART5_IRQn);
+	HAL_NVIC_EnableIRQ(LPUART1_IRQn);
 }
 
 
@@ -1580,13 +1640,44 @@ static void end_of_cycle_sleep_complete(void)
   * @param  None
   * @retval None
   */
-static void enter_stop_2_mode(void)
+static void enter_stop_2_mode(uint8_t STOPEntry)
 {
 	register_watchdog_refresh();
-//	tx_thread_sleep(1);
 	HAL_SuspendTick();
 
-	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
+//	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
+
+  /* Stop 2 mode */
+  MODIFY_REG(PWR->CR1, PWR_CR1_LPMS, PWR_CR1_LPMS_1);
+  (void)PWR->CR1; // Ensure that the previous PWR register operations have been completed
+
+  PWR->WUSCR = 255;  // Clear wakeup flags
+  (void)PWR->WUSCR;
+
+  /* Set SLEEPDEEP bit of Cortex System Control Register */
+  SET_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
+
+#ifdef NBOT_DEBUG
+  DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
+#endif
+
+  /* Select Stop mode entry */
+  if (STOPEntry == PWR_STOPENTRY_WFI)
+  {
+    /* Request Wait For Interrupt */
+  	__DSB();
+    __WFI();
+  }
+  else
+  {
+    /* Request Wait For Event */
+    __SEV();
+    __WFE();
+    __WFE();
+  }
+
+  /* Reset SLEEPDEEP bit of Cortex System Control Register */
+  CLEAR_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
 }
 
 
@@ -1603,17 +1694,18 @@ static void exit_stop_2_mode(void)
 #endif
 	SystemClock_Config();
 	HAL_ResumeTick();
+	HAL_NVIC_ClearPendingIRQ(IWDG_IRQn);
+	tx_thread_sleep(1);
 	register_watchdog_refresh();
-//	tx_thread_sleep(1);
+
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
-//	HAL_PWREx_EnableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
+
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
 //	HAL_PWREx_ConfigSupply(PWR_SMPS_SUPPLY);
-//	__HAL_RCC_LPTIM1_CLKAM_ENABLE();
 }
 
 
@@ -1780,12 +1872,14 @@ void register_watchdog_refresh(void)
 		HAL_NVIC_SystemReset();
 	}
 
-	if (!watchdog_refresh_timer_elapsed) {
-		tx_semaphore_put(&watchdog_semaphore);
-	} else {
-		// Drain the watchdog refresh semaphore
-		while (tx_semaphore_get(&watchdog_semaphore, TX_NO_WAIT) == TX_SUCCESS);
-	}
+	tx_semaphore_put(&watchdog_semaphore);
+
+//	if (!watchdog_refresh_timer_elapsed) {
+//
+//	} else {
+//		// Drain the watchdog refresh semaphore
+//		while (tx_semaphore_get(&watchdog_semaphore, TX_NO_WAIT) == TX_SUCCESS);
+//	}
 #endif
 }
 

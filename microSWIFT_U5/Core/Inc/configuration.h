@@ -17,16 +17,16 @@
  *********************/
 
 // For testing and debugging with a very short sample window
-//#define DEBUGGING_FAST_CYCLE
+#define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
 
 // Flash the red led when in sleep mode
-#define DEBUGGING_SLEEP_LED
+//#define DEBUGGING_SLEEP_LED
 
 // Skip to end of cycle after setting the RTC
-//#define DEBUGGING_FASTTRACK_TO_SLEEP
+#define DEBUGGING_FASTTRACK_TO_SLEEP
 
 // Test that IWDG restarts device if not refreshed during Stop2 mode
 //#define TEST_IWDG_IN_STOP_MODE
