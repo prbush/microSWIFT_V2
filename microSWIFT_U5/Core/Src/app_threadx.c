@@ -483,14 +483,14 @@ void startup_thread_entry(ULONG thread_input){
 	// Zero out the sbd message struct
 	memset(&sbd_message, 0, sizeof(sbd_message));
 
-	// Set the watchdog reset or software reset flags
-	if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG){
-		tx_event_flags_set(&error_flags, WATCHDOG_RESET, TX_OR);
-	}
-
-	if (device_handles->reset_reason & RCC_RESET_FLAG_SW){
-		tx_event_flags_set(&error_flags, SOFTWARE_RESET, TX_OR);
-	}
+//	// Set the watchdog reset or software reset flags
+//	if (device_handles->reset_reason & RCC_RESET_FLAG_IWDG){
+//		tx_event_flags_set(&error_flags, WATCHDOG_RESET, TX_OR);
+//	}
+//
+//	if (device_handles->reset_reason & RCC_RESET_FLAG_SW){
+//		tx_event_flags_set(&error_flags, SOFTWARE_RESET, TX_OR);
+//	}
 
 	waves_memory_pool_init(&waves_byte_pool);
 
@@ -1578,17 +1578,18 @@ static void end_of_cycle_sleep_prep(uint32_t initial_hour)
 	alarm.Alarm = RTC_ALARM_A;
 	alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
 	alarm.AlarmTime.Hours = wake_up_hour;
+	alarm.AlarmTime.Minutes = 0;
 	alarm.AlarmTime.Seconds = 0;
 	alarm.AlarmTime.SubSeconds = 0;
 	alarm.AlarmTime.SecondFraction = 0;
-	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_MINUTES;
-	/*
-	 * TESTING
-	 */
-	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS;
-	/*
-	 * END TESTING
-	 */
+	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_MINUTES | RTC_ALARMMASK_SECONDS;
+//	/*
+//	 * TESTING
+//	 */
+//	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
+//	/*
+//	 * END TESTING
+//	 */
 	alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
 
 	HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN);
@@ -1657,7 +1658,7 @@ static void enter_stop_2_mode(uint8_t STOPEntry)
   /* Set SLEEPDEEP bit of Cortex System Control Register */
   SET_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
 
-#ifdef NBOT_DEBUG
+#ifdef NOT_DEBUG
   DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
 #endif
 
@@ -1865,12 +1866,12 @@ void register_watchdog_refresh(void)
 {
 #if WATCHDOG_ENABLED
 	// In case somehow an interrupt was set but did not result in a reset
-	uint32_t iwdg_active_interrupt = HAL_NVIC_GetActive(IWDG_IRQn);
-	uint32_t iwdg_pending_interrupt = HAL_NVIC_GetPendingIRQ(IWDG_IRQn);
-	if (iwdg_active_interrupt | iwdg_pending_interrupt) {
-		shut_it_all_down();
-		HAL_NVIC_SystemReset();
-	}
+//	uint32_t iwdg_active_interrupt = HAL_NVIC_GetActive(IWDG_IRQn);
+//	uint32_t iwdg_pending_interrupt = HAL_NVIC_GetPendingIRQ(IWDG_IRQn);
+//	if (iwdg_active_interrupt | iwdg_pending_interrupt) {
+//		shut_it_all_down();
+//		HAL_NVIC_SystemReset();
+//	}
 
 	tx_semaphore_put(&watchdog_semaphore);
 
