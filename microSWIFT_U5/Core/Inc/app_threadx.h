@@ -133,6 +133,7 @@ typedef enum self_test_status{
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 #define WAVES_MEM_POOL_SIZE 650000
+#define DUMMY_VALUE (0xFFFFFFFFU)
 /* USER CODE END EC */
 
 /* Private defines -----------------------------------------------------------*/

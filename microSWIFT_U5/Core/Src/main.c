@@ -107,11 +107,14 @@ int main(void)
 
   /* USER CODE BEGIN Init */
   // Force the reset of the RTC and clear anything in the backup domain
+  __HAL_RCC_PWR_CLK_ENABLE();
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_BACKUPRESET_FORCE();
   HAL_Delay(100);
   __HAL_RCC_BACKUPRESET_RELEASE();
   HAL_Delay(100);
+  __HAL_RCC_RTC_CONFIG(RCC_RTCCLKSOURCE_LSE);
+  __HAL_RCC_RTC_ENABLE();
   /* USER CODE END Init */
 
   /* Configure the system clock */
