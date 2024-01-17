@@ -496,7 +496,7 @@ static void MX_LPTIM1_Init(void)
   hlptim1.Init.CounterSource = LPTIM_COUNTERSOURCE_INTERNAL;
   hlptim1.Init.Input1Source = LPTIM_INPUT1SOURCE_GPIO;
   hlptim1.Init.Input2Source = LPTIM_INPUT2SOURCE_GPIO;
-  hlptim1.Init.RepetitionCounter = 1;
+  hlptim1.Init.RepetitionCounter = 180;
   if (HAL_LPTIM_Init(&hlptim1) != HAL_OK)
   {
     Error_Handler();

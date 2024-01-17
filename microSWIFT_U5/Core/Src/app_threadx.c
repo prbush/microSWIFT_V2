@@ -1583,6 +1583,12 @@ static void end_of_cycle_sleep_prep(RTC_TimeTypeDef initial_time)
 		repetition_counter_val = (30 * (wake_up_hour - initial_time.Hours - 1)) + ((60 - initial_time.Minutes) / 2);
 	}
 
+	if (repetition_counter_val> 255) {
+		repetition_counter_val = 180;
+	}
+
+	repetition_counter_val -= 1;
+
 	__HAL_LPTIM_REPETITIONCOUNTER_SET(device_handles->wakeup_timer, repetition_counter_val);
 
 
@@ -1612,11 +1618,14 @@ static void end_of_cycle_sleep_prep(RTC_TimeTypeDef initial_time)
 	HAL_NVIC_ClearPendingIRQ(LPUART1_IRQn);
 	HAL_NVIC_ClearPendingIRQ(LPTIM1_IRQn);
 
-	__HAL_LPTIM_CLEAR_FLAG(device_handles->wakeup_timer, LPTIM_FLAG_CC1);
-	__HAL_LPTIM_CLEAR_FLAG(device_handles->wakeup_timer, LPTIM_FLAG_CC2);
-
 	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
 	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+
+	__HAL_LPTIM_CLEAR_FLAG(device_handles->wakeup_timer, LPTIM_FLAG_CC1);
+	__HAL_LPTIM_CLEAR_FLAG(device_handles->wakeup_timer, LPTIM_FLAG_CC2);
+	__HAL_LPTIM_CLEAR_FLAG(device_handles->wakeup_timer, LPTIM_FLAG_REPOK);
+
+	__HAL_LPTIM_DISABLE_IT(device_handles->wakeup_timer, LPTIM_IT_REPOK);
 
 	HAL_LPTIM_Counter_Start_IT(device_handles->wakeup_timer);
 
@@ -1679,9 +1688,9 @@ static void enter_stop_2_mode(uint8_t STOPEntry)
   /* Set SLEEPDEEP bit of Cortex System Control Register */
   SET_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
 
-#ifdef NOT_DEBUG
+//#ifdef NOT_DEBUG
   DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
-#endif
+//#endif
 
   /* Select Stop mode entry */
   if (STOPEntry == PWR_STOPENTRY_WFI)
