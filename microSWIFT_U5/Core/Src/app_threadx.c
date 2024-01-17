@@ -634,7 +634,7 @@ void startup_thread_entry(ULONG thread_input){
 			case SELF_TEST_CRITICAL_FAULT:
 				shut_it_all_down();
 				// Stay stuck here
-				for (int i = 0; i < 25; i++) {
+				for (int i = 0; i < 5; i++) {
 					register_watchdog_refresh();
 					led_sequence(SELF_TEST_CRITICAL_FAULT);
 				}
@@ -1574,7 +1574,7 @@ static void end_of_cycle_sleep_prep(RTC_TimeTypeDef initial_time)
 	} else if (initial_time.Hours < 18) {
 		wake_up_hour = 18;
 	} else {
-		wake_up_hour = 0;
+		wake_up_hour = 24;
 	}
 
 	if (initial_time.Minutes == 0) {
@@ -1598,8 +1598,11 @@ static void end_of_cycle_sleep_prep(RTC_TimeTypeDef initial_time)
 	HAL_NVIC_DisableIRQ(GPDMA1_Channel4_IRQn);
 	HAL_NVIC_DisableIRQ(UART5_IRQn);
 	HAL_NVIC_DisableIRQ(LPUART1_IRQn);
+	HAL_NVIC_DisableIRQ(RTC_IRQn);
+	HAL_NVIC_DisableIRQ(RTC_S_IRQn);
 
 	HAL_NVIC_ClearPendingIRQ(RTC_S_IRQn);
+	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel0_IRQn);
 	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel1_IRQn);
 	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel2_IRQn);
@@ -1607,10 +1610,13 @@ static void end_of_cycle_sleep_prep(RTC_TimeTypeDef initial_time)
 	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel4_IRQn);
 	HAL_NVIC_ClearPendingIRQ(UART5_IRQn);
 	HAL_NVIC_ClearPendingIRQ(LPUART1_IRQn);
+	HAL_NVIC_ClearPendingIRQ(LPTIM1_IRQn);
+
+	__HAL_LPTIM_CLEAR_FLAG(device_handles->wakeup_timer, LPTIM_FLAG_CC1);
+	__HAL_LPTIM_CLEAR_FLAG(device_handles->wakeup_timer, LPTIM_FLAG_CC2);
 
 	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
 	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
-	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 
 	HAL_LPTIM_Counter_Start_IT(device_handles->wakeup_timer);
 
