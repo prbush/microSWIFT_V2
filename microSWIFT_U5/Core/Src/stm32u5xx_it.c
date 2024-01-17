@@ -67,7 +67,6 @@ extern DMA_HandleTypeDef handle_GPDMA1_Channel2;
 extern UART_HandleTypeDef hlpuart1;
 extern UART_HandleTypeDef huart4;
 extern UART_HandleTypeDef huart5;
-extern TIM_HandleTypeDef htim15;
 extern TIM_HandleTypeDef htim16;
 extern TIM_HandleTypeDef htim17;
 extern TIM_HandleTypeDef htim4;
@@ -336,20 +335,6 @@ void LPTIM1_IRQHandler(void)
   /* USER CODE BEGIN LPTIM1_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END LPTIM1_IRQn 1 */
-}
-
-/**
-  * @brief This function handles TIM15 global interrupt.
-  */
-void TIM15_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM15_IRQn 0 */
-
-  /* USER CODE END TIM15_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim15);
-  /* USER CODE BEGIN TIM15_IRQn 1 */
-
-  /* USER CODE END TIM15_IRQn 1 */
 }
 
 /**

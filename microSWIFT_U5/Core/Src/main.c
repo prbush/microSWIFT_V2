@@ -58,7 +58,6 @@ DMA_HandleTypeDef handle_GPDMA1_Channel2;
 
 RTC_HandleTypeDef hrtc;
 
-TIM_HandleTypeDef htim15;
 TIM_HandleTypeDef htim16;
 TIM_HandleTypeDef htim17;
 
@@ -82,6 +81,7 @@ static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_IWDG_Init(void);
 static void MX_TIM16_Init(void);
+static void MX_LPTIM1_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
 /* USER CODE END PFP */
@@ -154,31 +154,6 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-
-  // Set the option bytes to turn off IWDG in Low Power modes
-  /* Unlock Flash Control register and Option Bytes */
-//  HAL_FLASH_Unlock();
-//  HAL_FLASH_OB_Unlock();
-//  FLASH_OBProgramInitTypeDef OptionsBytesInit;
-//
-//  /* First step: Choose option byte type. */
-//  OptionsBytesInit.OptionType = OPTIONBYTE_USER;
-//
-//  /* Second step: Configure option byte parameters values.
-//     NOTE: These parameters depend on chosen Option Type */
-//  OptionsBytesInit.USERType   = OB_USER_IWDG_STOP | OB_USER_IWDG_STDBY | OB_USER_IWDG_SW;
-//  OptionsBytesInit.USERConfig = OB_IWDG_STOP_FREEZE | OB_IWDG_STDBY_FREEZE | OB_IWDG_HW;
-//
-//  /* Program Option Bytes */
-//  HAL_FLASHEx_OBProgram(&OptionsBytesInit);
-//
-//  /* Launch Option Bytes Loading */
-//  HAL_FLASH_OB_Launch();
-//
-//  HAL_FLASH_OB_Lock();
-//  HAL_FLASH_Lock();
-
-
   MX_GPIO_Init();
   MX_GPDMA1_Init();
   MX_RTC_Init();
@@ -190,6 +165,7 @@ int main(void)
   MX_LPUART1_UART_Init();
   MX_IWDG_Init();
   MX_TIM16_Init();
+  MX_LPTIM1_Init();
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -207,9 +183,8 @@ int main(void)
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
   handles.gnss_timer = &htim16;
-//  handles.wakeup_timer = &hlptim1;
+  handles.wakeup_timer = &hlptim1;
   handles.watchdog_handle = &hiwdg;
-//  handles.watchdog_hour_timer = &htim15;
   handles.battery_adc = &hadc4;
   handles.reset_reason = reset_reason;
 
@@ -238,24 +213,26 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
   */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE4) != HAL_OK)
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE3) != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Configure LSE Drive Capability
   */
+  HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_MEDIUMHIGH);
-
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
-                              |RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI
+                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
@@ -287,6 +264,21 @@ void SystemClock_Config(void)
   */
   HAL_RCCEx_EnableMSIPLLModeSelection(RCC_MSISPLL_MODE_SEL);
   HAL_RCCEx_EnableMSIPLLMode();
+
+  /** Enable the SYSCFG APB clock
+  */
+  __HAL_RCC_CRS_CLK_ENABLE();
+
+  /** Configures CRS
+  */
+  RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
+  RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_LSE;
+  RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
+  RCC_CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,32768);
+  RCC_CRSInitStruct.ErrorLimitValue = 34;
+  RCC_CRSInitStruct.HSI48CalibrationValue = 32;
+
+  HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
 }
 
 /**
@@ -477,6 +469,41 @@ static void MX_IWDG_Init(void)
   /* USER CODE BEGIN IWDG_Init 2 */
 
   /* USER CODE END IWDG_Init 2 */
+
+}
+
+/**
+  * @brief LPTIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_LPTIM1_Init(void)
+{
+
+  /* USER CODE BEGIN LPTIM1_Init 0 */
+
+  /* USER CODE END LPTIM1_Init 0 */
+
+  /* USER CODE BEGIN LPTIM1_Init 1 */
+
+  /* USER CODE END LPTIM1_Init 1 */
+  hlptim1.Instance = LPTIM1;
+  hlptim1.Init.Clock.Source = LPTIM_CLOCKSOURCE_APBCLOCK_LPOSC;
+  hlptim1.Init.Clock.Prescaler = LPTIM_PRESCALER_DIV128;
+  hlptim1.Init.Trigger.Source = LPTIM_TRIGSOURCE_SOFTWARE;
+  hlptim1.Init.Period = 30720;
+  hlptim1.Init.UpdateMode = LPTIM_UPDATE_IMMEDIATE;
+  hlptim1.Init.CounterSource = LPTIM_COUNTERSOURCE_INTERNAL;
+  hlptim1.Init.Input1Source = LPTIM_INPUT1SOURCE_GPIO;
+  hlptim1.Init.Input2Source = LPTIM_INPUT2SOURCE_GPIO;
+  hlptim1.Init.RepetitionCounter = 1;
+  if (HAL_LPTIM_Init(&hlptim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN LPTIM1_Init 2 */
+  __HAL_RCC_LPTIM1_CLKAM_ENABLE();
+  /* USER CODE END LPTIM1_Init 2 */
 
 }
 

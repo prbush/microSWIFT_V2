@@ -141,7 +141,7 @@ static void led_sequence(uint8_t sequence);
 static void jump_to_end_of_window(ULONG error_bits_to_set);
 static void send_error_message(ULONG error_flags);
 static void restart_watchdog_refresh_timer(TIM_HandleTypeDef* timer_handle, uint32_t num_hours);
-static void end_of_cycle_sleep_prep(uint32_t initial_hour);
+static void end_of_cycle_sleep_prep(RTC_TimeTypeDef initial_time);
 static void end_of_cycle_sleep_complete(void);
 static void enter_stop_2_mode(uint8_t STOPEntry);
 static void exit_stop_2_mode(void);
@@ -165,7 +165,6 @@ void imu_thread_entry(ULONG thread_input);
 void ct_thread_entry(ULONG thread_input);
 #endif
 /* USER CODE END PFP */
-
 
 /**
   * @brief  Application ThreadX Initialization.
@@ -410,8 +409,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   return ret;
 }
 
-
-/**
+  /**
   * @brief  MX_ThreadX_Init
   * @param  None
   * @retval None
@@ -1302,7 +1300,7 @@ void end_of_cycle_thread_entry(ULONG thread_input){
 
 	HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_RESET);
 
-	end_of_cycle_sleep_prep(initial_rtc_time.Hours);
+	end_of_cycle_sleep_prep(rtc_time);
 
 //	while ((rtc_time.Hours != wake_up_hour) && !new_day) {
 //#ifdef DEBUGGING_SLEEP_LED
@@ -1515,8 +1513,24 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
   * @param  hlptim LPTIM handle
   * @retval None
   */
+/**
+  * @brief  Autoreload match callback in non-blocking mode.
+  * @param  hlptim LPTIM handle
+  * @retval None
+  */
 void HAL_LPTIM_AutoReloadMatchCallback(LPTIM_HandleTypeDef *hlptim)
 {
+#ifdef DEBUGGING_SLEEP_LED
+
+		if (red_led) {
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_SET);
+			red_led = !red_led;
+		} else {
+			HAL_GPIO_WritePin(GPIOF, EXT_LED_RED_Pin, GPIO_PIN_RESET);
+			red_led = !red_led;
+		}
+
+#endif
 		__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC1);
 		__HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CC2);
 }
@@ -1540,10 +1554,10 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
   * @param  None
   * @retval None
   */
-static void end_of_cycle_sleep_prep(uint32_t initial_hour)
+static void end_of_cycle_sleep_prep(RTC_TimeTypeDef initial_time)
 {
-	RTC_AlarmTypeDef alarm = {0};
-	uint32_t wake_up_hour;
+	uint32_t wake_up_hour = 0;
+	uint32_t repetition_counter_val = 0;
 	// See errata regarding ICACHE access on wakeup, section 2.2.11
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
 	HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
@@ -1553,53 +1567,52 @@ static void end_of_cycle_sleep_prep(uint32_t initial_hour)
 	HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 //	HAL_LPTIM_Counter_Start_IT(device_handles->wakeup_timer);
 
-	if (initial_hour < 6) {
+	if (initial_time.Hours < 6) {
 		wake_up_hour = 6;
-	} else if (initial_hour < 12) {
+	} else if (initial_time.Hours < 12) {
 		wake_up_hour = 12;
-	} else if (initial_hour < 18) {
+	} else if (initial_time.Hours < 18) {
 		wake_up_hour = 18;
 	} else {
 		wake_up_hour = 0;
 	}
 
-//	/*
-//	 * TESTING
-//	 */
-//	if (initial_hour == 23) {
-//		wake_up_hour = 0;
-//	} else {
-//		wake_up_hour = initial_hour + 1;
-//	}
-//	/*
-//	 * END TESTING
-//	 */
-
-	alarm.Alarm = RTC_ALARM_A;
-	alarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;
-	alarm.AlarmTime.Hours = wake_up_hour;
-	alarm.AlarmTime.Minutes = 0;
-	alarm.AlarmTime.Seconds = 0;
-	alarm.AlarmTime.SubSeconds = 0;
-	alarm.AlarmTime.SecondFraction = 0;
-	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_MINUTES | RTC_ALARMMASK_SECONDS;
-//	/*
-//	 * TESTING
-//	 */
-//	alarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY | RTC_ALARMMASK_HOURS | RTC_ALARMMASK_MINUTES;
-//	/*
-//	 * END TESTING
-//	 */
-	alarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
-
-	HAL_RTC_SetAlarm_IT(device_handles->hrtc, &alarm, RTC_FORMAT_BIN);
-
-	for (int i = 0; i < 126; i++) {
-		HAL_NVIC_DisableIRQ(i);
-		HAL_NVIC_ClearPendingIRQ(i);
+	if (initial_time.Minutes == 0) {
+		repetition_counter_val = (30 * (wake_up_hour - initial_time.Hours));
+	} else {
+		repetition_counter_val = (30 * (wake_up_hour - initial_time.Hours - 1)) + ((60 - initial_time.Minutes) / 2);
 	}
 
-	HAL_NVIC_EnableIRQ(RTC_IRQn);
+	__HAL_LPTIM_REPETITIONCOUNTER_SET(device_handles->wakeup_timer, repetition_counter_val);
+
+
+#if CT_ENABLED
+	HAL_NVIC_DisableIRQ(UART4_IRQn);
+	HAL_NVIC_ClearPendingIRQ(UART4_IRQn);
+#endif
+
+	HAL_NVIC_DisableIRQ(GPDMA1_Channel0_IRQn);
+	HAL_NVIC_DisableIRQ(GPDMA1_Channel1_IRQn);
+	HAL_NVIC_DisableIRQ(GPDMA1_Channel2_IRQn);
+	HAL_NVIC_DisableIRQ(GPDMA1_Channel3_IRQn);
+	HAL_NVIC_DisableIRQ(GPDMA1_Channel4_IRQn);
+	HAL_NVIC_DisableIRQ(UART5_IRQn);
+	HAL_NVIC_DisableIRQ(LPUART1_IRQn);
+
+	HAL_NVIC_ClearPendingIRQ(RTC_S_IRQn);
+	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel0_IRQn);
+	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel1_IRQn);
+	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel2_IRQn);
+	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel3_IRQn);
+	HAL_NVIC_ClearPendingIRQ(GPDMA1_Channel4_IRQn);
+	HAL_NVIC_ClearPendingIRQ(UART5_IRQn);
+	HAL_NVIC_ClearPendingIRQ(LPUART1_IRQn);
+
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
+	__HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
+
+	HAL_LPTIM_Counter_Start_IT(device_handles->wakeup_timer);
 
 	HAL_ICACHE_Disable();
 	HAL_ICACHE_Invalidate();
@@ -1615,11 +1628,8 @@ static void end_of_cycle_sleep_prep(uint32_t initial_hour)
 static void end_of_cycle_sleep_complete(void)
 {
 	HAL_ICACHE_Enable();
-//	HAL_LPTIM_Counter_Stop_IT(device_handles->wakeup_timer);
+	HAL_LPTIM_Counter_Stop_IT(device_handles->wakeup_timer);
 	// Disable the RTC Alarm and clear flags
-	HAL_RTC_DeactivateAlarm(device_handles->hrtc, RTC_ALARM_A);
-	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_CLEAR_WUTF);
-	(SET_BIT(RTC->SCR, RTC_SCR_CALRAF));
 	HAL_NVIC_ClearPendingIRQ(RTC_IRQn);
 
 #if CT_ENABLED
@@ -1646,36 +1656,9 @@ static void enter_stop_2_mode(uint8_t STOPEntry)
 	register_watchdog_refresh();
 	HAL_SuspendTick();
 
-	__HAL_RCC_PWR_CLK_ENABLE();
+//	__HAL_RCC_PWR_CLK_ENABLE();
 
 	HAL_PWREx_ConfigSupply(PWR_SMPS_SUPPLY);
-	HAL_FLASHEx_ConfigLowPowerRead(FLASH_LPM_ENABLE);
-
-  /* Disable all unused peripheral clocks */
-  MODIFY_REG(RCC->AHB1ENR, DUMMY_VALUE, RCC_AHB1ENR_FLASHEN);
-  MODIFY_REG(RCC->AHB2ENR1, DUMMY_VALUE, RCC_AHB2ENR1_SRAM2EN);
-  MODIFY_REG(RCC->AHB2ENR2, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->AHB3ENR, DUMMY_VALUE, RCC_AHB3ENR_PWREN);
-  MODIFY_REG(RCC->APB1ENR1, DUMMY_VALUE, RCC_APB1ENR1_TIM6EN);
-  MODIFY_REG(RCC->APB1ENR2, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->APB2ENR, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->APB3ENR, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->AHB1SMENR, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->AHB2SMENR1, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->AHB2SMENR2, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->AHB3SMENR, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->APB1SMENR1, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->APB1SMENR2, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->APB2SMENR, DUMMY_VALUE, 0U);
-  MODIFY_REG(RCC->APB3SMENR, DUMMY_VALUE, 0U);
-
-  /* Disable AHB APB Peripheral Clock */
-  __HAL_RCC_AHB1_CLK_DISABLE();
-  __HAL_RCC_AHB2_1_CLK_DISABLE();
-  __HAL_RCC_AHB2_2_CLK_DISABLE();
-
-  __HAL_RCC_APB1_CLK_DISABLE();
-  __HAL_RCC_APB2_CLK_DISABLE();
 
 
 //	HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
