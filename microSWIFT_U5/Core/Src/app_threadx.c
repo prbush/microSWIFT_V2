@@ -1688,9 +1688,9 @@ static void enter_stop_2_mode(uint8_t STOPEntry)
   /* Set SLEEPDEEP bit of Cortex System Control Register */
   SET_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
 
-//#ifdef NOT_DEBUG
+#ifdef NOT_DEBUG
   DBGMCU->CR = 0; // Disable debug, trace and IWDG in low-power modes
-//#endif
+#endif
 
   /* Select Stop mode entry */
   if (STOPEntry == PWR_STOPENTRY_WFI)
