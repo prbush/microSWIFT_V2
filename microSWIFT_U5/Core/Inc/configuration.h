@@ -17,7 +17,7 @@
  */
 
 // For testing and debugging with a very short sample window
-//#define DEBUGGING_FAST_CYCLE
+#define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
@@ -73,6 +73,9 @@
 
 // If there is a CT sensor present
 #define CT_ENABLED false
+
+// If there is a Blue Robotics I2C temperature sensor presen
+#define TEMPERATURE_ENABLED true
 
 // If we are saving raw data to flash
 #define FLASH_STORAGE_ENABLED false

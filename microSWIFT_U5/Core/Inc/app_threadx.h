@@ -44,6 +44,7 @@
 #include "Peripherals/rf_switch.h"
 #include "Peripherals/imu.h"
 #include "Peripherals/iridium.h"
+#include "Peripherals/temp_sensor.h"
 #include "flash_storage.h"
 #include "NEDWaves/mem_replacements.h"
 #include "configuration.h"
@@ -113,7 +114,8 @@ typedef enum error_flags{
 	FLASH_OPERATION_UNKNOWN_ERROR = 1 << 18,
 	FLASH_OPERATION_STORAGE_FULL = 1 << 19,
 	FLASH_OPERATION_ERASE_ERROR = 1 << 20,
-	FLASH_OPERATION_PROGRAM_ERROR = 1 << 21
+	FLASH_OPERATION_PROGRAM_ERROR = 1 << 21,
+	TEMPERATURE_ERROR = 1 << 22
 }error_flags_t;
 
 typedef enum led_sequence{
@@ -134,6 +136,17 @@ typedef enum self_test_status{
 /* USER CODE BEGIN EC */
 #define WAVES_MEM_POOL_SIZE 650000
 /* USER CODE END EC */
+
+/* Private defines -----------------------------------------------------------*/
+
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* Main thread defines -------------------------------------------------------*/
+/* USER CODE BEGIN MTD */
+
+/* USER CODE END MTD */
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
@@ -164,11 +177,6 @@ void waves_thread_entry(ULONG thread_input);
 void iridium_thread_entry(ULONG thread_input);
 void end_of_cycle_thread_entry(ULONG thread_input);
 /* USER CODE END EFP */
-
-/* Private defines -----------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
 
 /* USER CODE BEGIN 1 */
 

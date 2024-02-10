@@ -115,6 +115,10 @@ CHAR* ct_data;
 ct_samples* samples_buf;
 
 #endif
+// Only if a temperature sensor is present
+#if TEMPERATURE_ENABLED
+Temperature* temperature;
+#endif
 // Only if we are saving raw data to flash
 #if FLASH_STORAGE_ENABLED
 
@@ -164,9 +168,7 @@ void ct_thread_entry(ULONG thread_input);
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
-  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
-
-   /* USER CODE BEGIN App_ThreadX_MEM_POOL */
+  /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
 	CHAR *pointer = TX_NULL;
 	byte_pool = memory_ptr;
@@ -323,6 +325,15 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 		return ret;
 	}
 
+#if TEMPERATURE_ENABLED
+	//
+	// The temperature struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &temperature, sizeof(Temperature) + 100, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+#endif
+
 // Only if the IMU will be utilized
 #if IMU_ENABLED
 	//
@@ -395,7 +406,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 #endif
 
   /* USER CODE END App_ThreadX_MEM_POOL */
-
   /* USER CODE BEGIN App_ThreadX_Init */
   /* USER CODE END App_ThreadX_Init */
 
@@ -509,6 +519,10 @@ void startup_thread_entry(ULONG thread_input){
 #if CT_ENABLED
 	ct_init(ct, &configuration, device_handles->CT_uart, device_handles->CT_dma_handle,
 					&thread_control_flags, &error_flags, ct_data, samples_buf);
+#endif
+
+#if TEMPERATURE_ENABLED
+	temperature_init(temperature, device_handles->temp_i2c_handle, &thread_control_flags, &error_flags, true);
 #endif
 
 	rf_switch_init(rf_switch);
@@ -1737,7 +1751,7 @@ void register_watchdog_refresh(void)
   */
 static self_test_status_t initial_power_on_self_test(void)
 {
-	self_test_status_t return_code;
+	self_test_status_t return_code = SELF_TEST_PASSED;
 	gnss_error_code_t gnss_return_code;
 	iridium_error_code_t iridium_return_code;
 
@@ -1745,6 +1759,10 @@ static self_test_status_t initial_power_on_self_test(void)
 
 	ct_error_code_t ct_return_code;
 
+#endif
+
+#if TEMPERATURE_ENABLED
+	temperature_error_code_t temp_return_code;
 #endif
 
 	int fail_counter;
@@ -1900,10 +1918,37 @@ static self_test_status_t initial_power_on_self_test(void)
 	// in the sample window
 	tx_event_flags_set(&thread_control_flags, CT_READY, TX_OR);
 
-#else
+#endif
 
-	return_code = SELF_TEST_PASSED;
+#if TEMPERATURE_ENABLED
+	fail_counter = 0;
+	while (fail_counter < MAX_SELF_TEST_RETRIES) {
 
+		temperature->on();
+		register_watchdog_refresh();
+		// See if we can get an ack message from the modem
+		temp_return_code = temperature->self_test();
+		if (temp_return_code != TEMPERATURE_SUCCESS) {
+
+			temperature->off();
+			temperature->reset_i2c();
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
+			fail_counter++;
+
+		} else {
+
+			break;
+		}
+	}
+
+	if (fail_counter == MAX_SELF_TEST_RETRIES) {
+
+		return_code = SELF_TEST_NON_CRITICAL_FAULT;
+		tx_event_flags_set(&error_flags, TEMPERATURE_ERROR, TX_OR);
+
+	}
+
+	temperature->off();
 #endif
 
 	return return_code;

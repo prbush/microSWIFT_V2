@@ -6,7 +6,7 @@
  */
 
 #include "Peripherals/battery.h"
-// Object intance pointer
+// Object instance pointer
 static Battery* self;
 
 static battery_error_code_t battery_start_conversion(void);
