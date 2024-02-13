@@ -147,6 +147,10 @@ static bool	init_sensor(void)
 	bool failed = false;
 	uint8_t command = TSYS01_RESET;
 	uint8_t read_data[2] = {0};
+
+	if (HAL_I2C_IsDeviceReady(self->i2c_handle, TSYS01_ADDR, 25, 10) != HAL_OK) {
+		return false;
+	}
 	// Reset the TSYS01, per datasheet
 	if (HAL_I2C_Master_Transmit(self->i2c_handle, TSYS01_ADDR, &command, sizeof(command), 10)
 			!= HAL_OK) {
