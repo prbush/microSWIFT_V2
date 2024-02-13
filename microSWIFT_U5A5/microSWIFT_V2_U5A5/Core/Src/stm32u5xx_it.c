@@ -205,6 +205,7 @@ void GPDMA1_Channel0_IRQHandler(void)
   /* USER CODE BEGIN GPDMA1_Channel0_IRQn 0 */
   _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel0_IRQn 0 */
+  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel0);
   /* USER CODE BEGIN GPDMA1_Channel0_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel0_IRQn 1 */
@@ -218,6 +219,7 @@ void GPDMA1_Channel1_IRQHandler(void)
   /* USER CODE BEGIN GPDMA1_Channel1_IRQn 0 */
   _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel1_IRQn 0 */
+  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel1);
   /* USER CODE BEGIN GPDMA1_Channel1_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel1_IRQn 1 */
@@ -231,6 +233,7 @@ void GPDMA1_Channel2_IRQHandler(void)
   /* USER CODE BEGIN GPDMA1_Channel2_IRQn 0 */
   _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel2_IRQn 0 */
+  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel2);
   /* USER CODE BEGIN GPDMA1_Channel2_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel2_IRQn 1 */
@@ -244,6 +247,7 @@ void GPDMA1_Channel3_IRQHandler(void)
   /* USER CODE BEGIN GPDMA1_Channel3_IRQn 0 */
   _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel3_IRQn 0 */
+  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel3);
   /* USER CODE BEGIN GPDMA1_Channel3_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel3_IRQn 1 */
@@ -257,6 +261,7 @@ void GPDMA1_Channel4_IRQHandler(void)
   /* USER CODE BEGIN GPDMA1_Channel4_IRQn 0 */
   _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel4_IRQn 0 */
+  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel4);
   /* USER CODE BEGIN GPDMA1_Channel4_IRQn 1 */
   _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel4_IRQn 1 */
