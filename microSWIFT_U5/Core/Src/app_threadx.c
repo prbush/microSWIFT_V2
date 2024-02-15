@@ -522,7 +522,8 @@ void startup_thread_entry(ULONG thread_input){
 #endif
 
 #if TEMPERATURE_ENABLED
-	temperature_init(temperature, device_handles->temp_i2c_handle, &thread_control_flags, &error_flags, true);
+	temperature_init(temperature, device_handles->temp_i2c_handle, &thread_control_flags, &error_flags,
+			GPIOF, TEMP_POWER_Pin, true);
 #endif
 
 	rf_switch_init(rf_switch);
@@ -1925,6 +1926,7 @@ static self_test_status_t initial_power_on_self_test(void)
 	while (fail_counter < MAX_SELF_TEST_RETRIES) {
 
 		temperature->on();
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
 		register_watchdog_refresh();
 		// See if we can get an ack message from the modem
 		temp_return_code = temperature->self_test();
@@ -1947,6 +1949,9 @@ static self_test_status_t initial_power_on_self_test(void)
 		tx_event_flags_set(&error_flags, TEMPERATURE_ERROR, TX_OR);
 
 	}
+
+	float test = 0.0;
+	temperature->get_reading(&test);
 
 	temperature->off();
 #endif

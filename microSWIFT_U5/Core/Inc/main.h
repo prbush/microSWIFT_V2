@@ -92,6 +92,8 @@ void Error_Handler(void);
 #define GNSS_UART_TX_GPIO_Port GPIOA
 #define GNSS_UART_RX_Pin GPIO_PIN_3
 #define GNSS_UART_RX_GPIO_Port GPIOA
+#define TEMP_POWER_Pin GPIO_PIN_12
+#define TEMP_POWER_GPIO_Port GPIOF
 #define UCPD_FLT_Pin GPIO_PIN_14
 #define UCPD_FLT_GPIO_Port GPIOB
 #define UCPD1_CC2_Pin GPIO_PIN_15
@@ -120,8 +122,8 @@ void Error_Handler(void);
 #define CT_UART_RX_GPIO_Port GPIOC
 #define IRIDIUM_UART_TX_Pin GPIO_PIN_12
 #define IRIDIUM_UART_TX_GPIO_Port GPIOC
-#define TEMP_FET_Pin GPIO_PIN_0
-#define TEMP_FET_GPIO_Port GPIOD
+#define IMU_FET_Pin GPIO_PIN_0
+#define IMU_FET_GPIO_Port GPIOD
 #define IRIDIUM_FET_Pin GPIO_PIN_1
 #define IRIDIUM_FET_GPIO_Port GPIOD
 #define IRIDIUM_UART_RX_Pin GPIO_PIN_2
@@ -142,10 +144,10 @@ void Error_Handler(void);
 #define IMU_INT_GPIO_Port GPIOG
 #define IMU_nRESET_Pin GPIO_PIN_12
 #define IMU_nRESET_GPIO_Port GPIOG
-#define TEMP_SDA_Pin GPIO_PIN_13
-#define TEMP_SDA_GPIO_Port GPIOG
-#define TEMP_SCL_Pin GPIO_PIN_14
-#define TEMP_SCL_GPIO_Port GPIOG
+#define I2C_SDA_Pin GPIO_PIN_13
+#define I2C_SDA_GPIO_Port GPIOG
+#define I2C_SCL_Pin GPIO_PIN_14
+#define I2C_SCL_GPIO_Port GPIOG
 #define UCPD_DBn_Pin GPIO_PIN_5
 #define UCPD_DBn_GPIO_Port GPIOB
 #define LED_BLUE_Pin GPIO_PIN_7

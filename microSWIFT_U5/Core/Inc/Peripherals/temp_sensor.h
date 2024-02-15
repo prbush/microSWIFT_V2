@@ -19,7 +19,7 @@
 #include "stm32u5xx_hal_i2c_ex.h"
 #include "stdbool.h"
 
-#define TSYS01_ADDR                        0x77
+#define TSYS01_ADDR                        (0x77 << 1)
 #define TSYS01_RESET                       0x1E
 #define TSYS01_ADC_READ                    0x00
 #define TSYS01_ADC_TEMP_CONV               0x48
@@ -34,8 +34,9 @@ typedef enum tmperature_error_code {
 
 typedef struct Temperature {
 	I2C_HandleTypeDef* 			i2c_handle;
-	TX_EVENT_FLAGS_GROUP*   control_flags;
-	TX_EVENT_FLAGS_GROUP*   error_flags;
+	TX_EVENT_FLAGS_GROUP*   	control_flags;
+	TX_EVENT_FLAGS_GROUP*  		error_flags;
+	GPIO_TypeDef*				gpio_bus;
 
 	void 										(*on)(void);
 	void										(*off)(void);
@@ -44,13 +45,15 @@ typedef struct Temperature {
 	temperature_error_code_t(*get_reading)(float* temp);
 
 	float										converted_temp;
-	float 								  C[8]; // Cal data array
+	float 								  	C[8]; // Cal data array
 	uint32_t								D1; // Read data (unconverted temp)
 	uint32_t								adc;
+
+	uint16_t								pwr_gpio;
 }Temperature;
 
 
 void temperature_init(Temperature* struct_ptr, I2C_HandleTypeDef* i2c_handle, TX_EVENT_FLAGS_GROUP* control_flags,
-		TX_EVENT_FLAGS_GROUP* error_flags, bool clear_calibration_data);
+		TX_EVENT_FLAGS_GROUP* error_flags, GPIO_TypeDef *gpio_bus, uint16_t pwr_gpio, bool clear_calibration_data);
 
 #endif /* INC_PERIPHERALS_TEMP_SENSOR_H_ */
