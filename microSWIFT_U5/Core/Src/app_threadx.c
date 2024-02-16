@@ -117,7 +117,10 @@ ct_samples* samples_buf;
 #endif
 // Only if a temperature sensor is present
 #if TEMPERATURE_ENABLED
-Temperature* temperature;
+
+Temperature* 	temperature;
+TX_THREAD 		temperature_thread;
+
 #endif
 // Only if we are saving raw data to flash
 #if FLASH_STORAGE_ENABLED
@@ -157,6 +160,10 @@ void imu_thread_entry(ULONG thread_input);
 
 #if CT_ENABLED
 void ct_thread_entry(ULONG thread_input);
+#endif
+
+#if TEMPERATURE_ENABLED
+void temperature_thread_entry(ULONG thread_input);
 #endif
 /* USER CODE END PFP */
 
@@ -326,12 +333,27 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	}
 
 #if TEMPERATURE_ENABLED
+
 	//
 	// The temperature struct
 	ret = tx_byte_allocate(byte_pool, (VOID**) &temperature, sizeof(Temperature) + 100, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
+
+	//
+	// Allocate stack for the temperature thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+	// Create the temperature thread. VERY_HIGH priority, no preemption-threshold
+	ret = tx_thread_create(&temperature_thread, "temperature thread", temperature_thread_entry, 0,
+			pointer, THREAD_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_DONT_START);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+
 #endif
 
 // Only if the IMU will be utilized
@@ -543,11 +565,6 @@ void startup_thread_entry(ULONG thread_input){
 		HAL_GPIO_WritePin(GPIOF, EXT_LED_GREEN_Pin, GPIO_PIN_SET);
 
 		// Reset all threads
-		tx_return = tx_thread_reset(&gnss_thread);
-		if (tx_return == TX_NOT_DONE){
-			tx_thread_terminate(&gnss_thread);
-			tx_thread_reset(&gnss_thread);
-		}
 #if CT_ENABLED
 		tx_return = tx_thread_reset(&ct_thread);
 		if (tx_return == TX_NOT_DONE){
@@ -555,6 +572,19 @@ void startup_thread_entry(ULONG thread_input){
 			tx_thread_reset(&ct_thread);
 		}
 #endif
+
+#if TEMPERATURE_ENABLED
+		tx_return = tx_thread_reset(&temperature_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&temperature_thread);
+			tx_thread_reset(&temperature_thread);
+		}
+#endif
+		tx_return = tx_thread_reset(&gnss_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&gnss_thread);
+			tx_thread_reset(&gnss_thread);
+		}
 		tx_return = tx_thread_reset(&waves_thread);
 		if (tx_return == TX_NOT_DONE){
 			tx_thread_terminate(&waves_thread);
@@ -852,6 +882,13 @@ void gnss_thread_entry(ULONG thread_input){
 		HAL_NVIC_SystemReset();
 	}
 
+#elif TEMPERATURE_ENABLED
+
+	if (tx_thread_resume(&temperature_thread) != TX_SUCCESS){
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
 #else
 
 	if (tx_thread_resume(&waves_thread) != TX_SUCCESS){
@@ -989,6 +1026,57 @@ void ct_thread_entry(ULONG thread_input){
 	tx_thread_terminate(&ct_thread);
 }
 #endif
+
+
+#if TEMPERATURE_ENABLED
+/**
+  * @brief  temperature_thread_entry
+  *         This thread will handle the temperature sensor, capture readings, and getting averages.
+  *
+  * @param  ULONG thread_input - unused
+  * @retval void
+  */
+void temperature_thread_entry(ULONG thread_input)
+{
+	temperature_error_code_t temp_return_code;
+	real16_T half_salinity;
+	real16_T half_temp;
+	int fail_counter = 0;
+
+	register_watchdog_refresh();
+
+	temperature->on();
+
+	while (fail_counter < MAX_RETRIES) {
+		temp_return_code = temperature->get_readings();
+
+		if (temp_return_code == TEMPERATURE_SUCCESS) {
+			break;
+		} else {
+			fail_counter++;
+		}
+	}
+
+	if (fail_counter == MAX_RETRIES) {
+		half_temp.bitPattern = TEMPERATURE_AVERAGED_ERROR_CODE;
+	} else {
+		half_temp = floatToHalf(temperature->converted_temp);
+	}
+
+	temperature->off();
+
+	half_salinity.bitPattern = CT_AVERAGED_VALUE_ERROR_CODE;
+	memcpy(&sbd_message.mean_temp, &half_temp, sizeof(real16_T));
+	memcpy(&sbd_message.mean_salinity, &half_salinity, sizeof(real16_T));
+
+	if (tx_thread_resume(&waves_thread) != TX_SUCCESS){
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+	tx_thread_terminate(&temperature_thread);
+}
+#endif
+
 
 /**
   * @brief  waves_thread_entry
@@ -1715,6 +1803,8 @@ void shut_it_all_down(void)
 	HAL_GPIO_WritePin(GPIOD, RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
 	// Shut down CT sensor
 	HAL_GPIO_WritePin(GPIOG, CT_FET_Pin, GPIO_PIN_RESET);
+	// Shut down the temperature sensor
+	HAL_GPIO_WritePin(GPIOF, TEMP_POWER_Pin, GPIO_PIN_RESET);
 
 }
 
@@ -1949,9 +2039,6 @@ static self_test_status_t initial_power_on_self_test(void)
 		tx_event_flags_set(&error_flags, TEMPERATURE_ERROR, TX_OR);
 
 	}
-
-	float test = 0.0;
-	temperature->get_reading(&test);
 
 	temperature->off();
 #endif

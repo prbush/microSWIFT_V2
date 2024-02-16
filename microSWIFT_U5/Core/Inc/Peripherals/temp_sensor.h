@@ -19,11 +19,13 @@
 #include "stm32u5xx_hal_i2c_ex.h"
 #include "stdbool.h"
 
-#define TSYS01_ADDR                        (0x77 << 1)
-#define TSYS01_RESET                       0x1E
-#define TSYS01_ADC_READ                    0x00
-#define TSYS01_ADC_TEMP_CONV               0x48
-#define TSYS01_PROM_READ                   0XA0
+#define TSYS01_ADDR                        	(0x77 << 1)
+#define TSYS01_RESET                       	0x1E
+#define TSYS01_ADC_READ                    	0x00
+#define TSYS01_ADC_TEMP_CONV               	0x48
+#define TSYS01_PROM_READ                   	0XA0
+
+#define TEMPERATURE_AVERAGED_ERROR_CODE			0X70e2
 
 typedef enum tmperature_error_code {
 	TEMPERATURE_SUCCESS = 0,
@@ -33,23 +35,23 @@ typedef enum tmperature_error_code {
 }temperature_error_code_t;
 
 typedef struct Temperature {
-	I2C_HandleTypeDef* 			i2c_handle;
+	I2C_HandleTypeDef* 				i2c_handle;
 	TX_EVENT_FLAGS_GROUP*   	control_flags;
 	TX_EVENT_FLAGS_GROUP*  		error_flags;
-	GPIO_TypeDef*				gpio_bus;
+	GPIO_TypeDef*							gpio_bus;
 
-	void 										(*on)(void);
-	void										(*off)(void);
-	temperature_error_code_t(*reset_i2c)(void);
-	temperature_error_code_t(*self_test)(void);
-	temperature_error_code_t(*get_reading)(float* temp);
+	void 											(*on)(void);
+	void											(*off)(void);
+	temperature_error_code_t	(*reset_i2c)(void);
+	temperature_error_code_t	(*self_test)(void);
+	temperature_error_code_t	(*get_readings)(void);
 
-	float										converted_temp;
-	float 								  	C[8]; // Cal data array
-	uint32_t								D1; // Read data (unconverted temp)
-	uint32_t								adc;
+	float											converted_temp;
+	float 								 		C[8]; // Cal data array
+	uint32_t									D1; // Read data (unconverted temp)
+	uint32_t									adc;
 
-	uint16_t								pwr_gpio;
+	uint16_t									pwr_gpio;
 }Temperature;
 
 

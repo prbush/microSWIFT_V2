@@ -19,6 +19,7 @@
 #include "stm32u5xx_ll_dma.h"
 #include "stdio.h"
 #include "stdbool.h"
+#include "time.h"
 
 // Return codes
 typedef enum iridium_error_code{
@@ -139,21 +140,21 @@ typedef struct Iridium {
 	float current_lat;
 	float current_lon;
 
-	iridium_error_code_t (*config)(void);
-	void				 (*charge_caps)(uint32_t caps_charge_time_ticks);
-	iridium_error_code_t (*self_test)(void);
-	iridium_error_code_t (*transmit_message)(void);
-	iridium_error_code_t (*transmit_error_message)(char* error_message);
-	float				 (*get_timestamp)(void);
-	void 				 (*sleep)(GPIO_PinState pin_state);
-	void				 (*on_off)(GPIO_PinState pin_state);
-	void				 (*cycle_power)(void);
-	iridium_error_code_t (*store_in_flash)(void);
-	iridium_error_code_t (*reset_uart)(uint16_t baud_rate);
-	iridium_error_code_t (*reset_timer)(uint8_t timeout_in_minutes);
-	iridium_error_code_t (*queue_add)(sbd_message_type_52* payload);
-	iridium_error_code_t (*queue_get)(uint8_t* msg_index);
-	void                 (*queue_flush)(void);
+	iridium_error_code_t 	(*config)(void);
+	void				 					(*charge_caps)(uint32_t caps_charge_time_ticks);
+	iridium_error_code_t 	(*self_test)(void);
+	iridium_error_code_t 	(*transmit_message)(void);
+	iridium_error_code_t 	(*transmit_error_message)(char* error_message);
+	uint32_t				 			(*get_timestamp)(void);
+	void 				 					(*sleep)(GPIO_PinState pin_state);
+	void				 					(*on_off)(GPIO_PinState pin_state);
+	void				 					(*cycle_power)(void);
+	iridium_error_code_t 	(*store_in_flash)(void);
+	iridium_error_code_t 	(*reset_uart)(uint16_t baud_rate);
+	iridium_error_code_t 	(*reset_timer)(uint8_t timeout_in_minutes);
+	iridium_error_code_t 	(*queue_add)(sbd_message_type_52* payload);
+	iridium_error_code_t 	(*queue_get)(uint8_t* msg_index);
+	void                 	(*queue_flush)(void);
 
 	bool timer_timeout;
 	bool skip_current_message;

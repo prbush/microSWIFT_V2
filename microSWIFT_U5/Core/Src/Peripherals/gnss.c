@@ -12,30 +12,31 @@
 
 static GNSS* self;
 
-static gnss_error_code_t gnss_config(void);
-static gnss_error_code_t gnss_sync_and_start_reception(gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
-		uint8_t* buffer, size_t msg_size);
-static gnss_error_code_t gnss_get_location(float* latitude, float* longitude);
-static gnss_error_code_t gnss_get_running_average_velocities(void);
-static void 			 gnss_process_message(void);
-static gnss_error_code_t gnss_sleep(bool put_to_sleep);
-static void			  	 gnss_on_off(GPIO_PinState pin_state);
-static void			  	 gnss_cycle_power(void);
-static gnss_error_code_t gnss_set_rtc(uint8_t* msg_payload);
-static gnss_error_code_t gnss_reset_uart(uint16_t baud_rate);
-static gnss_error_code_t gnss_reset_timer(uint16_t timeout_in_minutes);
+static gnss_error_code_t 	gnss_config(void);
+static gnss_error_code_t 	gnss_sync_and_start_reception(gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
+														uint8_t* buffer, size_t msg_size);
+static gnss_error_code_t 	gnss_get_location(float* latitude, float* longitude);
+static gnss_error_code_t 	gnss_get_running_average_velocities(void);
+static void 			 				gnss_process_message(void);
+static gnss_error_code_t 	gnss_sleep(bool put_to_sleep);
+static void			  	 			gnss_on_off(GPIO_PinState pin_state);
+static void			  		 		gnss_cycle_power(void);
+static gnss_error_code_t 	gnss_set_rtc(uint8_t* msg_payload);
+static gnss_error_code_t 	gnss_reset_uart(uint16_t baud_rate);
+static gnss_error_code_t 	gnss_reset_timer(uint16_t timeout_in_minutes);
 
 // Static helper functions
-static gnss_error_code_t send_config(uint8_t* config_array,
-		size_t message_size, uint8_t response_class, uint8_t response_id);
-static gnss_error_code_t stop_start_gnss(bool send_stop);
-static void process_frame_sync_messages(uint8_t* process_buf);
-static gnss_error_code_t enable_high_performance_mode(void);
-static gnss_error_code_t query_high_performance_mode(void);
-static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
-		uint32_t num_bytes)__attribute__((unused));
-static uint32_t get_timestamp(void);
-static void reset_struct_fields(void);
+static gnss_error_code_t 	send_config(uint8_t* config_array,
+														size_t message_size, uint8_t response_class,
+														uint8_t response_id);
+static gnss_error_code_t 	stop_start_gnss(bool send_stop);
+static void 							process_frame_sync_messages(uint8_t* process_buf);
+static gnss_error_code_t 	enable_high_performance_mode(void);
+static gnss_error_code_t 	query_high_performance_mode(void);
+static void 							get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
+														uint32_t num_bytes)__attribute__((unused));
+static uint32_t 					get_timestamp(void);
+static void 							reset_struct_fields(void);
 
 /**
  * Initialize the GNSS struct
@@ -1072,87 +1073,25 @@ static void get_checksum(uint8_t* ck_a, uint8_t* ck_b, uint8_t* buffer,
  */
 static uint32_t get_timestamp(void)
 {
-	uint32_t timestamp = 0;
-	bool is_leap_year = false;
-	uint8_t num_leap_years_since_2000 = 0;
-	uint16_t julian_date_first_of_month = 0;
+	time_t timestamp = 0;
 	RTC_DateTypeDef rtc_date;
 	RTC_TimeTypeDef rtc_time;
+	struct tm time= {0};
 
 	// Get the date and time
 	HAL_RTC_GetTime(self->rtc_handle, &rtc_time, RTC_FORMAT_BIN);
 	HAL_RTC_GetDate(self->rtc_handle, &rtc_date, RTC_FORMAT_BIN);
 
-	// Let's make a timestamp (yay...)
-	// Years first
-	timestamp += SECONDS_1970_TO_2000;
-	timestamp += rtc_date.Year * SECONDS_IN_YEAR;
-	num_leap_years_since_2000 = rtc_date.Year / 4;
-	timestamp += num_leap_years_since_2000 * SECONDS_IN_DAY;
+	time.tm_sec 	= rtc_time.Seconds;
+	time.tm_min 	= rtc_time.Minutes;
+	time.tm_hour 	= rtc_time.Hours;
+	time.tm_mday 	= rtc_date.Date;
+	time.tm_mon 	= rtc_date.Month - 1;
+	time.tm_year 	= (rtc_date.Year + 2000) - 1900;
 
-	// Years are only represented with 2 digits. We'll set 0 as the year 2000, so anything
-	// evenly divisible by 4 is a leap year (2000, 2004, 2008, etc)
-	is_leap_year = rtc_date.Year % 4 == 0;
+	timestamp = mktime(&time);
 
-	switch (rtc_date.Month) {
-		case RTC_MONTH_JANUARY:
-			// No months to account for!!!
-			break;
-
-		case RTC_MONTH_FEBRUARY:
-			julian_date_first_of_month = 32;
-			break;
-
-		case RTC_MONTH_MARCH:
-			julian_date_first_of_month = (is_leap_year) ? 61 : 60;
-			break;
-
-		case RTC_MONTH_APRIL:
-			julian_date_first_of_month = (is_leap_year) ? 92 : 91;
-			break;
-
-		case RTC_MONTH_MAY:
-			julian_date_first_of_month = (is_leap_year) ? 122 : 121;
-			break;
-
-		case RTC_MONTH_JUNE:
-			julian_date_first_of_month = (is_leap_year) ? 153 : 152;
-			break;
-
-		case RTC_MONTH_JULY:
-			julian_date_first_of_month = (is_leap_year) ? 183 : 182;
-			break;
-
-		case RTC_MONTH_AUGUST:
-			julian_date_first_of_month = (is_leap_year) ? 214 : 213;
-			break;
-
-		case RTC_MONTH_SEPTEMBER:
-			julian_date_first_of_month = (is_leap_year) ? 245 : 244;
-			break;
-
-		case RTC_MONTH_OCTOBER:
-			julian_date_first_of_month = (is_leap_year) ? 275 : 274;
-			break;
-
-		case RTC_MONTH_NOVEMBER:
-			julian_date_first_of_month = (is_leap_year) ? 306 : 305;
-			break;
-
-		case RTC_MONTH_DECEMBER:
-			julian_date_first_of_month = (is_leap_year) ? 336 : 335;
-			break;
-
-		default:
-			break;
-	}
-	timestamp += julian_date_first_of_month * SECONDS_IN_DAY;
-	timestamp += (rtc_date.Date - 1) * SECONDS_IN_DAY;
-	timestamp += rtc_time.Hours * SECONDS_IN_HOUR;
-	timestamp += rtc_time.Minutes * SECONDS_IN_MIN;
-	timestamp += rtc_time.Seconds;
-	// Not including fractions of a second
-	return timestamp;
+	return (uint32_t)timestamp;
 }
 
 /**

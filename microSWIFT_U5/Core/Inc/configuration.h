@@ -17,7 +17,7 @@
  */
 
 // For testing and debugging with a very short sample window
-#define DEBUGGING_FAST_CYCLE
+//#define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
@@ -34,7 +34,7 @@
 
 #define TOTAL_SAMPLES_PER_WINDOW 1024
 #define IRIDIUM_MAX_TRANSMIT_TIME 10
-#define GNSS_MAX_ACQUISITION_WAIT_TIME 10
+#define GNSS_MAX_ACQUISITION_WAIT_TIME 15
 #define SAMPLE_WINDOWS_PER_HOUR 1
 
 #else
@@ -52,7 +52,7 @@
 
 // Are we doing 1 or two sample windows per hour
 // !! Must be a number such that SAMPLE_WINDOWS_PER_HOUR % 60 == 0
-#define SAMPLE_WINDOWS_PER_HOUR 1
+#define SAMPLE_WINDOWS_PER_HOUR 2
 
 
 
@@ -68,6 +68,9 @@
 // The number of samples for the CT sensor to take. Result will be averaged
 #define TOTAL_CT_SAMPLES 10
 
+// The number of samples for the temperature sensor to take. Result will be averaged
+#define TOTAL_TEMPERATURE_SAMPLES 10
+
 // If the IMU will be utilized or not
 #define IMU_ENABLED false
 
@@ -78,7 +81,7 @@
 #define TEMPERATURE_ENABLED true
 
 // If we are saving raw data to flash
-#define FLASH_STORAGE_ENABLED false
+#define FLASH_STORAGE_ENABLED true
 
 // If true, will clear out flash memory on initial power up or hard reset.
 #define CLEAR_USER_FLASH false
