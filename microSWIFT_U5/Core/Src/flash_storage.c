@@ -45,7 +45,7 @@ void flash_storage_init(Flash_storage* flash_storage_struct_ptr,
 	/*	Must check if the flash page allocated for bookkeeping has
 		any data written to it. Also have the option to use the reset pin
 		to trigger clearing out flash. */
-	if ((test_bookkeeping_page() == FLASH_BOOKKEEPING_EMPTY) || CLEAR_USER_FLASH ||
+	if ((test_bookkeeping_page() == FLASH_BOOKKEEPING_EMPTY) ||
 			(global_config->reset_reason == RCC_RESET_FLAG_PIN)) {
 
 		bookkeeping_temp.flash_page_addr = ADDR_FLASH_PAGE_127;

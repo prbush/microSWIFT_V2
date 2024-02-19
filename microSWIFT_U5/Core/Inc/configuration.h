@@ -78,13 +78,10 @@
 #define CT_ENABLED false
 
 // If there is a Blue Robotics I2C temperature sensor presen
-#define TEMPERATURE_ENABLED true
+#define TEMPERATURE_ENABLED false
 
 // If we are saving raw data to flash
 #define FLASH_STORAGE_ENABLED true
-
-// If true, will clear out flash memory on initial power up or hard reset.
-#define CLEAR_USER_FLASH false
 
 // If true, Type 99 messages will be transmitted indicating status of flash operation
 #define VERBOSE_FLASH false

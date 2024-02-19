@@ -1034,6 +1034,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
+  HAL_GPIO_DeInit(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin);
+  HAL_Delay(10);
   GPIO_InitStruct.Pin = IRIDIUM_OnOff_Pin;
 #ifdef ROCK_BLOCK_V3D
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;

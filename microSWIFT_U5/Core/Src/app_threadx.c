@@ -1297,10 +1297,10 @@ void iridium_thread_entry(ULONG thread_input){
 	register_watchdog_refresh();
 
 	// Check for error messages
-	tx_event_flags_get(&error_flags, error_occured_flags, TX_OR_CLEAR, &actual_error_flags, TX_NO_WAIT);
+	tx_return = tx_event_flags_get(&error_flags, error_occured_flags, TX_OR_CLEAR, &actual_error_flags, TX_NO_WAIT);
 
 	// If we have an error flag, send an error message
-	if (actual_error_flags) {
+	if (tx_return == TX_SUCCESS) {
 		register_watchdog_refresh();
 		send_error_message(actual_error_flags);
 
