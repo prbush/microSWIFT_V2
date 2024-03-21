@@ -19,7 +19,7 @@
 #include "stm32u5xx_hal_i2c_ex.h"
 #include "stdbool.h"
 
-#define TSYS01_ADDR                        0x77
+#define TSYS01_ADDR                        0x77 << 1
 #define TSYS01_RESET                       0x1E
 #define TSYS01_ADC_READ                    0x00
 #define TSYS01_ADC_TEMP_CONV               0x48

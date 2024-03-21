@@ -17,7 +17,7 @@
  */
 
 // For testing and debugging with a very short sample window
-#define DEBUGGING_FAST_CYCLE
+//#define DEBUGGING_FAST_CYCLE
 
 // If a 1 min sleep window is desired
 //#define SHORT_SLEEP
@@ -52,7 +52,7 @@
 
 // Are we doing 1 or two sample windows per hour
 // !! Must be a number such that SAMPLE_WINDOWS_PER_HOUR % 60 == 0
-#define SAMPLE_WINDOWS_PER_HOUR 1
+#define SAMPLE_WINDOWS_PER_HOUR 2
 
 
 

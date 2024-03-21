@@ -43,7 +43,7 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
 
-I2C_HandleTypeDef hi2c1;
+I2C_HandleTypeDef hi2c2;
 
 IWDG_HandleTypeDef hiwdg;
 
@@ -83,7 +83,7 @@ static void MX_LPUART1_UART_Init(void);
 static void MX_IWDG_Init(void);
 static void MX_TIM16_Init(void);
 static void MX_TIM15_Init(void);
-static void MX_I2C1_Init(void);
+static void MX_I2C2_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
 /* USER CODE END PFP */
@@ -163,7 +163,7 @@ int main(void)
   MX_IWDG_Init();
   MX_TIM16_Init();
   MX_TIM15_Init();
-  MX_I2C1_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -185,7 +185,7 @@ int main(void)
   handles.watchdog_hour_timer = &htim15;
   handles.battery_adc = &hadc4;
   handles.reset_reason = reset_reason;
-  handles.temp_i2c_handle = &hi2c1;
+  handles.temp_i2c_handle = &hi2c2;
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
@@ -387,50 +387,50 @@ static void MX_GPDMA1_Init(void)
 }
 
 /**
-  * @brief I2C1 Initialization Function
+  * @brief I2C2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_I2C1_Init(void)
+static void MX_I2C2_Init(void)
 {
 
-  /* USER CODE BEGIN I2C1_Init 0 */
+  /* USER CODE BEGIN I2C2_Init 0 */
 
-  /* USER CODE END I2C1_Init 0 */
+  /* USER CODE END I2C2_Init 0 */
 
-  /* USER CODE BEGIN I2C1_Init 1 */
+  /* USER CODE BEGIN I2C2_Init 1 */
 
-  /* USER CODE END I2C1_Init 1 */
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x40000A0B;
-  hi2c1.Init.OwnAddress1 = 0;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  /* USER CODE END I2C2_Init 1 */
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.Timing = 0x40000A0B;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Configure Analogue filter
   */
-  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c2, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Configure Digital filter
   */
-  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2C1_Init 2 */
+  /* USER CODE BEGIN I2C2_Init 2 */
 
-  /* USER CODE END I2C1_Init 2 */
+  /* USER CODE END I2C2_Init 2 */
 
 }
 
@@ -856,13 +856,13 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOG, LED_RED_Pin|CT_FET_Pin|GNSS_FET_Pin|GNSS_EXTINT_Pin
-                          |IMU_INT_Pin|IMU_nRESET_Pin, GPIO_PIN_RESET);
+                          |IMU_INT_Pin|IMU_nRESET_Pin|TEMP_PWR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, TEMP_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_SET);
@@ -927,20 +927,20 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB2 PB10
-                           PB11 PB13 UCPD1_CC2_Pin PB4
-                           PB6 PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_13|UCPD1_CC2_Pin|GPIO_PIN_4
-                          |GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pins : PB0 PB1 PB2 PB13
+                           UCPD1_CC2_Pin PB4 PB6 PB8
+                           PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_13
+                          |UCPD1_CC2_Pin|GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_8
+                          |GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PG0 PG1 PG5 PG6
-                           PG7 PG8 PG15 */
+                           PG7 PG8 PG13 PG15 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_15;
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_13|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
@@ -952,17 +952,19 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(UCPD_FLT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PD8 PD9 PD10 PD11
-                           PD12 PD13 PD14 PD15 */
+                           PD12 PD13 PD14 PD15
+                           PD0 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15
+                          |GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED_RED_Pin CT_FET_Pin GNSS_FET_Pin GNSS_EXTINT_Pin
-                           IMU_INT_Pin IMU_nRESET_Pin */
+                           IMU_INT_Pin IMU_nRESET_Pin TEMP_PWR_Pin */
   GPIO_InitStruct.Pin = LED_RED_Pin|CT_FET_Pin|GNSS_FET_Pin|GNSS_EXTINT_Pin
-                          |IMU_INT_Pin|IMU_nRESET_Pin;
+                          |IMU_INT_Pin|IMU_nRESET_Pin|TEMP_PWR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -991,8 +993,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : TEMP_FET_Pin IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin */
-  GPIO_InitStruct.Pin = TEMP_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin;
+  /*Configure GPIO pins : IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin */
+  GPIO_InitStruct.Pin = IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1034,6 +1036,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
 
 /**
   * @brief  This function is executed in case of error occurrence.

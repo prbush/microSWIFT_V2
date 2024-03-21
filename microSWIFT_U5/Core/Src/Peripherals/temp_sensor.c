@@ -14,16 +14,16 @@
 static Temperature* self;
 
 // Struct functions
-static void											temperature_on(void);
-static void											temperature_off(void);
+static void						temperature_on(void);
+static void						temperature_off(void);
 static temperature_error_code_t	temperature_reset_i2c(void);
 static temperature_error_code_t temperature_self_test(void);
 static temperature_error_code_t temperature_get_reading(float* temp);
 
 // Helper functions
-static bool											init_sensor(void);
-static void 									  calculate_temp(void);
-static void											reset_struct_fields(bool reset_calibration);
+static bool						init_sensor(void);
+static void 					calculate_temp(void);
+static void						reset_struct_fields(bool reset_calibration);
 
 void temperature_init(Temperature* struct_ptr, I2C_HandleTypeDef* i2c_handle, TX_EVENT_FLAGS_GROUP* control_flags,
 		TX_EVENT_FLAGS_GROUP* error_flags, bool clear_calibration_data)
@@ -46,14 +46,14 @@ void temperature_init(Temperature* struct_ptr, I2C_HandleTypeDef* i2c_handle, TX
 
 static void	temperature_on(void)
 {
-	HAL_GPIO_WritePin(GPIOD, TEMP_FET_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(TEMP_PWR_GPIO_Port, TEMP_PWR_Pin, GPIO_PIN_SET);
 	tx_thread_sleep(1);
 }
 
 
 static void	temperature_off(void)
 {
-	HAL_GPIO_WritePin(GPIOD, TEMP_FET_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(TEMP_PWR_GPIO_Port, TEMP_PWR_Pin, GPIO_PIN_RESET);
 }
 
 
@@ -66,8 +66,8 @@ static temperature_error_code_t	temperature_reset_i2c(void)
 
 	tx_thread_sleep(1);
 
-	self->i2c_handle->Instance = I2C1;
-	self->i2c_handle->Init.Timing = 0x00100413;
+	self->i2c_handle->Instance = I2C2;
+	self->i2c_handle->Init.Timing = 0x40000A0B;
 	self->i2c_handle->Init.OwnAddress1 = 0;
 	self->i2c_handle->Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
 	self->i2c_handle->Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -144,7 +144,6 @@ static temperature_error_code_t temperature_get_reading(float* temp)
 
 static bool	init_sensor(void)
 {
-	bool failed = false;
 	uint8_t command = TSYS01_RESET;
 	uint8_t read_data[2] = {0};
 	// Reset the TSYS01, per datasheet
@@ -159,20 +158,18 @@ static bool	init_sensor(void)
 		command = TSYS01_PROM_READ + (i*2);
 		if (HAL_I2C_Master_Transmit(self->i2c_handle, TSYS01_ADDR, &command, sizeof(command), 10)
 				!= HAL_OK) {
-			failed = true;
-			break;
+			return false;
 		}
 
 		if (HAL_I2C_Master_Receive(self->i2c_handle, TSYS01_ADDR, &(read_data[0]), sizeof(read_data), 10)
 				!= HAL_OK) {
-			failed = true;
-			break;
+			return false;
 		}
 
 		self->C[i] = (float)((read_data[0] << 8) | read_data[1]);
 	}
 
-	return failed;
+	return true;
 }
 
 
