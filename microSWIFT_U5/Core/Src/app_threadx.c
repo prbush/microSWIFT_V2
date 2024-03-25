@@ -115,6 +115,13 @@ CHAR* ct_data;
 ct_samples* samples_buf;
 
 #endif
+// Only if a temperature sensor is present
+#if TEMPERATURE_ENABLED
+
+Temperature* 	temperature;
+TX_THREAD 		temperature_thread;
+
+#endif
 // Only if we are saving raw data to flash
 #if FLASH_STORAGE_ENABLED
 
@@ -164,9 +171,7 @@ void ct_thread_entry(ULONG thread_input);
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
-  TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
-
-   /* USER CODE BEGIN App_ThreadX_MEM_POOL */
+  /* USER CODE BEGIN App_ThreadX_MEM_POOL */
 	(void)byte_pool;
 	CHAR *pointer = TX_NULL;
 	byte_pool = memory_ptr;
@@ -323,6 +328,30 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 		return ret;
 	}
 
+#if TEMPERATURE_ENABLED
+
+	//
+	// The temperature struct
+	ret = tx_byte_allocate(byte_pool, (VOID**) &temperature, sizeof(Temperature) + 100, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+
+	//
+	// Allocate stack for the temperature thread
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+	// Create the temperature thread. VERY_HIGH priority, no preemption-threshold
+	ret = tx_thread_create(&temperature_thread, "temperature thread", temperature_thread_entry, 0,
+			pointer, THREAD_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_DONT_START);
+	if (ret != TX_SUCCESS){
+		return ret;
+	}
+
+#endif
+
 // Only if the IMU will be utilized
 #if IMU_ENABLED
 	//
@@ -395,7 +424,6 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 #endif
 
   /* USER CODE END App_ThreadX_MEM_POOL */
-
   /* USER CODE BEGIN App_ThreadX_Init */
   /* USER CODE END App_ThreadX_Init */
 
@@ -511,6 +539,11 @@ void startup_thread_entry(ULONG thread_input){
 					&thread_control_flags, &error_flags, ct_data, samples_buf);
 #endif
 
+#if TEMPERATURE_ENABLED
+	temperature_init(temperature, device_handles->temp_i2c_handle, &thread_control_flags, &error_flags,
+			GPIOF, TEMP_POWER_Pin, true);
+#endif
+
 	rf_switch_init(rf_switch);
 
 	battery_init(battery, device_handles->battery_adc, &thread_control_flags, &error_flags);
@@ -538,6 +571,14 @@ void startup_thread_entry(ULONG thread_input){
 		if (tx_return == TX_NOT_DONE){
 			tx_thread_terminate(&ct_thread);
 			tx_thread_reset(&ct_thread);
+		}
+#endif
+
+#if TEMPERATURE_ENABLED
+		tx_return = tx_thread_reset(&temperature_thread);
+		if (tx_return == TX_NOT_DONE){
+			tx_thread_terminate(&temperature_thread);
+			tx_thread_reset(&temperature_thread);
 		}
 #endif
 		tx_return = tx_thread_reset(&waves_thread);

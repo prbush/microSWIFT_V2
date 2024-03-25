@@ -135,6 +135,17 @@ typedef enum self_test_status{
 #define WAVES_MEM_POOL_SIZE 650000
 /* USER CODE END EC */
 
+/* Private defines -----------------------------------------------------------*/
+
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* Main thread defines -------------------------------------------------------*/
+/* USER CODE BEGIN MTD */
+
+/* USER CODE END MTD */
+
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 #define THREAD_XXL_STACK_SIZE 8192
@@ -164,11 +175,6 @@ void waves_thread_entry(ULONG thread_input);
 void iridium_thread_entry(ULONG thread_input);
 void end_of_cycle_thread_entry(ULONG thread_input);
 /* USER CODE END EFP */
-
-/* Private defines -----------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
 
 /* USER CODE BEGIN 1 */
 

@@ -56,6 +56,7 @@ typedef struct {
 	IWDG_HandleTypeDef* watchdog_handle;
 	TIM_HandleTypeDef* watchdog_hour_timer;
 	ADC_HandleTypeDef* battery_adc;
+	I2C_HandleTypeDef* temp_i2c_handle;
 	uint32_t reset_reason;
 } device_handles_t;
 /* USER CODE END ET */
@@ -141,6 +142,8 @@ void Error_Handler(void);
 #define IMU_INT_GPIO_Port GPIOG
 #define IMU_nRESET_Pin GPIO_PIN_12
 #define IMU_nRESET_GPIO_Port GPIOG
+#define TEMP_PWR_Pin GPIO_PIN_14
+#define TEMP_PWR_GPIO_Port GPIOG
 #define UCPD_DBn_Pin GPIO_PIN_5
 #define UCPD_DBn_GPIO_Port GPIOB
 #define LED_BLUE_Pin GPIO_PIN_7
