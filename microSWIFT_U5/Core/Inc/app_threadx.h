@@ -44,6 +44,7 @@
 #include "Peripherals/rf_switch.h"
 #include "Peripherals/imu.h"
 #include "Peripherals/iridium.h"
+#include "Peripherals/temp_sensor.h"
 #include "flash_storage.h"
 #include "NEDWaves/mem_replacements.h"
 #include "configuration.h"
@@ -113,7 +114,8 @@ typedef enum error_flags{
 	FLASH_OPERATION_UNKNOWN_ERROR = 1 << 18,
 	FLASH_OPERATION_STORAGE_FULL = 1 << 19,
 	FLASH_OPERATION_ERASE_ERROR = 1 << 20,
-	FLASH_OPERATION_PROGRAM_ERROR = 1 << 21
+	FLASH_OPERATION_PROGRAM_ERROR = 1 << 21,
+	TEMPERATURE_ERROR = 1 << 22
 }error_flags_t;
 
 typedef enum led_sequence{

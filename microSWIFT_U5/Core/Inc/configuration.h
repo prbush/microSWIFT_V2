@@ -74,6 +74,9 @@
 // If there is a CT sensor present
 #define CT_ENABLED false
 
+// If there is a Blue Robotics I2C temperature sensor presen
+#define TEMPERATURE_ENABLED true
+
 // If we are saving raw data to flash
 #define FLASH_STORAGE_ENABLED true
 

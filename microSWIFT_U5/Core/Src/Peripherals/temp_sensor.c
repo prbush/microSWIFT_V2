@@ -26,13 +26,15 @@ static void 					calculate_temp(void);
 static void						reset_struct_fields(bool reset_calibration);
 
 void temperature_init(Temperature* struct_ptr, I2C_HandleTypeDef* i2c_handle, TX_EVENT_FLAGS_GROUP* control_flags,
-		TX_EVENT_FLAGS_GROUP* error_flags, bool clear_calibration_data)
+		TX_EVENT_FLAGS_GROUP* error_flags, GPIO_TypeDef *gpio_bus, uint16_t pwr_gpio, bool clear_calibration_data)
 {
 	self = struct_ptr;
 
 	self->i2c_handle = i2c_handle;
 	self->control_flags = control_flags;
 	self->error_flags = error_flags;
+	self->pwr_gpio = pwr_gpio;
+	self->gpio_bus = gpio_bus;
 
 	self->on = temperature_on;
 	self->off = temperature_off;
@@ -46,14 +48,14 @@ void temperature_init(Temperature* struct_ptr, I2C_HandleTypeDef* i2c_handle, TX
 
 static void	temperature_on(void)
 {
-	HAL_GPIO_WritePin(TEMP_PWR_GPIO_Port, TEMP_PWR_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(self->gpio_bus, self->pwr_gpio, GPIO_PIN_SET);
 	tx_thread_sleep(1);
 }
 
 
 static void	temperature_off(void)
 {
-	HAL_GPIO_WritePin(TEMP_PWR_GPIO_Port, TEMP_PWR_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(self->gpio_bus, self->pwr_gpio, GPIO_PIN_RESET);
 }
 
 

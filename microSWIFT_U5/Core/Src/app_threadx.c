@@ -161,6 +161,10 @@ void imu_thread_entry(ULONG thread_input);
 #if CT_ENABLED
 void ct_thread_entry(ULONG thread_input);
 #endif
+
+#if TEMPERATURE_ENABLED
+void temperature_thread_entry(ULONG thread_input);
+#endif
 /* USER CODE END PFP */
 
 /**
@@ -541,7 +545,7 @@ void startup_thread_entry(ULONG thread_input){
 
 #if TEMPERATURE_ENABLED
 	temperature_init(temperature, device_handles->temp_i2c_handle, &thread_control_flags, &error_flags,
-			GPIOF, TEMP_POWER_Pin, true);
+			TEMP_PWR_GPIO_Port, TEMP_PWR_Pin, true);
 #endif
 
 	rf_switch_init(rf_switch);
@@ -1015,6 +1019,57 @@ void ct_thread_entry(ULONG thread_input){
 	tx_thread_terminate(&ct_thread);
 }
 #endif
+
+
+#if TEMPERATURE_ENABLED
+/**
+  * @brief  temperature_thread_entry
+  *         This thread will handle the temperature sensor, capture readings, and getting averages.
+  *
+  * @param  ULONG thread_input - unused
+  * @retval void
+  */
+void temperature_thread_entry(ULONG thread_input)
+{
+	temperature_error_code_t temp_return_code;
+	real16_T half_salinity;
+	real16_T half_temp;
+	int fail_counter = 0;
+
+	register_watchdog_refresh();
+
+	temperature->on();
+
+	while (fail_counter < MAX_RETRIES) {
+		temp_return_code = temperature->get_reading();
+
+		if (temp_return_code == TEMPERATURE_SUCCESS) {
+			break;
+		} else {
+			fail_counter++;
+		}
+	}
+
+	if (fail_counter == MAX_RETRIES) {
+		half_temp.bitPattern = TEMPERATURE_AVERAGED_ERROR_CODE;
+	} else {
+		half_temp = floatToHalf(temperature->converted_temp);
+	}
+
+	temperature->off();
+
+	half_salinity.bitPattern = CT_AVERAGED_VALUE_ERROR_CODE;
+	memcpy(&sbd_message.mean_temp, &half_temp, sizeof(real16_T));
+	memcpy(&sbd_message.mean_salinity, &half_salinity, sizeof(real16_T));
+
+	if (tx_thread_resume(&waves_thread) != TX_SUCCESS){
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+	tx_thread_terminate(&temperature_thread);
+}
+#endif
+
 
 /**
   * @brief  waves_thread_entry
@@ -1783,9 +1838,11 @@ static self_test_status_t initial_power_on_self_test(void)
 	iridium_error_code_t iridium_return_code;
 
 #if CT_ENABLED
-
 	ct_error_code_t ct_return_code;
+#endif
 
+#if TEMPERATURE_ENABLED
+	temperature_error_code_t temp_return_code;
 #endif
 
 	int fail_counter;
@@ -1945,6 +2002,38 @@ static self_test_status_t initial_power_on_self_test(void)
 
 	return_code = SELF_TEST_PASSED;
 
+#endif
+
+#if TEMPERATURE_ENABLED
+	fail_counter = 0;
+	while (fail_counter < MAX_SELF_TEST_RETRIES) {
+
+		temperature->on();
+		tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
+		register_watchdog_refresh();
+		// See if we can get an ack message from the modem
+		temp_return_code = temperature->self_test();
+		if (temp_return_code != TEMPERATURE_SUCCESS) {
+
+			temperature->off();
+			temperature->reset_i2c();
+			tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND / 10);
+			fail_counter++;
+
+		} else {
+
+			break;
+		}
+	}
+
+	if (fail_counter == MAX_SELF_TEST_RETRIES) {
+
+		return_code = SELF_TEST_NON_CRITICAL_FAULT;
+		tx_event_flags_set(&error_flags, TEMPERATURE_ERROR, TX_OR);
+
+	}
+
+	temperature->off();
 #endif
 
 	return return_code;
