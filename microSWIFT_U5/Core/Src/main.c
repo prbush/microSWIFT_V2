@@ -163,7 +163,9 @@ int main(void)
   MX_IWDG_Init();
   MX_TIM16_Init();
   MX_TIM15_Init();
+#if TEMPERATURE_ENABLED
   MX_I2C2_Init();
+#endif
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -1012,7 +1014,11 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : IRIDIUM_OnOff_Pin */
   GPIO_InitStruct.Pin = IRIDIUM_OnOff_Pin;
+#ifdef ROCK_BLOCK_V3D
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+#else
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+#endif
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(IRIDIUM_OnOff_GPIO_Port, &GPIO_InitStruct);
