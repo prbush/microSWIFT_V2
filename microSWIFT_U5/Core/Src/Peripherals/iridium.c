@@ -516,7 +516,6 @@ static iridium_error_code_t iridium_transmit_message(void)
 	register_watchdog_refresh();
 
 	// reset the timer and clear the interrupt flag
-	self->timer_timeout = false;
 	self->reset_timer(timer_minutes);
 	// Start the timer in interrupt mode
 	HAL_TIM_Base_Start_IT(self->timer);
@@ -533,7 +532,6 @@ static iridium_error_code_t iridium_transmit_message(void)
 		}
 
 		HAL_TIM_Base_Stop_IT(self->timer);
-		self->timer_timeout = false;
 		__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
 		return queue_return_code;
@@ -577,7 +575,6 @@ static iridium_error_code_t iridium_transmit_message(void)
 		if (self->timer_timeout && !message_tx_success) {
 			// reset the timer and clear the flag for the next time
 			HAL_TIM_Base_Stop_IT(self->timer);
-			self->timer_timeout = false;
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 
 			return self->queue_add(self->current_message);
@@ -586,7 +583,6 @@ static iridium_error_code_t iridium_transmit_message(void)
 
 	// reset the timer and clear the flag for the next time
 	HAL_TIM_Base_Stop_IT(self->timer);
-	self->timer_timeout = false;
 	__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 	return return_code;
 }
@@ -830,7 +826,6 @@ static iridium_error_code_t iridium_transmit_error_message(char* error_message)
 	if (self->timer_timeout && !message_tx_success) {
 			// reset the timer and clear the flag for the next time
 			HAL_TIM_Base_Stop_IT(self->timer);
-			self->timer_timeout = false;
 			__HAL_TIM_CLEAR_FLAG(self->timer, TIM_FLAG_UPDATE);
 	}
 

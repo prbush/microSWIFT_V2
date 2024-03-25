@@ -19,13 +19,14 @@
 #include "stm32u5xx_hal_i2c_ex.h"
 #include "stdbool.h"
 
-#define TSYS01_ADDR                        0x77 << 1
-#define TSYS01_RESET                       0x1E
-#define TSYS01_ADC_READ                    0x00
-#define TSYS01_ADC_TEMP_CONV               0x48
-#define TSYS01_PROM_READ                   0XA0
+#define TSYS01_ADDR                       	0x77 << 1
+#define TSYS01_RESET                      	0x1E
+#define TSYS01_ADC_READ                    	0x00
+#define TSYS01_ADC_TEMP_CONV               	0x48
+#define TSYS01_PROM_READ                   	0XA0
 
-#define TEMPERATURE_AVERAGED_ERROR_CODE			0X70e2
+#define TEMPERATURE_AVERAGED_ERROR_CODE		0X70e2
+#define TOTAL_TEMPERATURE_SAMPLES 			10
 
 typedef enum tmperature_error_code {
 	TEMPERATURE_SUCCESS = 0,
@@ -42,9 +43,11 @@ typedef struct Temperature {
 
 	void 						(*on)(void);
 	void						(*off)(void);
+	void						(*deinit)(void);
+	temperature_error_code_t	(*reinit)(void);
 	temperature_error_code_t	(*reset_i2c)(void);
 	temperature_error_code_t	(*self_test)(void);
-	temperature_error_code_t	(*get_reading)(void);
+	temperature_error_code_t	(*get_readings)(void);
 
 	float						converted_temp;
 	float 						C[8]; // Cal data array

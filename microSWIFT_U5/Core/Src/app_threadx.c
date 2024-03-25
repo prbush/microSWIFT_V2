@@ -882,6 +882,13 @@ void gnss_thread_entry(ULONG thread_input){
 		HAL_NVIC_SystemReset();
 	}
 
+#elif TEMPERATURE_ENABLED
+
+	if (tx_thread_resume(&temperature_thread) != TX_SUCCESS){
+		shut_it_all_down();
+		HAL_NVIC_SystemReset();
+	}
+
 #else
 
 	if (tx_thread_resume(&waves_thread) != TX_SUCCESS){
@@ -1041,7 +1048,7 @@ void temperature_thread_entry(ULONG thread_input)
 	temperature->on();
 
 	while (fail_counter < MAX_RETRIES) {
-		temp_return_code = temperature->get_reading();
+		temp_return_code = temperature->get_readings();
 
 		if (temp_return_code == TEMPERATURE_SUCCESS) {
 			break;

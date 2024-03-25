@@ -53,9 +53,6 @@
 // Are we doing 1 or two sample windows per hour
 // !! Must be a number such that SAMPLE_WINDOWS_PER_HOUR % 60 == 0
 #define SAMPLE_WINDOWS_PER_HOUR 2
-
-
-
 #endif // DEBUGGING_FAST_CYCLE
 
 // Sampling rate in Hz for the GNSS sensor
