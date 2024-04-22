@@ -937,6 +937,8 @@ static float iridium_get_timestamp(void)
 	timestamp += rtc_time.Seconds;
 	// Not including fractions of a second
 	return (float)timestamp;
+
+	this is still wrong. See branch port_u5a5.
 }
 
 /**
