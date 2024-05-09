@@ -19,6 +19,7 @@
 #include "stm32u5xx_ll_dma.h"
 #include "stdio.h"
 #include "stdbool.h"
+#include "time.h"
 
 // Return codes
 typedef enum iridium_error_code{
