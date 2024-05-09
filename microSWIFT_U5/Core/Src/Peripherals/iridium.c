@@ -877,6 +877,8 @@ static float iridium_get_timestamp(void)
 	timestamp = mktime(&time);
 
 	return (float)timestamp;
+
+	this is still wrong. See branch port_u5a5.
 }
 
 /**
