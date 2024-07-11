@@ -112,6 +112,10 @@ static temperature_error_code_t temperature_get_readings(void)
 	uint8_t read_data[3] = {0};
 	float readings_accumulator = 0;
 
+	if (!init_sensor()) {
+		return TEMPERATURE_COMMUNICATION_ERROR;
+	}
+
 	for (int i = 0; i < TOTAL_TEMPERATURE_SAMPLES; i++) {
 
 		command = TSYS01_ADC_TEMP_CONV;

@@ -39,10 +39,10 @@
 
 #else
 // Number of samples in each sampling window
-#define TOTAL_SAMPLES_PER_WINDOW 4096
+#define TOTAL_SAMPLES_PER_WINDOW 8192
 
 // The max time in MINUTES to try to get an Iridium message off
-#define IRIDIUM_MAX_TRANSMIT_TIME 3
+#define IRIDIUM_MAX_TRANSMIT_TIME 15
 
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
@@ -69,10 +69,10 @@
 #define IMU_ENABLED false
 
 // If there is a CT sensor present
-#define CT_ENABLED true
+#define CT_ENABLED false
 
 // If there is a Blue Robotics I2C temperature sensor presen
-#define TEMPERATURE_ENABLED false
+#define TEMPERATURE_ENABLED true
 
 // If we are saving raw data to flash
 #define FLASH_STORAGE_ENABLED false
