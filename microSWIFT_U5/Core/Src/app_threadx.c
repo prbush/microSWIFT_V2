@@ -2040,6 +2040,8 @@ static self_test_status_t initial_power_on_self_test(void)
 
 	}
 
+	register_watchdog_refresh();
+
 	temperature->off();
 #endif
 

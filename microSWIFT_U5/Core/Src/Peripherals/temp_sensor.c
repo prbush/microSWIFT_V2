@@ -49,6 +49,7 @@ void temperature_init(Temperature* struct_ptr, I2C_HandleTypeDef* i2c_handle, TX
 static void	temperature_on(void)
 {
 	HAL_GPIO_WritePin(self->gpio_bus, self->pwr_gpio, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
 	tx_thread_sleep(1);
 }
 
@@ -56,6 +57,7 @@ static void	temperature_on(void)
 static void	temperature_off(void)
 {
 	HAL_GPIO_WritePin(self->gpio_bus, self->pwr_gpio, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
 }
 
 static temperature_error_code_t	temperature_reset_i2c(void)
@@ -164,6 +166,7 @@ static bool	init_sensor(void)
 	tx_thread_sleep(1);
 		// Read calibration values
 	for ( uint8_t i = 0 ; i < 8 ; i++ ) {
+		tx_thread_sleep(1);
 		command = TSYS01_PROM_READ + (i*2);
 		if (HAL_I2C_Master_Transmit(self->i2c_handle, TSYS01_ADDR, &command, sizeof(command), 10)
 				!= HAL_OK) {
