@@ -44,6 +44,8 @@ static const char* select_power_up_profile = "AT&Y0\r";
 static const char* clear_MO = "AT+SBDD0\r";
 static const char* send_sbd = "AT+SBDIX\r";
 
+int global_sbdix_return = 0;
+
 /**
  * Initialize the CT struct
  *
@@ -627,6 +629,7 @@ static iridium_error_code_t internal_transmit_message(uint8_t* payload,
 
 	while (!self->timer_timeout) {
 		register_watchdog_refresh();
+		global_sbdix_return = 0;
 
 		message_response_received = false;
 		tx_response_time = 0;
@@ -736,6 +739,7 @@ static iridium_error_code_t internal_transmit_message(uint8_t* payload,
 		needle = strstr((char*)&(self->response_buffer[0]), sbdix_search_term);
 		needle += strlen(sbdix_search_term);
 		SBDIX_response_code = atoi(needle);
+		global_sbdix_return = SBDIX_response_code;
 
 		if (SBDIX_response_code <= 4) {
 			// Success case

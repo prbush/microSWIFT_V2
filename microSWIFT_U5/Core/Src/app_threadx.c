@@ -343,13 +343,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
 	//
 	// Allocate stack for the temperature thread
-	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_LARGE_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(byte_pool, (VOID**) &pointer, THREAD_EXTRA_LARGE_STACK_SIZE, TX_NO_WAIT);
 	if (ret != TX_SUCCESS){
 		return ret;
 	}
 	// Create the temperature thread. VERY_HIGH priority, no preemption-threshold
 	ret = tx_thread_create(&temperature_thread, "temperature thread", temperature_thread_entry, 0,
-			pointer, THREAD_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_DONT_START);
+			pointer, THREAD_EXTRA_LARGE_STACK_SIZE, HIGH, HIGH, TX_NO_TIME_SLICE, TX_DONT_START);
 	if (ret != TX_SUCCESS){
 		return ret;
 	}

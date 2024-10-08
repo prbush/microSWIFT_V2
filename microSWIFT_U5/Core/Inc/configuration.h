@@ -27,22 +27,22 @@
  */
 
 // Define if the old type V3D RockBlock modem is used
-#define ROCK_BLOCK_V3D
+//#define ROCK_BLOCK_V3D
 
 // For debugging, redefine sample window parameters to be faster
 #ifdef DEBUGGING_FAST_CYCLE
 
 #define TOTAL_SAMPLES_PER_WINDOW 1024
-#define IRIDIUM_MAX_TRANSMIT_TIME 10
+#define IRIDIUM_MAX_TRANSMIT_TIME 30
 #define GNSS_MAX_ACQUISITION_WAIT_TIME 10
 #define SAMPLE_WINDOWS_PER_HOUR 1
 
 #else
 // Number of samples in each sampling window
-#define TOTAL_SAMPLES_PER_WINDOW 8192
+#define TOTAL_SAMPLES_PER_WINDOW 4096
 
 // The max time in MINUTES to try to get an Iridium message off
-#define IRIDIUM_MAX_TRANSMIT_TIME 15
+#define IRIDIUM_MAX_TRANSMIT_TIME 6
 
 // The max time in MINUTES without good data from GNSS before commanding to sleep
 // !! Must be greater than 0
@@ -52,7 +52,7 @@
 
 // Are we doing 1 or two sample windows per hour
 // !! Must be a number such that SAMPLE_WINDOWS_PER_HOUR % 60 == 0
-#define SAMPLE_WINDOWS_PER_HOUR 1
+#define SAMPLE_WINDOWS_PER_HOUR 2
 #endif // DEBUGGING_FAST_CYCLE
 
 // Sampling rate in Hz for the GNSS sensor
@@ -72,7 +72,7 @@
 #define CT_ENABLED false
 
 // If there is a Blue Robotics I2C temperature sensor presen
-#define TEMPERATURE_ENABLED true
+#define TEMPERATURE_ENABLED false
 
 // If we are saving raw data to flash
 #define FLASH_STORAGE_ENABLED false
