@@ -5,15 +5,15 @@
  * File: mean.h
  *
  * MATLAB Coder version            : 5.4
- * C/C++ source code generated on  : 06-Jan-2023 10:46:55
+ * C/C++ source code generated on  : 16-Oct-2023 17:01:43
  */
 
 #ifndef MEAN_H
 #define MEAN_H
 
 /* Include Files */
-#include "NEDwaves_memlight_types.h"
-#include "rtwtypes.h"
+#include "NEDWaves/NEDwaves_memlight_types.h"
+#include "NEDWaves/rtwtypes.h"
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 /* Function Declarations */
-float mean(const emxArray_real32_T *x);
+creal32_T mean(const emxArray_creal32_T *x);
 
 #ifdef __cplusplus
 }

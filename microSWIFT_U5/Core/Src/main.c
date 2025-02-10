@@ -17,12 +17,13 @@
 */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
 #include "app_threadx.h"
+#include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tx_api.h"
+#include "Peripherals/iridium.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,9 +43,14 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc4;
 
+I2C_HandleTypeDef hi2c2;
+
+IWDG_HandleTypeDef hiwdg;
+
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
+DMA_HandleTypeDef handle_GPDMA1_Channel4;
 DMA_HandleTypeDef handle_GPDMA1_Channel0;
 DMA_HandleTypeDef handle_GPDMA1_Channel1;
 DMA_HandleTypeDef handle_GPDMA1_Channel3;
@@ -52,15 +58,18 @@ DMA_HandleTypeDef handle_GPDMA1_Channel2;
 
 RTC_HandleTypeDef hrtc;
 
+TIM_HandleTypeDef htim15;
 TIM_HandleTypeDef htim16;
 TIM_HandleTypeDef htim17;
 
 /* USER CODE BEGIN PV */
-
+// Messages that failed to send are stored here
+__attribute__((section(".noinit_section"))) volatile Iridium_message_storage sbd_message_queue;
+__attribute__((section(".noinit_section"))) volatile uint32_t sample_window_counter;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
-extern void SystemClock_Config(void);
+void SystemClock_Config(void);
 static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_GPDMA1_Init(void);
@@ -71,7 +80,10 @@ static void MX_UART5_Init(void);
 static void MX_ADC4_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_LPUART1_UART_Init(void);
+static void MX_IWDG_Init(void);
 static void MX_TIM16_Init(void);
+static void MX_TIM15_Init(void);
+static void MX_I2C2_Init(void);
 /* USER CODE BEGIN PFP */
 extern void shut_it_all_down(void);
 /* USER CODE END PFP */
@@ -88,7 +100,6 @@ extern void shut_it_all_down(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -100,7 +111,6 @@ int main(void)
   // Force the reset of the RTC and clear anything in the backup domain
   HAL_PWR_EnableBkUpAccess();
   __HAL_RCC_BACKUPRESET_FORCE();
-  HAL_Delay(1);
   __HAL_RCC_BACKUPRESET_RELEASE();
   /* USER CODE END Init */
 
@@ -145,14 +155,17 @@ int main(void)
   MX_GPDMA1_Init();
   MX_RTC_Init();
   MX_ICACHE_Init();
-#if CT_ENABLED
   MX_UART4_Init();
-#endif
   MX_UART5_Init();
   MX_ADC4_Init();
   MX_TIM17_Init();
   MX_LPUART1_UART_Init();
+  MX_IWDG_Init();
   MX_TIM16_Init();
+  MX_TIM15_Init();
+#if TEMPERATURE_ENABLED
+  MX_I2C2_Init();
+#endif
   /* USER CODE BEGIN 2 */
 
   uint32_t reset_reason = HAL_RCC_GetResetSource();
@@ -164,17 +177,20 @@ int main(void)
   handles.Iridium_uart = &huart5;
   handles.GNSS_uart = &hlpuart1;
   handles.CT_dma_handle = &handle_GPDMA1_Channel1;
-  handles.GNSS_dma_handle = &handle_GPDMA1_Channel0;
+  handles.GNSS_rx_dma_handle = &handle_GPDMA1_Channel0;
+  handles.GNSS_tx_dma_handle = &handle_GPDMA1_Channel4;
   handles.Iridium_tx_dma_handle = &handle_GPDMA1_Channel2;
   handles.Iridium_rx_dma_handle = &handle_GPDMA1_Channel3;
   handles.iridium_timer = &htim17;
   handles.gnss_timer = &htim16;
-  handles.watchdog_handle = 0; // watchdog unused
+  handles.watchdog_handle = &hiwdg;
+  handles.watchdog_hour_timer = &htim15;
+  handles.battery_adc = &hadc4;
+  handles.temp_i2c_handle = &hi2c2;
   handles.reset_reason = reset_reason;
 
   MX_ThreadX_Init(&handles);
   /* USER CODE END 2 */
-
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -245,6 +261,7 @@ void SystemClock_Config(void)
 
   /** Enable MSI Auto calibration
   */
+  HAL_RCCEx_EnableMSIPLLModeSelection(RCC_MSISPLL_MODE_SEL);
   HAL_RCCEx_EnableMSIPLLMode();
 }
 
@@ -266,9 +283,6 @@ static void SystemPower_Config(void)
    */
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_SRAM4_FULL_STOP_RETENTION);
   HAL_PWREx_DisableRAMsContentStopRetention(PWR_ICACHE_FULL_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM1_FULL_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM2_FULL_STOP_RETENTION);
-  HAL_PWREx_EnableRAMsContentStopRetention(PWR_SRAM3_FULL_STOP_RETENTION);
 
   /*
    * Switch to SMPS regulator instead of LDO
@@ -277,9 +291,8 @@ static void SystemPower_Config(void)
   {
     Error_Handler();
   }
-  /* PWR_S3WU_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(PWR_S3WU_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(PWR_S3WU_IRQn);
+/* USER CODE BEGIN PWR */
+/* USER CODE END PWR */
 }
 
 /**
@@ -291,7 +304,6 @@ static void MX_ADC4_Init(void)
 {
 
   /* USER CODE BEGIN ADC4_Init 0 */
-
   /* USER CODE END ADC4_Init 0 */
 
   ADC_ChannelConfTypeDef sConfig = {0};
@@ -303,24 +315,23 @@ static void MX_ADC4_Init(void)
   /** Common config
   */
   hadc4.Instance = ADC4;
-  hadc4.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc4.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV32;
   hadc4.Init.Resolution = ADC_RESOLUTION_12B;
   hadc4.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc4.Init.ScanConvMode = ADC4_SCAN_DISABLE;
-  hadc4.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc4.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc4.Init.LowPowerAutoPowerOff = ADC_LOW_POWER_NONE;
   hadc4.Init.LowPowerAutoWait = DISABLE;
-  hadc4.Init.ContinuousConvMode = DISABLE;
+  hadc4.Init.ContinuousConvMode = ENABLE;
   hadc4.Init.NbrOfConversion = 1;
-  hadc4.Init.DiscontinuousConvMode = DISABLE;
   hadc4.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc4.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc4.Init.DMAContinuousRequests = DISABLE;
   hadc4.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
-  hadc4.Init.VrefProtection = ADC_VREF_PPROT_NONE;
-  hadc4.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_1CYCLE_5;
-  hadc4.Init.SamplingTimeCommon2 = ADC4_SAMPLETIME_1CYCLE_5;
+  hadc4.Init.VrefProtection = ADC_VREF_PPROT_VREFPROT;
+  hadc4.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+  hadc4.Init.SamplingTimeCommon1 = ADC4_SAMPLETIME_814CYCLES_5;
+  hadc4.Init.SamplingTimeCommon2 = ADC4_SAMPLETIME_814CYCLES_5;
   hadc4.Init.OversamplingMode = DISABLE;
   if (HAL_ADC_Init(&hadc4) != HAL_OK)
   {
@@ -329,7 +340,7 @@ static void MX_ADC4_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  sConfig.Channel = ADC_CHANNEL_6;
   sConfig.Rank = ADC4_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC4_SAMPLINGTIME_COMMON_1;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
@@ -368,17 +379,66 @@ static void MX_GPDMA1_Init(void)
     HAL_NVIC_EnableIRQ(GPDMA1_Channel2_IRQn);
     HAL_NVIC_SetPriority(GPDMA1_Channel3_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel3_IRQn);
+    HAL_NVIC_SetPriority(GPDMA1_Channel4_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel4_IRQn);
 
   /* USER CODE BEGIN GPDMA1_Init 1 */
-
-  /* GPDMA1 interrupt Init */
-//  HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
-//  HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+#if !CT_ENABLED
+    HAL_NVIC_DisableIRQ(GPDMA1_Channel1_IRQn);
+#endif
 
   /* USER CODE END GPDMA1_Init 1 */
   /* USER CODE BEGIN GPDMA1_Init 2 */
 
   /* USER CODE END GPDMA1_Init 2 */
+
+}
+
+/**
+  * @brief I2C2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C2_Init(void)
+{
+
+  /* USER CODE BEGIN I2C2_Init 0 */
+
+  /* USER CODE END I2C2_Init 0 */
+
+  /* USER CODE BEGIN I2C2_Init 1 */
+
+  /* USER CODE END I2C2_Init 1 */
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.Timing = 0x40000A0B;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c2, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C2_Init 2 */
+
+  /* USER CODE END I2C2_Init 2 */
 
 }
 
@@ -414,6 +474,35 @@ static void MX_ICACHE_Init(void)
 
 }
 
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_512;
+  hiwdg.Init.Window = 4094;
+  hiwdg.Init.Reload = 4094;
+  hiwdg.Init.EWI = 0;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
+
+}
 
 /**
   * @brief LPUART1 Initialization Function
@@ -571,22 +660,25 @@ static void MX_RTC_Init(void)
   /* USER CODE END RTC_Init 0 */
 
   RTC_PrivilegeStateTypeDef privilegeState = {0};
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
-  RTC_DateTypeDef rtc_date;
-  RTC_TimeTypeDef rtc_time;
   /* USER CODE END RTC_Init 1 */
 
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
   hrtc.Init.BinMode = RTC_BINARY_MIX;
+  hrtc.Init.BinMixBcdU = RTC_BINARY_MIX_BCDU_0;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
@@ -606,37 +698,79 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  if (HAL_RTCEx_SetSSRU_IT(&hrtc) != HAL_OK)
+  sTime.Hours = 2;
+  sTime.Minutes = 2;
+  sTime.Seconds = 2;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 2;
+  sDate.Year = 0;
 
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN RTC_Init 2 */
 
-  // Set date/time to something arbitrary in the event GNSS can't resolve time
-  // in the first window
-  rtc_date.Date = 2;
-  rtc_date.Month = 2;
-  rtc_date.WeekDay = RTC_WEEKDAY_MONDAY;
-  rtc_date.Year = 23;
-  rtc_time.Hours = 2;
-  rtc_time.Minutes = 2;
-  rtc_time.Seconds = 2;
-  rtc_time.SecondFraction = 0;
-
-  if (HAL_RTC_SetTime(&hrtc, &rtc_time, RTC_FORMAT_BIN) != HAL_OK) {
-	  Error_Handler();
-  }
-  if (HAL_RTC_SetDate(&hrtc, &rtc_date, RTC_FORMAT_BIN) != HAL_OK) {
-	  Error_Handler();
-  }
   // Enable RTC low power calibration
   if (HAL_RTCEx_SetLowPowerCalib(&hrtc, RTC_LPCAL_SET) != HAL_OK)
   {
 	  Error_Handler();
   }
-
+  HAL_NVIC_SetPriority(RTC_IRQn, 1, 1);
   /* USER CODE END RTC_Init 2 */
+
+}
+
+/**
+  * @brief TIM15 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM15_Init(void)
+{
+
+  /* USER CODE BEGIN TIM15_Init 0 */
+
+  /* USER CODE END TIM15_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM15_Init 1 */
+
+  /* USER CODE END TIM15_Init 1 */
+  htim15.Instance = TIM15;
+  htim15.Init.Prescaler = 12000;
+  htim15.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim15.Init.Period = 59999;
+  htim15.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim15.Init.RepetitionCounter = 60;
+  htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim15) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim15, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim15, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM15_Init 2 */
+  HAL_TIM_Base_Start_IT(&htim15);
+  /* USER CODE END TIM15_Init 2 */
 
 }
 
@@ -712,6 +846,8 @@ static void MX_TIM17_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
+/* USER CODE BEGIN MX_GPIO_Init_1 */
+/* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
@@ -728,14 +864,16 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOG, LED_RED_Pin|CT_FET_Pin|GNSS_FET_Pin|GNSS_EXTINT_Pin
-                          |IMU_INT_Pin|IMU_nRESET_Pin, GPIO_PIN_RESET);
+                          |IMU_INT_Pin|IMU_nRESET_Pin|TEMP_PWR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin
-                          |IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, UCPD_DBn_Pin|LED_BLUE_Pin, GPIO_PIN_RESET);
@@ -767,12 +905,10 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PF3 PF4 PF5 PF6
                            PF7 PF8 PF9 PF10
-                           PF11 PF12 PF13 PF14
-                           PF15 */
+                           PF11 PF12 PF13 PF14 */
   GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
                           |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
@@ -792,29 +928,27 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA0 PA1 PA4 PA5
-                           PA7 PA8 UCPD1_CC1_Pin */
+                           PA6 PA7 PA8 UCPD1_CC1_Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_7|GPIO_PIN_8|UCPD1_CC1_Pin;
+                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|UCPD1_CC1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB2 PB10
-                           PB11 PB13 UCPD1_CC2_Pin PB4
-                           PB6 PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_13|UCPD1_CC2_Pin|GPIO_PIN_4
-                          |GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pins : PB0 PB1 PB2 PB13
+                           UCPD1_CC2_Pin PB4 PB6 PB8
+                           PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_13
+                          |UCPD1_CC2_Pin|GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_8
+                          |GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PG0 PG1 PG5 PG6
-                           PG7 PG8 PG13 PG14
-                           PG15 */
+                           PG7 PG8 PG13 PG15 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_13|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
@@ -834,9 +968,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED_RED_Pin CT_FET_Pin GNSS_FET_Pin GNSS_EXTINT_Pin
-                           IMU_INT_Pin IMU_nRESET_Pin */
+                           IMU_INT_Pin IMU_nRESET_Pin TEMP_PWR_Pin */
   GPIO_InitStruct.Pin = LED_RED_Pin|CT_FET_Pin|GNSS_FET_Pin|GNSS_EXTINT_Pin
-                          |IMU_INT_Pin|IMU_nRESET_Pin;
+                          |IMU_INT_Pin|IMU_nRESET_Pin|TEMP_PWR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -865,10 +999,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IMU_FET_Pin IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin
-                           IRIDIUM_OnOff_Pin */
-  GPIO_InitStruct.Pin = IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin
-                          |IRIDIUM_OnOff_Pin;
+  /*Configure GPIO pins : IMU_FET_Pin IRIDIUM_FET_Pin RF_SWITCH_VCTL_Pin RF_SWITCH_EN_Pin */
+  GPIO_InitStruct.Pin = IMU_FET_Pin|IRIDIUM_FET_Pin|RF_SWITCH_VCTL_Pin|RF_SWITCH_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -880,6 +1012,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : IRIDIUM_OnOff_Pin */
+  GPIO_InitStruct.Pin = IRIDIUM_OnOff_Pin;
+#ifdef ROCK_BLOCK_V3D
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+#else
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+#endif
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(IRIDIUM_OnOff_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : UCPD_DBn_Pin LED_BLUE_Pin */
   GPIO_InitStruct.Pin = UCPD_DBn_Pin|LED_BLUE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -887,11 +1030,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+/* USER CODE BEGIN MX_GPIO_Init_2 */
+  HAL_GPIO_WritePin(IRIDIUM_OnOff_GPIO_Port, IRIDIUM_OnOff_Pin, GPIO_PIN_RESET);
+/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
 
 /**
   * @brief  This function is executed in case of error occurrence.

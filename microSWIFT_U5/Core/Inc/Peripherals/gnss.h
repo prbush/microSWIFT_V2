@@ -41,11 +41,15 @@ typedef enum gnss_error_code{
 	GNSS_RTC_ERROR = -12,
 	GNSS_TIMER_ERROR = -13,
 	GNSS_TIME_RESOLUTION_ERROR = -14,
-	GNSS_FIRST_SAMPLE_RESOLUTION_ERROR = -15
+	GNSS_FIRST_SAMPLE_RESOLUTION_ERROR = -15,
+	GNSS_NAK_MESSAGE_RECEIVED = -16,
+	GNSS_HIGH_PERFORMANCE_ENABLE_ERROR = -17,
+	GNSS_DONE_SAMPLING = -18
 } gnss_error_code_t;
 
 // Macros
 #define CONFIG_BUFFER_SIZE 600
+#define CONFIGURATION_ARRAY_SIZE 164
 #define MAX_POSSIBLE_VELOCITY 10000	// 10000 mm/s = 10 m/s
 #define UBX_NAV_PVT_MESSAGE_CLASS 0x01
 #define UBX_NAV_PVT_MESSAGE_ID 0x07
@@ -55,12 +59,15 @@ typedef enum gnss_error_code{
 #define UBX_MESSAGE_SIZE (92 + U_UBX_PROTOCOL_OVERHEAD_LENGTH_BYTES)
 #define UBX_BUFFER_SIZE (10 * UBX_MESSAGE_SIZE)
 #define INITIAL_STAGES_BUFFER_SIZE 500
+#define FRAME_SYNC_RX_SIZE 200
 #define UBX_NAV_PVT_PAYLOAD_LENGTH 92
 #define UBX_ACK_MESSAGE_LENGTH 10
 #define MAX_ACCEPTABLE_SACC 250 // need to confirm with Jim what this should be
 #define MAX_ACCEPTABLE_PDOP 1000 // (units = 0.01) greater than 10 means fair fix accuracy
 #define MAX_EMPTY_QUEUE_WAIT 50 // wait for max 50ms
 #define MAX_EMPTY_CYCLES 5*60*10 // no data for 10 mins
+#define MAX_FRAME_SYNC_ATTEMPTS 3
+#define MAX_CONFIG_STEP_ATTEMPTS 3
 #define GNSS_DEFAULT_BAUD_RATE 9600
 #define MAX_THREADX_WAIT_TICKS_FOR_CONFIG (TX_TIMER_TICKS_PER_SECOND + (TX_TIMER_TICKS_PER_SECOND / 4))
 #define ONE_SECOND 1000
@@ -71,7 +78,7 @@ typedef enum gnss_error_code{
 #define LAT_LON_CONVERSION_FACTOR 10000000 // format as 1E-7
 #define GNSS_TIMER_INSTANCE TIM16
 // UBX message definitions
-#define FULLY_RESOLVED_AND_VALID_TIME 0x7
+#define RESOLVED_TIME_BITS ((1 << 0) | (1 << 2)) // Only resolve to the time of day
 #define UBX_NAV_PVT_YEAR_INDEX 4
 #define UBX_NAV_PVT_MONTH_INDEX 6
 #define UBX_NAV_PVT_DAY_INDEX 7
@@ -93,6 +100,9 @@ typedef enum gnss_error_code{
 #define UBX_NAV_PVT_PDOP_INDEX 76
 #define UBX_ACK_ACK_CLSID_INDEX 0
 #define UBX_ACK_ACK_MSGID_INDEX 1
+#define HIGH_PERFORMANCE_QUERY_SIZE 28
+#define HIGH_PERFORMANCE_RESPONSE_SIZE 36
+#define ENABLE_HIGH_PERFORMANCE_SIZE 60
 
 // GNSS struct definition -- packed for good organization, not memory efficiency
 typedef struct GNSS {
@@ -100,7 +110,8 @@ typedef struct GNSS {
 	microSWIFT_configuration* global_config;
 	// The UART and DMA handle for the GNSS interface
 	UART_HandleTypeDef* gnss_uart_handle;
-	DMA_HandleTypeDef* gnss_dma_handle;
+	DMA_HandleTypeDef* gnss_rx_dma_handle;
+	DMA_HandleTypeDef* gnss_tx_dma_handle;
 	// Handle to the RTC
 	RTC_HandleTypeDef* rtc_handle;
 	// Event flags
@@ -110,12 +121,14 @@ typedef struct GNSS {
 	TIM_HandleTypeDef* minutes_timer;
 	// UBX message process buffer filled from DMA ISR
 	uint8_t* ubx_process_buf;
+	// Configuration response buffer
+	uint8_t* config_response_buf;
 	// Velocity sample array pointers
 	float* GNSS_N_Array;
 	float* GNSS_E_Array;
 	float* GNSS_D_Array;
 	// Number of messages processed in a given buffer
-	int32_t messages_processed;
+	uint32_t messages_processed;
 	// Keep a running track of sum -- to be used in getRunningAverage
 	// NOTE: These values are in units of mm/s and must be converted
 	int32_t v_north_sum;
@@ -145,40 +158,30 @@ typedef struct GNSS {
 	bool all_samples_processed;
 	bool timer_timeout;
 	// Function pointers
-	gnss_error_code_t (*config)(struct GNSS* self);
-	gnss_error_code_t (*sync_and_start_reception)(struct GNSS* self,
+	gnss_error_code_t (*config)(void);
+	gnss_error_code_t (*sync_and_start_reception)(
 				gnss_error_code_t (*start_dma)(struct GNSS*, uint8_t*, size_t),
 				uint8_t* buffer, size_t msg_size);
-	gnss_error_code_t (*get_location)(struct GNSS* self, float* latitude,
-			float* longitude);
-	gnss_error_code_t (*get_running_average_velocities)(struct GNSS* self);
-	void		 	  (*process_message)(struct GNSS* self);
-	gnss_error_code_t (*sleep)(struct GNSS* self, bool put_to_sleep);
-	void			  (*on_off)(struct GNSS* self, GPIO_PinState pin_state);
-	void			  (*cycle_power)(struct GNSS* self);
-	gnss_error_code_t (*set_rtc)(struct GNSS* self, uint8_t* msg_payload);
-	gnss_error_code_t (*reset_uart)(struct GNSS* self, uint16_t baud_rate);
-	gnss_error_code_t (*reset_timer)(struct GNSS* self, uint8_t timeout_in_minutes);
+	gnss_error_code_t (*get_location)(float* latitude, float* longitude);
+	gnss_error_code_t (*get_running_average_velocities)(void);
+	void		 	  (*process_message)(void);
+	gnss_error_code_t (*sleep)(bool put_to_sleep);
+	void			  (*on_off)(GPIO_PinState pin_state);
+	void			  (*cycle_power)(void);
+	gnss_error_code_t (*set_rtc)(uint8_t* msg_payload);
+	gnss_error_code_t (*reset_uart)(uint16_t baud_rate);
+	gnss_error_code_t (*reset_timer)(uint16_t timeout_in_minutes);
 } GNSS;
 
 /* Function declarations */
-void gnss_init(GNSS* self, microSWIFT_configuration* global_config,
-		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_dma_handle,
-		TX_EVENT_FLAGS_GROUP* control_flags, TX_EVENT_FLAGS_GROUP* error_flags,
-		TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf, RTC_HandleTypeDef* rtc_handle,
-		float* GNSS_N_Array, float* GNSS_E_Array, float* GNSS_D_Array);
-gnss_error_code_t gnss_config(GNSS* self);
-gnss_error_code_t gnss_sync_and_start_reception(GNSS* self, gnss_error_code_t (*start_dma)(GNSS*, uint8_t*, size_t),
-		uint8_t* buffer, size_t msg_size);
-gnss_error_code_t gnss_get_location(GNSS* self, float* latitude, float* longitude);
-gnss_error_code_t gnss_get_running_average_velocities(GNSS* self);
-void 			  gnss_process_message(GNSS* self);
-gnss_error_code_t gnss_sleep(GNSS* self, bool put_to_sleep);
-void			  gnss_on_off(GNSS* self, GPIO_PinState pin_state);
-void			  gnss_cycle_power(GNSS* self);
-gnss_error_code_t gnss_set_rtc(GNSS* self, uint8_t* msg_payload);
-gnss_error_code_t gnss_reset_uart(GNSS* self, uint16_t baud_rate);
-gnss_error_code_t gnss_reset_timer(GNSS* self, uint8_t timeout_in_minutes);
+void gnss_init(GNSS* struct_ptr, microSWIFT_configuration* global_config,
+		UART_HandleTypeDef* gnss_uart_handle, DMA_HandleTypeDef* gnss_rx_dma_handle,
+		DMA_HandleTypeDef* gnss_tx_dma_handle, TX_EVENT_FLAGS_GROUP* control_flags,
+		TX_EVENT_FLAGS_GROUP* error_flags, TIM_HandleTypeDef* timer, uint8_t* ubx_process_buf,
+		uint8_t* config_response_buffer, RTC_HandleTypeDef* rtc_handle, float* GNSS_N_Array,
+		float* GNSS_E_Array, float* GNSS_D_Array);
+// watchdog refresh function
+extern void 	  register_watchdog_refresh();
 
 
 

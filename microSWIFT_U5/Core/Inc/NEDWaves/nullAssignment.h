@@ -5,15 +5,15 @@
  * File: nullAssignment.h
  *
  * MATLAB Coder version            : 5.4
- * C/C++ source code generated on  : 06-Jan-2023 10:46:55
+ * C/C++ source code generated on  : 16-Oct-2023 17:01:43
  */
 
 #ifndef NULLASSIGNMENT_H
 #define NULLASSIGNMENT_H
 
 /* Include Files */
-#include "NEDwaves_memlight_types.h"
-#include "rtwtypes.h"
+#include "NEDWaves/NEDwaves_memlight_types.h"
+#include "NEDWaves/rtwtypes.h"
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -22,9 +22,11 @@ extern "C" {
 #endif
 
 /* Function Declarations */
-void b_nullAssignment(emxArray_creal32_T *x, const emxArray_boolean_T *idx);
+void b_nullAssignment(emxArray_creal32_T *x, const emxArray_int32_T *idx);
 
-void nullAssignment(emxArray_creal32_T *x, const emxArray_int32_T *idx);
+void c_nullAssignment(emxArray_creal32_T *x);
+
+void nullAssignment(emxArray_real_T *x, const emxArray_boolean_T *idx);
 
 #ifdef __cplusplus
 }

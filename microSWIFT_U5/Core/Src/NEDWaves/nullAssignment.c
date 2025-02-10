@@ -5,7 +5,7 @@
  * File: nullAssignment.c
  *
  * MATLAB Coder version            : 5.4
- * C/C++ source code generated on  : 06-Jan-2023 10:46:55
+ * C/C++ source code generated on  : 16-Oct-2023 17:01:43
  */
 
 /* Include Files */
@@ -17,49 +17,10 @@
 /* Function Definitions */
 /*
  * Arguments    : emxArray_creal32_T *x
- *                const emxArray_boolean_T *idx
- * Return Type  : void
- */
-void b_nullAssignment(emxArray_creal32_T *x, const emxArray_boolean_T *idx)
-{
-  creal32_T *x_data;
-  int i;
-  int k;
-  int k0;
-  int nxin;
-  int nxout;
-  const bool *idx_data;
-  idx_data = idx->data;
-  x_data = x->data;
-  nxin = x->size[1];
-  k0 = 0;
-  i = idx->size[1];
-  for (k = 0; k < i; k++) {
-    k0 += idx_data[k];
-  }
-  nxout = x->size[1] - k0;
-  k0 = -1;
-  for (k = 0; k < nxin; k++) {
-    if ((k + 1 > idx->size[1]) || (!idx_data[k])) {
-      k0++;
-      x_data[k0] = x_data[k];
-    }
-  }
-  i = x->size[0] * x->size[1];
-  if (nxout < 1) {
-    x->size[1] = 0;
-  } else {
-    x->size[1] = nxout;
-  }
-  emxEnsureCapacity_creal32_T(x, i);
-}
-
-/*
- * Arguments    : emxArray_creal32_T *x
  *                const emxArray_int32_T *idx
  * Return Type  : void
  */
-void nullAssignment(emxArray_creal32_T *x, const emxArray_int32_T *idx)
+void b_nullAssignment(emxArray_creal32_T *x, const emxArray_int32_T *idx)
 {
   emxArray_boolean_T *b;
   creal32_T *x_data;
@@ -108,6 +69,70 @@ void nullAssignment(emxArray_creal32_T *x, const emxArray_int32_T *idx)
     x->size[1] = nxout;
   }
   emxEnsureCapacity_creal32_T(x, i);
+}
+
+/*
+ * Arguments    : emxArray_creal32_T *x
+ * Return Type  : void
+ */
+void c_nullAssignment(emxArray_creal32_T *x)
+{
+  creal32_T *x_data;
+  int k;
+  int nxin;
+  int nxout;
+  x_data = x->data;
+  nxin = x->size[1];
+  nxout = x->size[1] - 1;
+  for (k = 0; k < nxout; k++) {
+    x_data[k] = x_data[k + 1];
+  }
+  k = x->size[0] * x->size[1];
+  if (nxout < 1) {
+    x->size[1] = 0;
+  } else {
+    x->size[1] = nxin - 1;
+  }
+  emxEnsureCapacity_creal32_T(x, k);
+}
+
+/*
+ * Arguments    : emxArray_real_T *x
+ *                const emxArray_boolean_T *idx
+ * Return Type  : void
+ */
+void nullAssignment(emxArray_real_T *x, const emxArray_boolean_T *idx)
+{
+  double *x_data;
+  int i;
+  int k;
+  int k0;
+  int nxin;
+  int nxout;
+  const bool *idx_data;
+  idx_data = idx->data;
+  x_data = x->data;
+  nxin = x->size[1];
+  k0 = 0;
+  i = idx->size[1];
+  for (k = 0; k < i; k++) {
+    k0 += idx_data[k];
+  }
+  nxout = x->size[1] - k0;
+  k0 = -1;
+  for (k = 0; k < nxin; k++) {
+    if ((k + 1 > idx->size[1]) || (!idx_data[k])) {
+      k0++;
+      x_data[k0] = x_data[k];
+    }
+  }
+  i = x->size[0] * x->size[1];
+  if (nxout < 1) {
+    x->size[1] = 0;
+  } else {
+    x->size[1] = nxout;
+  }
+  emxEnsureCapacity_real_T(x, i);
 }
 
 /*

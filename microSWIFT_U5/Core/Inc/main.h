@@ -31,11 +31,11 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#define DBUG
-#undef DBUG
+//#define DBUG
+
 // For testing purposed, use the Nucleo onboard LEDs
-#define NUCLEO_LIGHT_SHOW
-#undef NUCLEO_LIGHT_SHOW
+//#define NUCLEO_LIGHT_SHOW
+
 #include "configuration.h"
 /* USER CODE END Includes */
 
@@ -47,12 +47,16 @@ typedef struct {
 	UART_HandleTypeDef* Iridium_uart;
 	UART_HandleTypeDef* GNSS_uart;
 	DMA_HandleTypeDef* CT_dma_handle;
-	DMA_HandleTypeDef* GNSS_dma_handle;
+	DMA_HandleTypeDef* GNSS_rx_dma_handle;
+	DMA_HandleTypeDef* GNSS_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_tx_dma_handle;
 	DMA_HandleTypeDef* Iridium_rx_dma_handle;
 	TIM_HandleTypeDef* iridium_timer;
 	TIM_HandleTypeDef* gnss_timer;
 	IWDG_HandleTypeDef* watchdog_handle;
+	TIM_HandleTypeDef* watchdog_hour_timer;
+	ADC_HandleTypeDef* battery_adc;
+	I2C_HandleTypeDef* temp_i2c_handle;
 	uint32_t reset_reason;
 } device_handles_t;
 /* USER CODE END ET */
@@ -75,6 +79,7 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define ADC_MICROVOLTS_PER_BIT 3292
 #define USER_BUTTON_Pin GPIO_PIN_13
 #define USER_BUTTON_GPIO_Port GPIOC
 #define EXT_LED_RED_Pin GPIO_PIN_0
@@ -137,10 +142,13 @@ void Error_Handler(void);
 #define IMU_INT_GPIO_Port GPIOG
 #define IMU_nRESET_Pin GPIO_PIN_12
 #define IMU_nRESET_GPIO_Port GPIOG
+#define TEMP_PWR_Pin GPIO_PIN_14
+#define TEMP_PWR_GPIO_Port GPIOG
 #define UCPD_DBn_Pin GPIO_PIN_5
 #define UCPD_DBn_GPIO_Port GPIOB
 #define LED_BLUE_Pin GPIO_PIN_7
 #define LED_BLUE_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 /* Size of Reception buffer */
 #define RX_BUFFER_SIZE   512

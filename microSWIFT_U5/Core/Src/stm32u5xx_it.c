@@ -56,13 +56,18 @@ extern void shut_it_all_down(void);
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern ADC_HandleTypeDef hadc4;
 extern IWDG_HandleTypeDef hiwdg;
+extern DMA_HandleTypeDef handle_GPDMA1_Channel4;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel1;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel3;
 extern DMA_HandleTypeDef handle_GPDMA1_Channel2;
 extern UART_HandleTypeDef hlpuart1;
-extern RTC_HandleTypeDef hrtc;
+extern UART_HandleTypeDef huart4;
+extern UART_HandleTypeDef huart5;
+extern TIM_HandleTypeDef htim15;
+extern TIM_HandleTypeDef htim16;
 extern TIM_HandleTypeDef htim17;
 extern TIM_HandleTypeDef htim4;
 
@@ -79,12 +84,13 @@ extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-  shut_it_all_down();
-  HAL_NVIC_SystemReset();
+
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
   while (1)
   {
+	  shut_it_all_down();
+	  HAL_NVIC_SystemReset();
   }
   /* USER CODE END NonMaskableInt_IRQn 1 */
 }
@@ -178,17 +184,17 @@ void DebugMon_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles RTC non-secure interrupt.
+  * @brief This function handles IWDG global interrupt.
   */
-void RTC_IRQHandler(void)
+void IWDG_IRQHandler(void)
 {
-  /* USER CODE BEGIN RTC_IRQn 0 */
+  /* USER CODE BEGIN IWDG_IRQn 0 */
 
-  /* USER CODE END RTC_IRQn 0 */
-  HAL_RTC_AlarmIRQHandler(&hrtc);
-  /* USER CODE BEGIN RTC_IRQn 1 */
+  /* USER CODE END IWDG_IRQn 0 */
+  HAL_IWDG_IRQHandler(&hiwdg);
+  /* USER CODE BEGIN IWDG_IRQn 1 */
 
-  /* USER CODE END RTC_IRQn 1 */
+  /* USER CODE END IWDG_IRQn 1 */
 }
 
 /**
@@ -211,11 +217,11 @@ void GPDMA1_Channel0_IRQHandler(void)
 void GPDMA1_Channel1_IRQHandler(void)
 {
   /* USER CODE BEGIN GPDMA1_Channel1_IRQn 0 */
-
+  _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel1_IRQn 0 */
   HAL_DMA_IRQHandler(&handle_GPDMA1_Channel1);
   /* USER CODE BEGIN GPDMA1_Channel1_IRQn 1 */
-
+  _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel1_IRQn 1 */
 }
 
@@ -225,11 +231,11 @@ void GPDMA1_Channel1_IRQHandler(void)
 void GPDMA1_Channel2_IRQHandler(void)
 {
   /* USER CODE BEGIN GPDMA1_Channel2_IRQn 0 */
-
+  _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel2_IRQn 0 */
   HAL_DMA_IRQHandler(&handle_GPDMA1_Channel2);
   /* USER CODE BEGIN GPDMA1_Channel2_IRQn 1 */
-
+  _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel2_IRQn 1 */
 }
 
@@ -239,12 +245,26 @@ void GPDMA1_Channel2_IRQHandler(void)
 void GPDMA1_Channel3_IRQHandler(void)
 {
   /* USER CODE BEGIN GPDMA1_Channel3_IRQn 0 */
-
+  _tx_thread_context_save();
   /* USER CODE END GPDMA1_Channel3_IRQn 0 */
   HAL_DMA_IRQHandler(&handle_GPDMA1_Channel3);
   /* USER CODE BEGIN GPDMA1_Channel3_IRQn 1 */
-
+  _tx_thread_context_restore();
   /* USER CODE END GPDMA1_Channel3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles GPDMA1 Channel 4 global interrupt.
+  */
+void GPDMA1_Channel4_IRQHandler(void)
+{
+  /* USER CODE BEGIN GPDMA1_Channel4_IRQn 0 */
+  _tx_thread_context_save();
+  /* USER CODE END GPDMA1_Channel4_IRQn 0 */
+  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel4);
+  /* USER CODE BEGIN GPDMA1_Channel4_IRQn 1 */
+  _tx_thread_context_restore();
+  /* USER CODE END GPDMA1_Channel4_IRQn 1 */
 }
 
 /**
@@ -262,17 +282,73 @@ void TIM4_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles UART4 global interrupt.
+  */
+void UART4_IRQHandler(void)
+{
+  /* USER CODE BEGIN UART4_IRQn 0 */
+  _tx_thread_context_save();
+  /* USER CODE END UART4_IRQn 0 */
+  HAL_UART_IRQHandler(&huart4);
+  /* USER CODE BEGIN UART4_IRQn 1 */
+  _tx_thread_context_restore();
+  /* USER CODE END UART4_IRQn 1 */
+}
+
+/**
+  * @brief This function handles UART5 global interrupt.
+  */
+void UART5_IRQHandler(void)
+{
+  /* USER CODE BEGIN UART5_IRQn 0 */
+  _tx_thread_context_save();
+  /* USER CODE END UART5_IRQn 0 */
+  HAL_UART_IRQHandler(&huart5);
+  /* USER CODE BEGIN UART5_IRQn 1 */
+  _tx_thread_context_restore();
+  /* USER CODE END UART5_IRQn 1 */
+}
+
+/**
   * @brief This function handles LPUART1 global interrupt.
   */
 void LPUART1_IRQHandler(void)
 {
   /* USER CODE BEGIN LPUART1_IRQn 0 */
-
+  _tx_thread_context_save();
   /* USER CODE END LPUART1_IRQn 0 */
   HAL_UART_IRQHandler(&hlpuart1);
   /* USER CODE BEGIN LPUART1_IRQn 1 */
-
+  _tx_thread_context_restore();
   /* USER CODE END LPUART1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM15 global interrupt.
+  */
+void TIM15_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM15_IRQn 0 */
+
+  /* USER CODE END TIM15_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim15);
+  /* USER CODE BEGIN TIM15_IRQn 1 */
+
+  /* USER CODE END TIM15_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM16 global interrupt.
+  */
+void TIM16_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM16_IRQn 0 */
+  _tx_thread_context_save();
+  /* USER CODE END TIM16_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim16);
+  /* USER CODE BEGIN TIM16_IRQn 1 */
+  _tx_thread_context_restore();
+  /* USER CODE END TIM16_IRQn 1 */
 }
 
 /**
@@ -281,26 +357,26 @@ void LPUART1_IRQHandler(void)
 void TIM17_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM17_IRQn 0 */
-
+  _tx_thread_context_save();
   /* USER CODE END TIM17_IRQn 0 */
   HAL_TIM_IRQHandler(&htim17);
   /* USER CODE BEGIN TIM17_IRQn 1 */
-
+  _tx_thread_context_restore();
   /* USER CODE END TIM17_IRQn 1 */
 }
 
 /**
-  * @brief This function handles PWR wake up from Stop3 interrupt.
+  * @brief This function handles ADC4 (12bits) global interrupt.
   */
-void PWR_S3WU_IRQHandler(void)
+void ADC4_IRQHandler(void)
 {
-  /* USER CODE BEGIN PWR_S3WU_IRQn 0 */
-
-  /* USER CODE END PWR_S3WU_IRQn 0 */
-  HAL_PWREx_S3WU_IRQHandler(PWR_WAKEUP_PIN7);
-  /* USER CODE BEGIN PWR_S3WU_IRQn 1 */
-
-  /* USER CODE END PWR_S3WU_IRQn 1 */
+  /* USER CODE BEGIN ADC4_IRQn 0 */
+  _tx_thread_context_save();
+  /* USER CODE END ADC4_IRQn 0 */
+  HAL_ADC_IRQHandler(&hadc4);
+  /* USER CODE BEGIN ADC4_IRQn 1 */
+  _tx_thread_context_restore();
+  /* USER CODE END ADC4_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
