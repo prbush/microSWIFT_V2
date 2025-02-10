@@ -1,4 +1,4 @@
-# microSWIFT_V2
+# microSWIFT_V2.1
 
 This is the repository for microSWIFT_V2.1.
 
